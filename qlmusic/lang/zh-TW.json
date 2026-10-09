@@ -2,6 +2,26 @@
   "app_title": "qlmusic",
   "theme_dark": "深色主題",
   "theme_light": "淺色主題",
+  "nav": {
+    "search": "搜尋",
+    "recommend": "推薦",
+    "rank": "排行榜",
+    "mymusic": "我的音樂",
+    "created": "建立的歌單",
+    "collected": "收藏的歌單"
+  },
+  "content": {
+    "playall": "播放全部"
+  },
+  "player": {
+    "prev": "上一首",
+    "play": "播放",
+    "pause": "暫停",
+    "next": "下一首"
+  },
+  "queue": {
+    "title": "播放佇列"
+  },
   "style": {
     "fusion": "Fusion",
     "macos": "macOS",

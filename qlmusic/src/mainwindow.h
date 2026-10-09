@@ -3,6 +3,7 @@
 
 #include "compat34.h"
 #include "appearance.h"
+#include "musicmodel.h"
 
 #include <qmainwindow.h>
 #include <qwidget.h>
@@ -13,6 +14,11 @@
 class FramelessHelper;
 class CustomTitleBar;
 class SystemTrayIcon;
+class SideNav;
+class ContentView;
+class QueuePanel;
+class PlayerBar;
+class QSplitter;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -42,6 +48,7 @@ private slots:
     void onDemoToggleStatusWidgets();
     void onDemoApiRequest();
     void onAboutApp();
+    void onTrackActivated(int playlistId, int trackIndex);
 
 private:
     struct MenuItemRef {
@@ -87,7 +94,12 @@ private:
     FramelessHelper* framelessHelper;
     CustomTitleBar* titleBar;
     SystemTrayIcon* tray;
-    QLabel* centerLabel;
+    SideNav* sideNav;
+    ContentView* contentView;
+    QueuePanel* queuePanel;
+    PlayerBar* playerBar;
+    QSplitter* bodySplitter;
+    std::vector<Playlist> m_library;
 
     // 演示用状态栏控件（演示菜单可反复增删）
     QLabel* demoLeftLabel;

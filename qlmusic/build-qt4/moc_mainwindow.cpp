@@ -22,7 +22,7 @@ static const uint qt_meta_data_MainWindow[] = {
        6,       // revision
        0,       // classname
        0,    0, // classinfo
-      17,   14, // methods
+      18,   14, // methods
        0,    0, // properties
        0,    0, // enums/sets
        0,    0, // constructors
@@ -47,6 +47,7 @@ static const uint qt_meta_data_MainWindow[] = {
      280,   11,   11,   11, 0x08,
      308,   11,   11,   11, 0x08,
      327,   11,   11,   11, 0x08,
+     362,  340,   11,   11, 0x08,
 
        0        // eod
 };
@@ -62,6 +63,7 @@ static const char qt_meta_stringdata_MainWindow[] = {
     "onDemoStatusClear()\0onDemoTrayBubble()\0"
     "onDemoToggleStatusWidgets()\0"
     "onDemoApiRequest()\0onAboutApp()\0"
+    "playlistId,trackIndex\0onTrackActivated(int,int)\0"
 };
 
 void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)
@@ -87,6 +89,7 @@ void MainWindow::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, 
         case 14: _t->onDemoToggleStatusWidgets(); break;
         case 15: _t->onDemoApiRequest(); break;
         case 16: _t->onAboutApp(); break;
+        case 17: _t->onTrackActivated((*reinterpret_cast< int(*)>(_a[1])),(*reinterpret_cast< int(*)>(_a[2]))); break;
         default: ;
         }
     }
@@ -124,9 +127,9 @@ int MainWindow::qt_metacall(QMetaObject::Call _c, int _id, void **_a)
     if (_id < 0)
         return _id;
     if (_c == QMetaObject::InvokeMetaMethod) {
-        if (_id < 17)
+        if (_id < 18)
             qt_static_metacall(this, _c, _id, _a);
-        _id -= 17;
+        _id -= 18;
     }
     return _id;
 }

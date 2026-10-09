@@ -16,12 +16,17 @@
 #include "storage.h"
 #include "api.h"
 #include "eventpoller.h"
+#include "sidenav.h"
+#include "contentview.h"
+#include "queuepanel.h"
+#include "playerbar.h"
 
 #include <qpixmap.h>
 #include <qevent.h>
 #include <qtimer.h>
 #include <qmessagebox.h>
 #include <qlineedit.h>
+#include <qsplitter.h>
 
 #include "app_icon.xpm"
 
@@ -87,7 +92,11 @@ MainWindow::MainWindow(QWidget* parent)
     , framelessHelper(0)
     , titleBar(0)
     , tray(0)
-    , centerLabel(0)
+    , sideNav(0)
+    , contentView(0)
+    , queuePanel(0)
+    , playerBar(0)
+    , bodySplitter(0)
     , demoLeftLabel(0)
     , demoLeftBtn(0)
     , demoRightLabel(0)
@@ -199,11 +208,38 @@ void MainWindow::buildCentralWidget()
     titleBar = new CustomTitleBar(central);
     titleBar->setLabel(_("app_title"));
     lay->addWidget(titleBar, 0);
-    centerLabel = new QLabel(central);
-    centerLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
-    centerLabel->setText(qFromUtf8("qlmusic — 基础应用框架"));
-    lay->addWidget(centerLabel, 1);
+
+    bodySplitter = new QSplitter(Qt::Horizontal, central);
+    bodySplitter->setOpaqueResize(true);
+    sideNav = new SideNav(bodySplitter);
+    contentView = new ContentView(bodySplitter);
+    queuePanel = new QueuePanel(bodySplitter);
+    bodySplitter->addWidget(sideNav);
+    bodySplitter->addWidget(contentView);
+    bodySplitter->addWidget(queuePanel);
+#ifdef QT3_BUILD
+    QValueList<int> sizes;
+    sizes << 200 << 440 << 240;
+#else
+    QList<int> sizes;
+    sizes << 200 << 440 << 240;
+#endif
+    bodySplitter->setSizes(sizes);
+    lay->addWidget(bodySplitter, 1);
+
+    playerBar = new PlayerBar(central);
+    lay->addWidget(playerBar, 0);
     setCentralWidget(central);
+
+    m_library = buildTestLibrary();
+    sideNav->setLibrary(m_library);
+    contentView->setLibrary(m_library);
+
+    QObject::connect(sideNav, SIGNAL(playlistSelected(int)),
+                     contentView, SLOT(showPlaylist(int)));
+    QObject::connect(contentView, SIGNAL(trackActivated(int, int)),
+                     this, SLOT(onTrackActivated(int, int)));
+
     framelessHelper = new FramelessHelper(this);
     framelessHelper->setup(this);
     titleBar->connectFramelessHelper(framelessHelper);
@@ -551,9 +587,27 @@ void MainWindow::retranslateUi()
     qSetWindowTitle(this, title);
     if (titleBar) titleBar->setLabel(title);
     if (tray) tray->setToolTip(title);
+    if (sideNav) sideNav->retranslateUi();
+    if (contentView) contentView->retranslateUi();
+    if (queuePanel) queuePanel->retranslateUi();
+    if (playerBar) playerBar->retranslateUi();
     updateAppearanceTooltips();
     refreshAppearanceMenuTexts();
     updateAppearanceMenuChecks();
+}
+
+void MainWindow::onTrackActivated(int playlistId, int trackIndex)
+{
+    const Playlist* pl = findPlaylist(m_library, playlistId);
+    if (!pl) return;
+    if (trackIndex < 0 || trackIndex >= (int)pl->tracks.size()) return;
+
+    const Track& t = pl->tracks[trackIndex];
+    playerBar->setTrack(t);
+    playerBar->setPlaying(true);
+    queuePanel->setCurrentTrack(t);
+    queuePanel->setQueue(pl->tracks, trackIndex);
+    sideNav->setCurrentPlaylist(playlistId);
 }
 
 void MainWindow::onMenu1Stub() {}

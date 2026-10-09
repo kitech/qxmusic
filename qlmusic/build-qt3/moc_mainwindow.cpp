@@ -87,6 +87,11 @@ QMetaObject* MainWindow::staticMetaObject()
     static const QUMethod slot_14 = {"onDemoToggleStatusWidgets", 0, 0 };
     static const QUMethod slot_15 = {"onDemoApiRequest", 0, 0 };
     static const QUMethod slot_16 = {"onAboutApp", 0, 0 };
+    static const QUParameter param_slot_17[] = {
+	{ "playlistId", &static_QUType_int, 0, QUParameter::In },
+	{ "trackIndex", &static_QUType_int, 0, QUParameter::In }
+    };
+    static const QUMethod slot_17 = {"onTrackActivated", 2, param_slot_17 };
     static const QMetaData slot_tbl[] = {
 	{ "onTitleUilang(int)", &slot_0, QMetaData::Private },
 	{ "onTitleStyle(int)", &slot_1, QMetaData::Private },
@@ -104,11 +109,12 @@ QMetaObject* MainWindow::staticMetaObject()
 	{ "onDemoTrayBubble()", &slot_13, QMetaData::Private },
 	{ "onDemoToggleStatusWidgets()", &slot_14, QMetaData::Private },
 	{ "onDemoApiRequest()", &slot_15, QMetaData::Private },
-	{ "onAboutApp()", &slot_16, QMetaData::Private }
+	{ "onAboutApp()", &slot_16, QMetaData::Private },
+	{ "onTrackActivated(int,int)", &slot_17, QMetaData::Private }
     };
     metaObj = QMetaObject::new_metaobject(
 	"MainWindow", parentObject,
-	slot_tbl, 17,
+	slot_tbl, 18,
 	0, 0,
 #ifndef QT_NO_PROPERTIES
 	0, 0,
@@ -149,6 +155,7 @@ bool MainWindow::qt_invoke( int _id, QUObject* _o )
     case 14: onDemoToggleStatusWidgets(); break;
     case 15: onDemoApiRequest(); break;
     case 16: onAboutApp(); break;
+    case 17: onTrackActivated((int)static_QUType_int.get(_o+1),(int)static_QUType_int.get(_o+2)); break;
     default:
 	return QMainWindow::qt_invoke( _id, _o );
     }

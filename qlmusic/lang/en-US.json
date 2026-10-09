@@ -2,6 +2,26 @@
   "app_title": "qlmusic",
   "theme_dark": "Dark Theme",
   "theme_light": "Light Theme",
+  "nav": {
+    "search": "Search",
+    "recommend": "Recommended",
+    "rank": "Ranking",
+    "mymusic": "My Music",
+    "created": "Created Playlists",
+    "collected": "Collected Playlists"
+  },
+  "content": {
+    "playall": "Play All"
+  },
+  "player": {
+    "prev": "Previous",
+    "play": "Play",
+    "pause": "Pause",
+    "next": "Next"
+  },
+  "queue": {
+    "title": "Play Queue"
+  },
   "style": {
     "fusion": "Fusion",
     "macos": "macOS",
