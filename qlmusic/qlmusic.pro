@@ -16,12 +16,22 @@ GIT_DIRTY = $$system(git -C $$PWD status --porcelain 2>/dev/null)
 QMAKE_MACOSX_DEPLOYMENT_TARGET = 11.7
 
 SOURCES = src/main.cpp src/mainwindow.cpp src/appearance.cpp src/config.cpp \
-          ../qlcomp/cJSON.c
+          ../qlcomp/cJSON.c \
+          src/api.cpp \
+          src/storage.cpp src/channel_db.cpp src/message_db.cpp \
+          src/pending_db.cpp src/cache_db.cpp src/cache_fs.cpp \
+          src/sticker_db.cpp \
+          ../qldox/eventpoller.cpp
 
-HEADERS = src/mainwindow.h src/appearance.h src/config.h src/globaluiutil.h
+HEADERS = src/mainwindow.h src/appearance.h src/config.h src/globaluiutil.h \
+          src/api.h src/storage.h \
+          src/channel_db.h src/message_db.h src/pending_db.h \
+          src/cache_db.h src/cache_fs.h src/sticker_db.h \
+          ../qldox/eventpoller.h
 
 include(../qlcomp/qlite.pri)
 INCLUDEPATH += ../qlcomp
+INCLUDEPATH += ../qldox
 INCLUDEPATH += src
 INCLUDEPATH += $$PWD
 
@@ -91,6 +101,15 @@ macx {
 }
 
 unix:!macx: LIBS += -lX11
+LIBS += -lcurl
+
+# SQLite 依赖检测（照抄 qltox.pro:155-164）
+SQLITE_CFLAGS = $$system(pkg-config --cflags sqlite3 2>/dev/null)
+SQLITE_LIBS   = $$system(pkg-config --libs sqlite3 2>/dev/null)
+isEmpty(SQLITE_LIBS) { error("sqlite3 not found - install sqlite3 dev package") }
+INCLUDEPATH += $$SQLITE_CFLAGS
+LIBS += $$SQLITE_LIBS
+DEFINES += HAVE_SQLITE
 
 DEFINES += EMOJI_RENDER_QT34
 

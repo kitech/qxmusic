@@ -44,7 +44,8 @@
     "status_clear": "演示：清空状态栏",
     "tray_bubble": "演示：托盘气泡通知",
     "status_widgets": "演示：状态栏左右端控件",
-    "ready": "演示：状态栏左右端控件已重置"
+    "ready": "演示：状态栏左右端控件已重置",
+    "api_request": "演示：API 请求(GET)"
   },
   "tray": {
     "open": "打开主窗口",

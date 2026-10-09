@@ -44,7 +44,8 @@
     "status_clear": "示範：清除狀態列",
     "tray_bubble": "示範：系統匣氣泡通知",
     "status_widgets": "示範：狀態列左右端元件",
-    "ready": "示範：狀態列左右端元件已重設"
+    "ready": "示範：狀態列左右端元件已重設",
+    "api_request": "示範：API 請求(GET)"
   },
   "tray": {
     "open": "開啟主視窗",

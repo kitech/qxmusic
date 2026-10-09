@@ -13,6 +13,9 @@
 #include "config.h"
 #include "globaluiutil.h"
 #include "version.h"
+#include "storage.h"
+#include "api.h"
+#include "eventpoller.h"
 
 #include <qpixmap.h>
 #include <qevent.h>
@@ -98,6 +101,16 @@ MainWindow::MainWindow(QWidget* parent)
     , m_darkMenu(0)
     , forceQuit(false)
 {
+    // 初始化本地存储（对照 qldox mainwindow.cpp:513-521）
+    QString dataDir = qGetHomePath() + "/.cache/qlmusic";
+    Storage::instance().init(
+#ifdef QT3_BUILD
+        dataDir.utf8()
+#else
+        dataDir.toUtf8().constData()
+#endif
+    );
+
     setGeometry(100, 50, 880, 640);
     buildStatusBar();
     buildCentralWidget();
@@ -107,9 +120,17 @@ MainWindow::MainWindow(QWidget* parent)
     buildTray();
     QObject::connect(&Translator::instance(), SIGNAL(languageChanged()),
                      this, SLOT(retranslateUi()));
+
+    // 启动事件轮询引擎（对照 qldox mainwindow.cpp:630-631）
+    EventPoller::start();
+    Api::setEventTarget(this);
 }
 
-MainWindow::~MainWindow() { s_trayIcon = 0; }
+MainWindow::~MainWindow() {
+    s_trayIcon = 0;
+    EventPoller::stop();          // 先停泵线程，再关库（qldox mainwindow.cpp:943-945 顺序）
+    Storage::instance().close();
+}
 
 // 托盘气泡通知：仅显示提示气泡，不触碰 SharedStatusBar（状态栏各管各的）。
 void sticonShowStatusMessage(const QString &msg, SticonIcon iconType, int timeout)
@@ -320,6 +341,8 @@ void MainWindow::buildMenus()
     addMenuItem(tool, this, SLOT(onDemoToggleStatusWidgets()), "demo.status_widgets");
     addMenuSeparator(tool);
     addMenuItem(tool, this, SLOT(onDemoTrayBubble()), "demo.tray_bubble");
+    addMenuSeparator(tool);
+    addMenuItem(tool, this, SLOT(onDemoApiRequest()), "demo.api_request");
     MenuWidget34* help = static_cast<MenuWidget34*>(addTopMenu("menu.help"));
     addMenuItem(help, qApp, SLOT(aboutQt()), "menu.aboutqt");
     addMenuItem(help, this, SLOT(onAboutApp()), "menu.about_qlmusic");
@@ -560,4 +583,28 @@ void MainWindow::onAboutApp()
 {
     QString text = QString("<h3>qlmusic %1</h3><p>qlmusic shell (Qt Widgets)</p><p>Qt: %2</p>").arg(APP_VERSION_FULL).arg(qVersion());
     QMessageBox::about(this, _("menu.about_qlmusic"), text);
+}
+
+void MainWindow::onDemoApiRequest()
+{
+    HttpRequest req("http://localhost:8181/api/self", "GET", "", 10);
+    Api::request(req, ApiGetSelf);
+}
+
+void MainWindow::customEvent(CustomEventBase* event)
+{
+    if (event->type() == ApiResultReadyType) {
+        ApiHttpResultEvent* e = static_cast<ApiHttpResultEvent*>(event);
+        if (e->resp.curlErrStr.empty()) {
+            stbarShowStatusMessage(qFromUtf8("HTTP ") + QString::number(e->resp.httpCode),
+                                   SticonInfo, 3000);
+        } else {
+            stbarShowStatusMessage(
+                qFromUtf8("HTTP ") + QString::number(e->resp.httpCode) + " " +
+                    qFromUtf8(e->resp.curlErrStr),
+                SticonCritical, 8000);
+        }
+        return;   // postEvent 投递的事件由事件循环自动删除，不手动 delete
+    }
+    QMainWindow::customEvent(event);
 }

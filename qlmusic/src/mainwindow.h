@@ -22,6 +22,7 @@ public:
 
 protected:
     virtual void closeEvent(QCloseEvent* event);
+    virtual void customEvent(CustomEventBase* event);
 
 private slots:
     void onTitleUilang(int index);
@@ -39,6 +40,7 @@ private slots:
     void onDemoStatusClear();
     void onDemoTrayBubble();
     void onDemoToggleStatusWidgets();
+    void onDemoApiRequest();
     void onAboutApp();
 
 private:

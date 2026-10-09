@@ -44,7 +44,8 @@
     "status_clear": "Demo: Clear status bar",
     "tray_bubble": "Demo: Tray bubble notification",
     "status_widgets": "Demo: Status bar widgets",
-    "ready": "Demo: Status bar widgets reset"
+    "ready": "Demo: Status bar widgets reset",
+    "api_request": "Demo: API request (GET)"
   },
   "tray": {
     "open": "Open Main Window",
