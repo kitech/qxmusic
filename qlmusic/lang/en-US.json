@@ -1,0 +1,58 @@
+{
+  "app_title": "qlmusic",
+  "theme_dark": "Dark Theme",
+  "theme_light": "Light Theme",
+  "style": {
+    "fusion": "Fusion",
+    "macos": "macOS",
+    "windows": "Windows 11",
+    "material": "Material You",
+    "github": "GitHub"
+  },
+  "tooltips": {
+    "lang": "Language",
+    "style": "Style",
+    "dark": "Dark Mode"
+  },
+  "menu": {
+    "file": "&File",
+    "edit": "&Edit",
+    "tool": "&Tools",
+    "help": "&Help",
+    "aboutqt": "About Qt",
+    "about_qlmusic": "About qlmusic"
+  },
+  "action": {
+    "new": "New",
+    "quit": "Quit",
+    "undo": "Undo",
+    "redo": "Redo",
+    "dark_on": "Enable Dark Mode",
+    "dark_off": "Disable Dark Mode"
+  },
+  "title": {
+    "tip_lang": "Language",
+    "tip_style": "Style",
+    "tip_dark": "Dark Mode",
+    "dark_on": "On",
+    "dark_off": "Off"
+  },
+  "demo": {
+    "status_info": "Demo: Normal status message",
+    "status_warning": "Demo: Warning status message",
+    "status_error": "Demo: Error status message",
+    "status_clear": "Demo: Clear status bar",
+    "tray_bubble": "Demo: Tray bubble notification",
+    "status_widgets": "Demo: Status bar widgets",
+    "ready": "Demo: Status bar widgets reset"
+  },
+  "tray": {
+    "open": "Open Main Window",
+    "quit": "Quit"
+  },
+  "lang": {
+    "zh_CN": "简体中文",
+    "zh_TW": "繁體中文",
+    "en_US": "English"
+  }
+}

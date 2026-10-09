@@ -1,0 +1,563 @@
+#include "mainwindow.h"
+
+#include "CustomTitleBar.h"
+#include "FramelessHelper.h"
+#include "EmbeddedMenuBar.h"
+#include "lambdaslot.h"
+#include "sharedstatusbar.h"
+#include "systemtrayicon.h"
+#include "translator.h"
+#include "ThemeManager.h"
+#include "StyleParams.h"
+#include "appsetup.h"
+#include "config.h"
+#include "globaluiutil.h"
+#include "version.h"
+
+#include <qpixmap.h>
+#include <qevent.h>
+#include <qtimer.h>
+#include <qmessagebox.h>
+#include <qlineedit.h>
+
+#include "app_icon.xpm"
+
+static const char* const kTopMenuKeys[] = {
+    "menu.file", "menu.edit", "menu.tool", "menu.help"
+};
+static const int kTopMenuKeyCount = (int)(sizeof(kTopMenuKeys) / sizeof(kTopMenuKeys[0]));
+
+static const char* const kLangCodes[3] = { "zh-CN", "zh-TW", "en-US" };
+
+// sticonShowStatusMessage 使用的托盘实例（MainWindow 创建/销毁时维护，不导出）
+static SystemTrayIcon* s_trayIcon = 0;
+
+static QPushButton* makeTitleMenuButton(QWidget* parent, const QString& glyph)
+{
+    QPushButton* b = new QPushButton(glyph, parent);
+    b->setFixedSize(30, 30);
+    return b;
+}
+
+static void attachTitleMenu(QPushButton* btn, MenuWidget34* menu)
+{
+#ifdef QT3_BUILD
+    menu->setCheckable(true);
+    btn->setPopup(menu);
+#else
+    btn->setMenu(menu);
+#endif
+}
+
+static void initDemoWidgets() {
+    SharedStatusBar* bar = SharedStatusBar::instance();
+    QLabel* leftLabel = new QLabel(qFromUtf8("Left"), bar);
+    bar->addWidget(leftLabel);
+    QPushButton* leftBtn = new QPushButton(qFromUtf8("LBtn"), bar);
+    leftBtn->setFixedWidth(36);
+    bar->addWidget(leftBtn);
+    QLabel* rightLabel = new QLabel(qFromUtf8("Right"), bar);
+    bar->addPermanentWidget(rightLabel);
+    QPushButton* rightBtn = new QPushButton(qFromUtf8("RBtn"), bar);
+    rightBtn->setFixedWidth(36);
+    bar->addPermanentWidget(rightBtn);
+    QLineEdit* demoEdit = new QLineEdit(bar);
+    demoEdit->setFixedWidth(100);
+#ifndef QT3_BUILD
+    demoEdit->setPlaceholderText(qFromUtf8("input..."));
+#endif
+    bar->addPermanentWidget(demoEdit);
+    SharedStatusBar::instance()->showMessage(qFromUtf8("Demo: 左端 widgets 隐藏中..."), 3000);
+}
+
+MainWindow::MainWindow(QWidget* parent)
+    : QMainWindow(parent
+#ifdef QT3_BUILD
+        , "qlmusic"
+        , Qt::WType_TopLevel | Qt::WStyle_Customize | Qt::WSubWindow
+              | Qt::WStyle_MinMax | Qt::WStyle_SysMenu | Qt::WStyle_NoBorder
+#endif
+#ifndef QT3_BUILD
+        , Qt::FramelessWindowHint
+#endif
+    )
+    , framelessHelper(0)
+    , titleBar(0)
+    , tray(0)
+    , centerLabel(0)
+    , demoLeftLabel(0)
+    , demoLeftBtn(0)
+    , demoRightLabel(0)
+    , demoRightBtn(0)
+    , demoEdit(0)
+    , m_langBtn(0)
+    , m_styleBtn(0)
+    , m_darkBtn(0)
+    , m_langMenu(0)
+    , m_styleMenu(0)
+    , m_darkMenu(0)
+    , forceQuit(false)
+{
+    setGeometry(100, 50, 880, 640);
+    buildStatusBar();
+    buildCentralWidget();
+    buildAppearancePanel();
+    buildMenus();
+    buildAppearanceMenus();
+    buildTray();
+    QObject::connect(&Translator::instance(), SIGNAL(languageChanged()),
+                     this, SLOT(retranslateUi()));
+}
+
+MainWindow::~MainWindow() { s_trayIcon = 0; }
+
+// 托盘气泡通知：仅显示提示气泡，不触碰 SharedStatusBar（状态栏各管各的）。
+void sticonShowStatusMessage(const QString &msg, SticonIcon iconType, int timeout)
+{
+    if (s_trayIcon && s_trayIcon->isVisible() && SystemTrayIcon::supportsMessages())
+        s_trayIcon->showMessage(msg, QString(),
+            (SystemTrayIcon::MessageIcon)iconType, timeout);
+}
+
+void MainWindow::buildStatusBar()
+{
+    SharedStatusBar::instance()->show();
+    addDemoWidgets();
+}
+
+void MainWindow::addDemoWidgets()
+{
+    if (hasDemoWidgets()) { return; }
+    SharedStatusBar* bar = SharedStatusBar::instance();
+
+    demoLeftLabel = new QLabel(qFromUtf8("Left"), bar);
+    bar->addWidget(demoLeftLabel);
+
+    demoLeftBtn = new QPushButton(qFromUtf8("LBtn"), bar);
+    demoLeftBtn->setFixedWidth(36);
+    bar->addWidget(demoLeftBtn);
+
+    demoRightLabel = new QLabel(qFromUtf8("Right"), bar);
+    bar->addPermanentWidget(demoRightLabel);
+
+    demoRightBtn = new QPushButton(qFromUtf8("RBtn"), bar);
+    demoRightBtn->setFixedWidth(36);
+    bar->addPermanentWidget(demoRightBtn);
+
+    demoEdit = new QLineEdit(bar);
+    demoEdit->setFixedWidth(100);
+#ifndef QT3_BUILD
+    demoEdit->setPlaceholderText(qFromUtf8("input..."));
+#endif
+    bar->addPermanentWidget(demoEdit);
+
+    SharedStatusBar::instance()->showMessage(
+        qFromUtf8("Demo: 左端 widgets 隐藏中..."), 3000);
+}
+
+void MainWindow::removeDemoWidgets()
+{
+    SharedStatusBar* bar = SharedStatusBar::instance();
+    if (demoLeftLabel)  { bar->removeWidget(demoLeftLabel);  delete demoLeftLabel;  demoLeftLabel = 0; }
+    if (demoLeftBtn)    { bar->removeWidget(demoLeftBtn);    delete demoLeftBtn;    demoLeftBtn = 0; }
+    if (demoRightLabel) { bar->removeWidget(demoRightLabel); delete demoRightLabel; demoRightLabel = 0; }
+    if (demoRightBtn)   { bar->removeWidget(demoRightBtn);   delete demoRightBtn;   demoRightBtn = 0; }
+    if (demoEdit)       { bar->removeWidget(demoEdit);       delete demoEdit;       demoEdit = 0; }
+}
+
+bool MainWindow::hasDemoWidgets() const
+{
+    return demoLeftLabel != 0;
+}
+
+void MainWindow::buildCentralWidget()
+{
+    QWidget* central = new QWidget(this);
+    QBoxLayout* lay = qNewBoxLayout(central, QBoxLayout::TopToBottom, 0, 0);
+    qSetMargins(lay, -1, 0, -1, -1);
+    titleBar = new CustomTitleBar(central);
+    titleBar->setLabel(_("app_title"));
+    lay->addWidget(titleBar, 0);
+    centerLabel = new QLabel(central);
+    centerLabel->setAlignment(Qt::AlignHCenter | Qt::AlignVCenter);
+    centerLabel->setText(qFromUtf8("qlmusic — 基础应用框架"));
+    lay->addWidget(centerLabel, 1);
+    setCentralWidget(central);
+    framelessHelper = new FramelessHelper(this);
+    framelessHelper->setup(this);
+    titleBar->connectFramelessHelper(framelessHelper);
+    QObject::connect(titleBar, SIGNAL(appMenuClicked()), titleBar, SLOT(toggleMenu()));
+}
+
+void MainWindow::buildAppearancePanel()
+{
+    QWidget* panel = new QWidget(titleBar);
+    QBoxLayout* lay = qNewBoxLayout(panel, QBoxLayout::LeftToRight, 2, 0);
+    m_langBtn = makeAppearanceMenuButton(panel, qFromUtf8("文"));
+    lay->addWidget(m_langBtn, 0);
+    m_styleBtn = makeAppearanceMenuButton(panel, qFromUtf8("饰"));
+    lay->addWidget(m_styleBtn, 0);
+    m_darkBtn = makeAppearanceMenuButton(panel, qFromUtf8("☾"));
+    lay->addWidget(m_darkBtn, 0);
+    titleBar->addTitleWidget(panel, 0);
+}
+
+void MainWindow::addMenuItem(void* menu, const QObject* receiver, const char* slot,
+                             const char* key, bool darkToggle)
+{
+    QString text = _(qFromUtf8(key));
+    MenuItemRef ref;
+    ref.key = key;
+    ref.darkToggle = darkToggle;
+    ref.owner = menu;
+#ifdef QT3_BUILD
+    QPopupMenu* m = static_cast<QPopupMenu*>(menu);
+    ref.id = m->insertItem(text, receiver, slot);
+#else
+    QMenu* m = static_cast<QMenu*>(menu);
+    ref.action = m->addAction(text, receiver, slot);
+#endif
+    menuItemRefs.push_back(ref);
+}
+
+void* MainWindow::addTopMenu(const char* key)
+{
+    EmbeddedMenuBar* mb = titleBar->menuBar();
+    QString title = _(qFromUtf8(key));
+    MenuItemRef ref;
+    ref.key = key;
+    ref.owner = mb;
+    void* sub = 0;
+#ifdef QT3_BUILD
+    QPopupMenu* menu = new QPopupMenu(mb);
+    menu->setFont(mb->font());
+    ref.id = mb->insertItem(title, menu);
+    sub = menu;
+#else
+    QMenu* menu = mb->addMenu(title);
+    sub = menu;
+#endif
+    topMenuRefs.push_back(ref);
+    return sub;
+}
+
+void* MainWindow::addSubMenu(void* parentMenu, const QString& title, const char* key)
+{
+    Q_UNUSED(key);
+    EmbeddedMenuBar* mb = titleBar->menuBar();
+    void* sub = 0;
+#ifdef QT3_BUILD
+    QPopupMenu* pm = static_cast<QPopupMenu*>(parentMenu);
+    QPopupMenu* subMenu = new QPopupMenu(mb);
+    subMenu->setFont(mb->font());
+    pm->insertItem(title, subMenu);
+    sub = subMenu;
+#else
+    QMenu* pm = static_cast<QMenu*>(parentMenu);
+    QMenu* subMenu = pm->addMenu(title);
+    sub = subMenu;
+#endif
+    return sub;
+}
+
+void MainWindow::addMenuSeparator(void* menu)
+{
+#ifdef QT3_BUILD
+    static_cast<QPopupMenu*>(menu)->insertSeparator();
+#else
+    static_cast<QMenu*>(menu)->addSeparator();
+#endif
+}
+
+void MainWindow::setTopMenuText(int index, const QString& text)
+{
+    if (index < 0 || index >= (int)topMenuRefs.size()) { return; }
+#ifdef QT3_BUILD
+    EmbeddedMenuBar* mb = static_cast<EmbeddedMenuBar*>(topMenuRefs[index].owner);
+    mb->changeItem(topMenuRefs[index].id, text);
+#else
+    EmbeddedMenuBar* mb = titleBar->menuBar();
+    QList<QAction*> acts = mb->actions();
+    if (index < acts.size()) acts[index]->setText(text);
+#endif
+}
+
+void MainWindow::refreshMenuTexts()
+{
+    for (size_t i = 0; i < menuItemRefs.size(); i++) {
+        const MenuItemRef& ref = menuItemRefs[i];
+        if (!ref.key) continue;
+        QString text = _(qFromUtf8(ref.key));
+#ifdef QT3_BUILD
+        static_cast<QPopupMenu*>(ref.owner)->changeItem(ref.id, text);
+#else
+        if (ref.action) static_cast<QAction*>(ref.action)->setText(text);
+#endif
+    }
+    for (int i = 0; i < (int)topMenuRefs.size() && i < kTopMenuKeyCount; i++) {
+        setTopMenuText(i, _(qFromUtf8(kTopMenuKeys[i])));
+    }
+}
+
+void MainWindow::buildMenus()
+{
+    EmbeddedMenuBar* mb = titleBar->menuBar();
+    menuItemRefs.clear();
+    topMenuRefs.clear();
+    MenuWidget34* file = static_cast<MenuWidget34*>(addTopMenu("menu.file"));
+    addMenuItem(file, this, SLOT(onMenu1Stub()), "action.new");
+    addMenuSeparator(file);
+    addMenuItem(file, this, SLOT(quitApp()), "action.quit");
+    MenuWidget34* edit = static_cast<MenuWidget34*>(addTopMenu("menu.edit"));
+    addMenuItem(edit, this, SLOT(onMenu1Stub()), "action.undo");
+    addMenuItem(edit, this, SLOT(onMenu1Stub()), "action.redo");
+    MenuWidget34* tool = static_cast<MenuWidget34*>(addTopMenu("menu.tool"));
+    addMenuItem(tool, this, SLOT(onDemoStatusInfo()), "demo.status_info");
+    addMenuItem(tool, this, SLOT(onDemoStatusWarning()), "demo.status_warning");
+    addMenuItem(tool, this, SLOT(onDemoStatusError()), "demo.status_error");
+    addMenuSeparator(tool);
+    addMenuItem(tool, this, SLOT(onDemoStatusClear()), "demo.status_clear");
+    addMenuItem(tool, this, SLOT(onDemoToggleStatusWidgets()), "demo.status_widgets");
+    addMenuSeparator(tool);
+    addMenuItem(tool, this, SLOT(onDemoTrayBubble()), "demo.tray_bubble");
+    MenuWidget34* help = static_cast<MenuWidget34*>(addTopMenu("menu.help"));
+    addMenuItem(help, qApp, SLOT(aboutQt()), "menu.aboutqt");
+    addMenuItem(help, this, SLOT(onAboutApp()), "menu.about_qlmusic");
+    mb->finalize();
+}
+
+void MainWindow::buildAppearanceMenus()
+{
+    m_langMenu = new MenuWidget34(this);
+    static_cast<MenuWidget34*>(m_langMenu)->setMinimumWidth(150);
+    {
+        const char* const* langKeys = appearanceLangLabelKeys();
+        for (int i = 0; i < 3; i++) {
+            LambdaSlot* slot = new LambdaSlot(this, [this, i]() {
+                onTitleUilang(i);
+                updateAppearanceTooltips();
+                updateAppearanceMenuChecks();
+            });
+            addAppearanceMenuItem(&m_appearanceItems, static_cast<MenuWidget34*>(m_langMenu),
+                                  slot, SLOT(call()), langKeys[i], 0, i);
+        }
+    }
+    attachTitleMenu(m_langBtn, static_cast<MenuWidget34*>(m_langMenu));
+
+    m_styleMenu = new MenuWidget34(this);
+    static_cast<MenuWidget34*>(m_styleMenu)->setMinimumWidth(150);
+    {
+        const auto& panelStyles = StyleParams::registeredStyles();
+        for (int i = 0; i < (int)panelStyles.size(); i++) {
+            LambdaSlot* slot = new LambdaSlot(this, [this, i]() {
+                onTitleStyle(i);
+                updateAppearanceTooltips();
+                updateAppearanceMenuChecks();
+            });
+            addAppearanceMenuItem(&m_appearanceItems, static_cast<MenuWidget34*>(m_styleMenu),
+                                  slot, SLOT(call()), panelStyles[i].displayKey, 1, i);
+        }
+    }
+    attachTitleMenu(m_styleBtn, static_cast<MenuWidget34*>(m_styleMenu));
+
+    m_darkMenu = new MenuWidget34(this);
+    static_cast<MenuWidget34*>(m_darkMenu)->setMinimumWidth(150);
+    {
+        LambdaSlot* onSlot = new LambdaSlot(this, [this]() {
+            onTitleDark(true);
+            updateAppearanceTooltips();
+            updateAppearanceMenuChecks();
+        });
+        addAppearanceMenuItem(&m_appearanceItems, static_cast<MenuWidget34*>(m_darkMenu),
+                              onSlot, SLOT(call()), "theme_dark", 2, 0);
+        LambdaSlot* offSlot = new LambdaSlot(this, [this]() {
+            onTitleDark(false);
+            updateAppearanceTooltips();
+            updateAppearanceMenuChecks();
+        });
+        addAppearanceMenuItem(&m_appearanceItems, static_cast<MenuWidget34*>(m_darkMenu),
+                              offSlot, SLOT(call()), "theme_light", 2, 1);
+    }
+    attachTitleMenu(m_darkBtn, static_cast<MenuWidget34*>(m_darkMenu));
+    updateAppearanceTooltips();
+    updateAppearanceMenuChecks();
+}
+
+void MainWindow::buildTray()
+{
+    if (!SystemTrayIcon::isSystemTrayAvailable()) return;
+    tray = new SystemTrayIcon(QPixmap(app_icon), this);
+    s_trayIcon = tray;
+    tray->setToolTip(_("app_title"));
+    tray->setVisible(true);
+    QObject::connect(tray, SIGNAL(activated(int)), this, SLOT(trayActivated(int)));
+    QObject::connect(tray, SIGNAL(messageClicked()), this, SLOT(trayShowMainWindow()));
+    PopupMenu* trayMenu = new PopupMenu(this);
+    addMenuItem(trayMenu, this, SLOT(trayShowMainWindow()), "tray.open");
+    addMenuSeparator(trayMenu);
+    addMenuItem(trayMenu, this, SLOT(quitApp()), "tray.quit");
+    tray->setContextMenu(trayMenu);
+}
+
+void MainWindow::trayActivated(int reason)
+{
+    if (reason == SystemTrayIcon::Trigger || reason == SystemTrayIcon::DoubleClick) {
+        trayShowMainWindow();
+    }
+}
+
+void MainWindow::trayShowMainWindow()
+{
+    show();
+    raise();
+    qActivateWindow(this);
+}
+
+void MainWindow::quitApp()
+{
+    forceQuit = true;
+    close();
+}
+
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    if (!forceQuit && tray && tray->isVisible()) {
+        hide();
+        event->ignore();
+        return;
+    }
+    event->accept();
+}
+
+void MainWindow::onTitleUilang(int index)
+{
+    if (index < 0 || index > 2) return;
+    QString langCode = qFromUtf8(kLangCodes[index]);
+    Config::setValue("uilang", langCode);
+    Translator::instance().loadLanguage(langCode);
+    QtappSetup::installQtTranslations(langCode);
+    updateAppearanceTooltips();
+    updateAppearanceMenuChecks();
+}
+
+void MainWindow::onTitleStyle(int index)
+{
+    const std::vector<StyleParams::Definition>& styles = StyleParams::registeredStyles();
+    if (index >= 0 && index < (int)styles.size()) {
+        ThemeManager::setStyle(styles[index].id, ThemeManager::isDarkMode());
+    }
+}
+
+void MainWindow::onTitleDark(bool on)
+{
+    if (on == ThemeManager::isDarkMode()) return;
+    ThemeManager::applyTheme(on);
+    refreshMenuTexts();
+    updateAppearanceTooltips();
+    updateAppearanceMenuChecks();
+}
+
+void MainWindow::onDarkMenuItem()
+{
+    onTitleDark(!ThemeManager::isDarkMode());
+}
+
+void MainWindow::refreshAppearanceMenuTexts()
+{
+    for (size_t i = 0; i < m_appearanceItems.size(); i++) {
+        const AppearanceMenuItemRef& ref = m_appearanceItems[i];
+        if (!ref.key) continue;
+        QString text = _(qFromUtf8(ref.key));
+#ifdef QT3_BUILD
+        static_cast<QPopupMenu*>(ref.owner)->changeItem(ref.id, text);
+#else
+        if (ref.action) static_cast<QAction*>(ref.action)->setText(text);
+#endif
+    }
+    refreshMenuTexts();
+}
+
+void MainWindow::updateAppearanceTooltips()
+{
+    if (m_langBtn) {
+        const char* const* langKeys = appearanceLangLabelKeys();
+        int li = appearanceLangIndex(Translator::instance().currentLang());
+        qSetToolTip(m_langBtn, _("title.tip_lang") + ": " + qFromUtf8(langKeys[li]));
+    }
+    if (m_styleBtn) {
+        const std::vector<StyleParams::Definition>& styles = StyleParams::registeredStyles();
+        int si = 0;
+        for (int i = 0; i < (int)styles.size(); i++) {
+            if (QString(styles[i].id) == QString(ThemeManager::styleId())) { si = i; break; }
+        }
+        QString label = (si >= 0 && si < (int)styles.size()) ? _(qFromUtf8(styles[si].displayKey)) : QString();
+        qSetToolTip(m_styleBtn, _("title.tip_style") + ": " + label);
+    }
+    if (m_darkBtn) {
+        qSetToolTip(m_darkBtn, _("title.tip_dark") + ": " + (ThemeManager::isDarkMode() ? _("title.dark_on") : _("title.dark_off")));
+    }
+}
+
+void MainWindow::updateAppearanceMenuChecks()
+{
+    int cur[3];
+    cur[0] = appearanceLangIndex(Translator::instance().currentLang());
+    cur[1] = 0;
+    {
+        const std::vector<StyleParams::Definition>& styles = StyleParams::registeredStyles();
+        for (int i = 0; i < (int)styles.size(); i++) {
+            if (QString(styles[i].id) == QString(ThemeManager::styleId())) { cur[1] = i; break; }
+        }
+    }
+    cur[2] = ThemeManager::isDarkMode() ? 0 : 1;
+    for (size_t i = 0; i < m_appearanceItems.size(); i++) {
+        const AppearanceMenuItemRef& ref = m_appearanceItems[i];
+        if (ref.group < 0) continue;
+        bool on = (ref.index == cur[ref.group]);
+#ifdef QT3_BUILD
+        static_cast<QPopupMenu*>(ref.owner)->setItemChecked(ref.id, on);
+#else
+        if (ref.action) static_cast<QAction*>(ref.action)->setChecked(on);
+#endif
+    }
+}
+
+void MainWindow::retranslateUi()
+{
+    QString title = _("app_title");
+    qSetWindowTitle(this, title);
+    if (titleBar) titleBar->setLabel(title);
+    if (tray) tray->setToolTip(title);
+    updateAppearanceTooltips();
+    refreshAppearanceMenuTexts();
+    updateAppearanceMenuChecks();
+}
+
+void MainWindow::onMenu1Stub() {}
+void MainWindow::onDemoStatusInfo() { SharedStatusBar::instance()->showMessageTyped(_("demo.status_info"), StatusInfo, 3000); }
+void MainWindow::onDemoStatusWarning() { SharedStatusBar::instance()->showMessageTyped(_("demo.status_warning"), StatusWarning, 3000); }
+void MainWindow::onDemoStatusError() { SharedStatusBar::instance()->showMessageTyped(_("demo.status_error"), StatusError, 3000); }
+void MainWindow::onDemoStatusClear() { SharedStatusBar::instance()->clearMessage(); }
+void MainWindow::onDemoToggleStatusWidgets()
+{
+    if (hasDemoWidgets()) {
+        removeDemoWidgets();
+        SharedStatusBar::instance()->showMessage(_("demo.status_clear"), 3000);
+    } else {
+        addDemoWidgets();
+        SharedStatusBar::instance()->showMessage(_("demo.ready"), 3000);
+    }
+}
+void MainWindow::onDemoTrayBubble()
+{
+    if (!tray || !tray->isVisible() || !SystemTrayIcon::supportsMessages()) {
+        SharedStatusBar::instance()->showMessage(_("demo.tray_bubble"), 3000);
+        return;
+    }
+    tray->showMessage(_("app_title"), _("demo.tray_bubble"), SystemTrayIcon::Information, 5000);
+}
+void MainWindow::onAboutApp()
+{
+    QString text = QString("<h3>qlmusic %1</h3><p>qlmusic shell (Qt Widgets)</p><p>Qt: %2</p>").arg(APP_VERSION_FULL).arg(qVersion());
+    QMessageBox::about(this, _("menu.about_qlmusic"), text);
+}
