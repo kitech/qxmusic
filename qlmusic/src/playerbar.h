@@ -12,10 +12,16 @@ public:
     void setTrack(const Track& t);
     void setPlaying(bool on);
     bool isPlaying() const { return m_playing; }
+    void setProgress(int ms);
+    void setDuration(int ms);
     void retranslateUi();
 
 signals:
     void playStateChanged(bool playing);
+    void playPauseRequested();
+    void prevRequested();
+    void nextRequested();
+    void seekRequested(int ms);
 
 protected:
     void paintEvent(QPaintEvent* e);
@@ -36,6 +42,7 @@ private:
     bool m_hasTrack;
     bool m_playing;
     int m_progressMs;
+    int m_durationMs;
     Hit m_hover;
     bool m_dragging;
 };

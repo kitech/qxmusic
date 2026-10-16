@@ -52,7 +52,10 @@ cJSON* Config::loadRoot() { return loadConfig(); }
 bool Config::saveRoot(cJSON* root) { return saveConfig(root); }
 
 static const std::map<std::string, std::string>& defaultValues() {
-    static const std::map<std::string, std::string> m = { {"uilang", "zh-CN"} };
+    static const std::map<std::string, std::string> m = {
+        {"uilang", "zh-CN"},
+        {"audioengine", "auto"}
+    };
     return m;
 }
 

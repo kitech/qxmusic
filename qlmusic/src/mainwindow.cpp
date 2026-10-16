@@ -20,6 +20,7 @@
 #include "contentview.h"
 #include "queuepanel.h"
 #include "playerbar.h"
+#include "audio/AudioEngineAdapter.h"
 
 #include <qpixmap.h>
 #include <qevent.h>
@@ -28,7 +29,26 @@
 #include <qlineedit.h>
 #include <qsplitter.h>
 
+#include <cstdlib>
+
 #include "app_icon.xpm"
+
+static QString resolveBackendId()
+{
+    const char* env = getenv("QLMUSIC_AUDIO");
+    if (env && *env) return qFromUtf8(env);
+    QString v = Config::value("audioengine");
+    if (v.isEmpty()) v = "auto";
+    return v;
+}
+
+static QString resolveTrackUrl(const Track& t)
+{
+    if (!t.url.isEmpty()) return t.url;
+    const char* env = getenv("QLMUSIC_SAMPLE");
+    if (env && *env) return qFromUtf8(env);
+    return Config::value("samplemedia");
+}
 
 static const char* const kTopMenuKeys[] = {
     "menu.file", "menu.edit", "menu.tool", "menu.help"
@@ -97,6 +117,10 @@ MainWindow::MainWindow(QWidget* parent)
     , queuePanel(0)
     , playerBar(0)
     , bodySplitter(0)
+    , audioEngine(0)
+    , m_curPlaylistId(0)
+    , m_curTrackIndex(-1)
+    , m_backendMenuFirst(0)
     , demoLeftLabel(0)
     , demoLeftBtn(0)
     , demoRightLabel(0)
@@ -240,6 +264,17 @@ void MainWindow::buildCentralWidget()
     QObject::connect(contentView, SIGNAL(trackActivated(int, int)),
                      this, SLOT(onTrackActivated(int, int)));
 
+    if (playerBar) {
+        QObject::connect(playerBar, SIGNAL(playPauseRequested()),
+                         this, SLOT(onPlayPause()));
+        QObject::connect(playerBar, SIGNAL(prevRequested()),
+                         this, SLOT(onPrev()));
+        QObject::connect(playerBar, SIGNAL(nextRequested()),
+                         this, SLOT(onNext()));
+        QObject::connect(playerBar, SIGNAL(seekRequested(int)),
+                         this, SLOT(onSeek(int)));
+    }
+
     framelessHelper = new FramelessHelper(this);
     framelessHelper->setup(this);
     titleBar->connectFramelessHelper(framelessHelper);
@@ -379,6 +414,8 @@ void MainWindow::buildMenus()
     addMenuItem(tool, this, SLOT(onDemoTrayBubble()), "demo.tray_bubble");
     addMenuSeparator(tool);
     addMenuItem(tool, this, SLOT(onDemoApiRequest()), "demo.api_request");
+    addMenuSeparator(tool);
+    buildBackendMenu(tool);
     MenuWidget34* help = static_cast<MenuWidget34*>(addTopMenu("menu.help"));
     addMenuItem(help, qApp, SLOT(aboutQt()), "menu.aboutqt");
     addMenuItem(help, this, SLOT(onAboutApp()), "menu.about_qlmusic");
@@ -440,6 +477,25 @@ void MainWindow::buildAppearanceMenus()
     attachTitleMenu(m_darkBtn, static_cast<MenuWidget34*>(m_darkMenu));
     updateAppearanceTooltips();
     updateAppearanceMenuChecks();
+}
+
+void MainWindow::buildBackendMenu(void* toolMenu)
+{
+    void* sub = addSubMenu(toolMenu, _("menu.audio_backend"), "menu.audio_backend");
+    const char* const keys[4] = {
+        "audio.backend.auto", "audio.backend.ffmpeg",
+        "audio.backend.faad", "audio.backend.mpv"
+    };
+    m_backendMenuFirst = (int)menuItemRefs.size();
+    for (int i = 0; i < 4; i++) {
+        LambdaSlot* slot = new LambdaSlot(this, [this, i]() { onBackendSelected(i); });
+        addMenuItem(sub, slot, SLOT(call()), keys[i]);
+#ifndef QT3_BUILD
+        if (!menuItemRefs.empty() && menuItemRefs.back().action)
+            static_cast<QAction*>(menuItemRefs.back().action)->setCheckable(true);
+#endif
+    }
+    updateBackendChecks();
 }
 
 void MainWindow::buildTray()
@@ -596,18 +652,126 @@ void MainWindow::retranslateUi()
     updateAppearanceMenuChecks();
 }
 
-void MainWindow::onTrackActivated(int playlistId, int trackIndex)
+void MainWindow::ensureEngine()
+{
+    if (audioEngine) return;
+    audioEngine = new AudioEngineAdapter(this);
+    QObject::connect(audioEngine, SIGNAL(positionChanged(int)), this, SLOT(onAudioPosition(int)));
+    QObject::connect(audioEngine, SIGNAL(durationChanged(int)), this, SLOT(onAudioDuration(int)));
+    QObject::connect(audioEngine, SIGNAL(stateChanged(int)), this, SLOT(onAudioState(int)));
+    QObject::connect(audioEngine, SIGNAL(finished()), this, SLOT(onAudioFinished()));
+    QObject::connect(audioEngine, SIGNAL(errorOccurred(const QString&)),
+                     this, SLOT(onAudioError(const QString&)));
+    audioEngine->setBackend(resolveBackendId());
+}
+
+void MainWindow::playTrack(int playlistId, int trackIndex)
 {
     const Playlist* pl = findPlaylist(m_library, playlistId);
     if (!pl) return;
     if (trackIndex < 0 || trackIndex >= (int)pl->tracks.size()) return;
 
     const Track& t = pl->tracks[trackIndex];
+    m_curPlaylistId = playlistId;
+    m_curTrackIndex = trackIndex;
     playerBar->setTrack(t);
-    playerBar->setPlaying(true);
     queuePanel->setCurrentTrack(t);
     queuePanel->setQueue(pl->tracks, trackIndex);
     sideNav->setCurrentPlaylist(playlistId);
+
+    QString url = resolveTrackUrl(t);
+    if (url.isEmpty()) {
+        playerBar->setPlaying(false);
+        SharedStatusBar::instance()->showMessage(_("player.no_media"), 4000);
+        return;
+    }
+
+    ensureEngine();
+    audioEngine->open(url);
+    audioEngine->play();
+}
+
+void MainWindow::onTrackActivated(int playlistId, int trackIndex)
+{
+    playTrack(playlistId, trackIndex);
+}
+
+void MainWindow::onBackendSelected(int index)
+{
+    static const char* const ids[4] = { "auto", "ffmpeg", "faad", "mpv" };
+    if (index < 0 || index > 3) return;
+    Config::setValue("audioengine", qFromUtf8(ids[index]));
+    if (audioEngine) audioEngine->setBackend(qFromUtf8(ids[index]));
+    updateBackendChecks();
+    SharedStatusBar::instance()->showMessage(
+        _("audio.backend_changed") + qFromUtf8(" ") + qFromUtf8(ids[index]), 3000);
+}
+
+void MainWindow::updateBackendChecks()
+{
+    static const char* const ids[4] = { "auto", "ffmpeg", "faad", "mpv" };
+    QString cur = resolveBackendId();
+    for (int i = 0; i < 4; i++) {
+        int idx = m_backendMenuFirst + i;
+        if (idx < 0 || idx >= (int)menuItemRefs.size()) continue;
+        const MenuItemRef& ref = menuItemRefs[idx];
+        bool on = (cur == qFromUtf8(ids[i]));
+#ifdef QT3_BUILD
+        static_cast<QPopupMenu*>(ref.owner)->setItemChecked(ref.id, on);
+#else
+        if (ref.action) static_cast<QAction*>(ref.action)->setChecked(on);
+#endif
+    }
+}
+
+void MainWindow::onPlayPause()
+{
+    if (audioEngine) audioEngine->toggle();
+}
+
+void MainWindow::onPrev()
+{
+    if (m_curTrackIndex > 0) playTrack(m_curPlaylistId, m_curTrackIndex - 1);
+}
+
+void MainWindow::onNext()
+{
+    const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
+    if (!pl) return;
+    if (m_curTrackIndex + 1 < (int)pl->tracks.size())
+        playTrack(m_curPlaylistId, m_curTrackIndex + 1);
+}
+
+void MainWindow::onSeek(int ms)
+{
+    if (audioEngine) audioEngine->seek(ms);
+}
+
+void MainWindow::onAudioPosition(int ms)
+{
+    playerBar->setProgress(ms);
+}
+
+void MainWindow::onAudioDuration(int ms)
+{
+    playerBar->setDuration(ms);
+}
+
+void MainWindow::onAudioState(int state)
+{
+    playerBar->setPlaying(state == cxaudio::Playing);
+}
+
+void MainWindow::onAudioFinished()
+{
+    onNext();
+}
+
+void MainWindow::onAudioError(const QString& msg)
+{
+    playerBar->setPlaying(false);
+    SharedStatusBar::instance()->showMessage(
+        _("player.error") + qFromUtf8(": ") + msg, 5000);
 }
 
 void MainWindow::onMenu1Stub() {}

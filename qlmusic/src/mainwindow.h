@@ -18,6 +18,7 @@ class SideNav;
 class ContentView;
 class QueuePanel;
 class PlayerBar;
+class AudioEngineAdapter;
 class QSplitter;
 
 class MainWindow : public QMainWindow {
@@ -49,6 +50,16 @@ private slots:
     void onDemoApiRequest();
     void onAboutApp();
     void onTrackActivated(int playlistId, int trackIndex);
+    void onBackendSelected(int index);
+    void onPlayPause();
+    void onPrev();
+    void onNext();
+    void onSeek(int ms);
+    void onAudioPosition(int ms);
+    void onAudioDuration(int ms);
+    void onAudioState(int state);
+    void onAudioFinished();
+    void onAudioError(const QString& msg);
 
 private:
     struct MenuItemRef {
@@ -74,7 +85,12 @@ private:
     void buildAppearancePanel();
     void buildMenus();
     void buildAppearanceMenus();
+    void buildBackendMenu(void* toolMenu);
     void buildTray();
+
+    void ensureEngine();
+    void playTrack(int playlistId, int trackIndex);
+    void updateBackendChecks();
 
     void addMenuItem(void* menu, const QObject* receiver, const char* slot,
                      const char* key, bool darkToggle = false);
@@ -100,6 +116,10 @@ private:
     PlayerBar* playerBar;
     QSplitter* bodySplitter;
     std::vector<Playlist> m_library;
+    AudioEngineAdapter* audioEngine;
+    int m_curPlaylistId;
+    int m_curTrackIndex;
+    int m_backendMenuFirst;
 
     // 演示用状态栏控件（演示菜单可反复增删）
     QLabel* demoLeftLabel;

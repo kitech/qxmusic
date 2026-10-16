@@ -1,0 +1,5 @@
+FAAD2 - version 2.11.3 - https://github.com/FreewareAdvancedAudio/faad2
+Licensed under the GNU General Public License v2.0 or later (GPL-2.0-or-later).
+
+The full license text is distributed alongside the sources at:
+    third_party/faad2/COPYING

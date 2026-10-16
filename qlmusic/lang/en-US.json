@@ -17,10 +17,21 @@
     "prev": "Previous",
     "play": "Play",
     "pause": "Pause",
-    "next": "Next"
+    "next": "Next",
+    "no_media": "No local audio file for this track",
+    "error": "Playback error"
   },
   "queue": {
     "title": "Play Queue"
+  },
+  "audio": {
+    "backend": {
+      "auto": "Auto",
+      "ffmpeg": "FFmpeg",
+      "faad": "Built-in (FAAD)",
+      "mpv": "libmpv"
+    },
+    "backend_changed": "Audio backend switched (takes effect on next play)"
   },
   "style": {
     "fusion": "Fusion",
@@ -40,7 +51,8 @@
     "tool": "&Tools",
     "help": "&Help",
     "aboutqt": "About Qt",
-    "about_qlmusic": "About qlmusic"
+    "about_qlmusic": "About qlmusic",
+    "audio_backend": "Audio Backend"
   },
   "action": {
     "new": "New",

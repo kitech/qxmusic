@@ -17,10 +17,21 @@
     "prev": "上一首",
     "play": "播放",
     "pause": "暂停",
-    "next": "下一首"
+    "next": "下一首",
+    "no_media": "该曲目暂无本地音频文件",
+    "error": "播放错误"
   },
   "queue": {
     "title": "播放队列"
+  },
+  "audio": {
+    "backend": {
+      "auto": "自动",
+      "ffmpeg": "FFmpeg",
+      "faad": "内建 (FAAD)",
+      "mpv": "libmpv"
+    },
+    "backend_changed": "已切换音频后端（下次播放生效）"
   },
   "style": {
     "fusion": "Fusion",
@@ -40,7 +51,8 @@
     "tool": "工具(&T)",
     "help": "帮助(&H)",
     "aboutqt": "关于 Qt",
-    "about_qlmusic": "关于 qlmusic"
+    "about_qlmusic": "关于 qlmusic",
+    "audio_backend": "音频后端"
   },
   "action": {
     "new": "新建",

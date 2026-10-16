@@ -45,7 +45,7 @@ void drawTriangle(QPainter& p, const QRect& r, bool left, const QColor& c)
 
 PlayerBar::PlayerBar(QWidget* parent)
     : QWidget(parent), m_hasTrack(false), m_playing(false),
-      m_progressMs(0), m_hover(HitNone), m_dragging(false)
+      m_progressMs(0), m_durationMs(0), m_hover(HitNone), m_dragging(false)
 {
     setMouseTracking(true);
     setFixedHeight(80);
@@ -59,6 +59,20 @@ void PlayerBar::setTrack(const Track& t)
     m_track = t;
     m_hasTrack = true;
     m_progressMs = 0;
+    m_durationMs = t.durationMs;
+    update();
+}
+
+void PlayerBar::setProgress(int ms)
+{
+    if (m_dragging) return;
+    m_progressMs = ms;
+    update();
+}
+
+void PlayerBar::setDuration(int ms)
+{
+    if (ms > 0) m_durationMs = ms;
     update();
 }
 
@@ -99,7 +113,7 @@ void PlayerBar::setProgressFromX(int x)
     QRect pr = progressRect();
     if (!m_hasTrack || pr.width() <= 0) return;
     int rel = qBound(0, x - pr.x(), pr.width());
-    m_progressMs = (int)((double)rel / pr.width() * m_track.durationMs);
+    m_progressMs = (int)((double)rel / pr.width() * m_durationMs);
     update();
 }
 
@@ -154,8 +168,8 @@ void PlayerBar::paintEvent(QPaintEvent*)
     p.setPen(Qt::NoPen);
     p.setBrush(pal.border);
     muiDrawRoundRect(p, pr, 3, 3);
-    int ratio = m_hasTrack && m_track.durationMs > 0
-                    ? (int)((double)m_progressMs / m_track.durationMs * pr.width()) : 0;
+    int ratio = m_hasTrack && m_durationMs > 0
+                    ? (int)((double)m_progressMs / m_durationMs * pr.width()) : 0;
     ratio = qBound(0, ratio, pr.width());
     if (ratio > 0) {
         p.setBrush(pal.accent);
@@ -167,19 +181,17 @@ void PlayerBar::paintEvent(QPaintEvent*)
     p.drawText(QRect(pr.x() - 44, pr.y() - 8, 40, 20), Qt::AlignVCenter | Qt::AlignRight,
                fmtMs(m_progressMs));
     p.drawText(QRect(pr.right() + 4, pr.y() - 8, 44, 20), Qt::AlignVCenter | Qt::AlignLeft,
-               fmtMs(m_hasTrack ? m_track.durationMs : 0));
+               fmtMs(m_hasTrack ? m_durationMs : 0));
 }
 
 void PlayerBar::mousePressEvent(QMouseEvent* e)
 {
     if (playRect().contains(e->pos())) {
-        setPlaying(!m_playing);
+        emit playPauseRequested();
     } else if (prevRect().contains(e->pos())) {
-        m_progressMs = 0;
-        update();
+        emit prevRequested();
     } else if (nextRect().contains(e->pos())) {
-        m_progressMs = 0;
-        update();
+        emit nextRequested();
     } else if (progressRect().contains(e->pos())) {
         m_dragging = true;
         setProgressFromX(e->pos().x());
@@ -205,7 +217,10 @@ void PlayerBar::mouseMoveEvent(QMouseEvent* e)
 
 void PlayerBar::mouseReleaseEvent(QMouseEvent*)
 {
-    m_dragging = false;
+    if (m_dragging) {
+        m_dragging = false;
+        emit seekRequested(m_progressMs);
+    }
 }
 
 void PlayerBar::leaveEvent(QEvent* e)

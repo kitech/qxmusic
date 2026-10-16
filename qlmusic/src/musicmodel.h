@@ -11,6 +11,7 @@ struct Track {
     QString album;
     int durationMs;
     QString coverSeed;
+    QString url;   /* playable URI (empty = not playable yet) */
 };
 
 struct Playlist {
@@ -28,7 +29,8 @@ inline const Playlist* findPlaylist(const std::vector<Playlist>& lib, int id)
 }
 
 inline Track makeTrack(int id, const char* title, const char* artist,
-                       const char* album, int secs, const char* seed)
+                       const char* album, int secs, const char* seed,
+                       const char* url = 0)
 {
     Track t;
     t.id = id;
@@ -37,6 +39,7 @@ inline Track makeTrack(int id, const char* title, const char* artist,
     t.album = qFromUtf8(album);
     t.durationMs = secs * 1000;
     t.coverSeed = QString::fromUtf8(seed);
+    if (url) t.url = qFromUtf8(url);
     return t;
 }
 

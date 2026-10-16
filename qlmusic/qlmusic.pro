@@ -33,6 +33,7 @@ HEADERS = src/mainwindow.h src/appearance.h src/config.h src/globaluiutil.h \
           ../qldox/eventpoller.h
 
 include(../qlcomp/qlite.pri)
+include($$PWD/audio.pri)
 INCLUDEPATH += ../qlcomp
 INCLUDEPATH += ../qldox
 INCLUDEPATH += src
