@@ -22,7 +22,7 @@ SOURCES = src/main.cpp src/mainwindow.cpp src/appearance.cpp src/config.cpp \
           src/pending_db.cpp src/cache_db.cpp src/cache_fs.cpp \
           src/sticker_db.cpp \
           src/sidenav.cpp src/contentview.cpp src/queuepanel.cpp src/playerbar.cpp \
-          ../qldox/eventpoller.cpp
+          ../qlappcom/eventpoller.cpp
 
 HEADERS = src/mainwindow.h src/appearance.h src/config.h src/globaluiutil.h \
           src/api.h src/storage.h \
@@ -30,12 +30,12 @@ HEADERS = src/mainwindow.h src/appearance.h src/config.h src/globaluiutil.h \
           src/cache_db.h src/cache_fs.h src/sticker_db.h \
           src/musicmodel.h src/musicstyle.h \
           src/sidenav.h src/contentview.h src/queuepanel.h src/playerbar.h \
-          ../qldox/eventpoller.h
+          ../qlappcom/eventpoller.h
 
 include(../qlcomp/qlite.pri)
 include($$PWD/audio.pri)
 INCLUDEPATH += ../qlcomp
-INCLUDEPATH += ../qldox
+INCLUDEPATH += ../qlappcom
 INCLUDEPATH += src
 INCLUDEPATH += $$PWD
 
