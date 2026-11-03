@@ -18,6 +18,9 @@ public:
     /* id: "auto" | "ffmpeg" | "faad" | "mpv" — takes effect on next open() */
     void setBackend(const QString& id);
     QString backendId() const;
+    /* 最近一次 setBackend 传入的请求值（未 resolve）；auto 时 UI 可据此
+     * 决定远程流是否转本地缓存路径 */
+    QString requestedBackend() const { return m_requested; }
     QString lastError() const;
 
     struct OutputDevice {
@@ -52,6 +55,7 @@ protected:
 
 private:
     cxaudio::Player m_player;
+    QString m_requested;
 };
 
 #endif // AUDIOENGINEADAPTER_H

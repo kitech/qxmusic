@@ -46,6 +46,7 @@ enum {
     NcmTaskPlaylistTracks,
     NcmTaskResolve,
     NcmTaskSongDetail,
+    NcmTaskFetch,      /* 远程 URL 本地化：curl 拉缓存 → file:// 回投 */
     NcmTaskQuit,       /* 哨兵：worker 收到即退出线程 */
 };
 
@@ -62,6 +63,8 @@ struct NcmTask {
     qint64 id;         /* ncm 歌单/歌曲 id */
     int localId;       /* UI 本地歌单句柄 */
     int quality;
+    std::string url;   /* NcmTaskFetch：远程 URL */
+    std::string extra; /* NcmTaskFetch：level 展示字段（透传 UI 状态栏） */
     NcmTask() : kind(0), sel(0), limit(50), offset(0), id(0), localId(-1), quality(320000) {}
 };
 
@@ -84,6 +87,9 @@ public:
     void loadPlaylistDetail(qint64 ncmId);
     void loadPlaylistTracks(qint64 ncmId, int localId);
     void resolveSource(qint64 songId, int quality);
+    /* 远程 URL → ~/.cache/qlmusic/ncm/<song_id>.<ext>（worker 线程 curl 拉取，
+     * 结果经 fetched 信号回投；成功 json 带 file:// 本地路径） */
+    void fetchRemote(qint64 songId, const QString& url, const QString& level);
     void loadSongDetail(const QString& ids);
 
     /* MainWindow::customEvent 转发进来 */
@@ -99,6 +105,7 @@ signals:
     void playlistDetailLoaded(int rc, const QString& json, qint64 ncmId);
     void playlistTracksLoaded(int rc, const QString& json, int localId);
     void sourceResolved(int rc, const QString& json, qint64 songId);
+    void fetched(int rc, const QString& json, qint64 songId);
     void songDetailLoaded(int rc, const QString& json, int sel);
     void authRequired(const QString& op);
 

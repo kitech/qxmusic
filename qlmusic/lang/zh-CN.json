@@ -23,6 +23,7 @@
     "auth_required": "此操作需要登录，请先扫码登录",
     "unavailable": "在线音乐引擎未就绪",
     "loading": "正在加载…",
+    "caching": "正在缓存音源…",
     "cat_all": "全部",
     "playing": "播放",
     "loaded_quality": "已播放，音质",

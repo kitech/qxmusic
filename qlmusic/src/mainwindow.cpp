@@ -397,6 +397,8 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onNcmPlaylistTracks(int, const QString&, int)));
         QObject::connect(m_ncm, SIGNAL(sourceResolved(int, const QString&, qint64)),
                          this, SLOT(onNcmSource(int, const QString&, qint64)));
+        QObject::connect(m_ncm, SIGNAL(fetched(int, const QString&, qint64)),
+                         this, SLOT(onNcmFetched(int, const QString&, qint64)));
         QObject::connect(m_ncm, SIGNAL(authRequired(const QString&)),
                          this, SLOT(onNcmAuthRequired(const QString&)));
         /* 启动即拉分类（侧栏），随后自动进入"推荐=热门歌单"视图，
@@ -1380,6 +1382,15 @@ void MainWindow::onNcmPlaylistTracks(int rc, const QString& json, int localId)
     sideNav->setCurrentPlaylist(p.id);
 }
 
+void MainWindow::playNcmResolved(const QString& url, const QString& level)
+{
+    ensureEngine();
+    audioEngine->open(url);
+    audioEngine->play();
+    SharedStatusBar::instance()->showMessage(
+        _("ncm.loaded_quality") + qFromUtf8(" ") + level, 3000);
+}
+
 void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
 {
     if (rc != NCM_OK) {
@@ -1409,10 +1420,47 @@ void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
     const Track& t = (*pl).tracks[m_ncmSrcTrack];
 
     ensureEngine();
-    audioEngine->open(url);
-    audioEngine->play();
-    SharedStatusBar::instance()->showMessage(
-        _("ncm.loaded_quality") + qFromUtf8(" ") + level, 3000);
+    /* 远端流路径取舍：
+     *  - backend 显式 ffmpeg/mpv：直连原始 URL
+     *  - 其余（auto/faad 等）且 http(s) URL：先把音源落到本地缓存文件
+     *    （worker 线程 curl），再以 file:// 走本地解码链 —— 无 ffmpeg
+     *    dylib 的设备（mac 零安装）也保证可播 */
+    const QString req = audioEngine->requestedBackend();
+    const bool direct = (req == qFromUtf8("ffmpeg") || req == qFromUtf8("mpv"));
+    if (!direct && (url.startsWith(qFromUtf8("http://")) ||
+                    url.startsWith(qFromUtf8("https://")))) {
+        SharedStatusBar::instance()->showMessage(_("ncm.caching"), 3000);
+        m_ncm->fetchRemote(t.ncmId, url, level);
+        return;
+    }
+    playNcmResolved(url, level);
+}
+
+void MainWindow::onNcmFetched(int rc, const QString& json, qint64 /*songId*/)
+{
+    if (rc != NCM_OK) {
+        showNcmError(rc, _("ncm.caching"));
+        return;
+    }
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) {
+        showNcmError(NCM_ERR_UPSTREAM, _("ncm.caching"));
+        return;
+    }
+    QString path = cJSONStr(root, "path", "");
+    QString level = cJSONStr(root, "level", "");
+    cJSON_Delete(root);
+    if (path.isEmpty()) {
+        showNcmError(NCM_ERR_UPSTREAM, _("ncm.caching"));
+        return;
+    }
+
+    Playlist* pl = 0;
+    for (size_t i = 0; i < m_library.size(); ++i)
+        if (m_library[i].id == m_ncmSrcPlaylist) { pl = &m_library[i]; break; }
+    if (!pl || m_ncmSrcTrack < 0 || m_ncmSrcTrack >= (int)pl->tracks.size()) return;
+    (*pl).tracks[m_ncmSrcTrack].url = path;  /* 本地缓存路径记入曲目 */
+    playNcmResolved(path, level);
 }
 
 void MainWindow::onNcmLoadMore()

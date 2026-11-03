@@ -8,7 +8,28 @@
 
 #include <deque>
 
+#include <curl/curl.h>
+#include <sys/stat.h>
+#include <stdio.h>
+#include <stdlib.h>
+
 #include "limelog.h"
+
+namespace {
+
+size_t curlWriteCb(char* ptr, size_t sz, size_t nm, void* ud)
+{
+    FILE* fp = (FILE*)ud;
+    return fwrite(ptr, sz, nm, fp);
+}
+
+/* 远程 URL 落盘 ~/.cache/qlmusic/ncm/<song_id>.<ext>：
+ *  - 同名非空缓存命中直接复用（重复播放零再下载）
+ *  - curl 拉取（worker 线程串行，无并发）
+ *  - 成功回 {"song_id":N,"path":"file://...","level":...}：
+ *    无 ffmpeg/mpv dylib 的环境经此走本地解码链播
+ *    （mp3=miniaudio 内置、m4a/aac=faad2 内嵌），mac 等零依赖可用 */
+} /* namespace */
 
 /* worker 线程：串出队列、阻塞调 ncm_*、postEvent 回投。
  * 必须在 ncm_free 前停止（ncm_free 取 apiMu）。 */
@@ -180,6 +201,87 @@ void NcmService::resolveSource(qint64 songId, int quality)
     m_worker->push(t);
 }
 
+int fetchRemoteTask(const NcmTask& t, std::string& json)
+{
+    const char* home = std::getenv("HOME");
+    if (!home || !*home) return NCM_ERR_INTERNAL;
+
+    /* 扩展名从 URL 路径段提取（截断 query），缺省 mp3 */
+    std::string ext = "mp3";
+    std::string path = t.url;
+    size_t q = path.find('?');
+    if (q != std::string::npos) path = path.substr(0, q);
+    size_t dot = path.find_last_of('.');
+    size_t sep = path.find_last_of('/');
+    if (dot != std::string::npos && (sep == std::string::npos || dot > sep))
+        ext = path.substr(dot + 1);
+
+    char dir[768];
+    snprintf(dir, sizeof(dir), "%s/.cache/qlmusic/ncm", home);
+    char peer[768];
+    snprintf(peer, sizeof(peer), "%s/.cache/qlmusic", home);
+    mkdir(peer, 0755);
+    mkdir(dir, 0755);
+    char file[1280];
+    snprintf(file, sizeof(file), "%s/%lld.%s", dir,
+             (long long)t.id, ext.c_str());
+
+    struct stat st;
+    if (stat(file, &st) == 0 && st.st_size > 0) {
+        char js[1400];
+        snprintf(js, sizeof(js), "{\"song_id\":%lld,\"path\":\"file://%s\",\"level\":\"%s\"}",
+                 (long long)t.id, file, t.extra.c_str());
+        ALOG_INFO(qFromUtf8("NCM fetch cache hit %1").arg(qFromUtf8(file)));
+        json = js;
+        return NCM_OK;
+    }
+
+    FILE* fp = fopen(file, "wb");
+    if (!fp) return NCM_ERR_INTERNAL;
+    CURL* h = curl_easy_init();
+    if (!h) { fclose(fp); remove(file); return NCM_ERR_INTERNAL; }
+    curl_easy_setopt(h, CURLOPT_URL, t.url.c_str());
+    curl_easy_setopt(h, CURLOPT_WRITEFUNCTION, curlWriteCb);
+    curl_easy_setopt(h, CURLOPT_WRITEDATA, fp);
+    curl_easy_setopt(h, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(h, CURLOPT_CONNECTTIMEOUT, 10L);
+    curl_easy_setopt(h, CURLOPT_NOSIGNAL, 1L);
+    CURLcode cr = curl_easy_perform(h);
+    curl_easy_cleanup(h);
+    long nbyte = ftell(fp);
+    fclose(fp);
+    if (cr != CURLE_OK || nbyte <= 0) {
+        remove(file);
+        ALOG_WARN(qFromUtf8("NCM fetch failed rc=%1 byte=%2")
+                      .arg((int)cr).arg((int)nbyte));
+        return NCM_ERR_NETWORK;
+    }
+    char js[1400];
+    snprintf(js, sizeof(js), "{\"song_id\":%lld,\"path\":\"file://%s\",\"level\":\"%s\"}",
+             (long long)t.id, file, t.extra.c_str());
+    ALOG_INFO(qFromUtf8("NCM fetch ok %1 byte=%2")
+                  .arg(qFromUtf8(file)).arg((int)nbyte));
+    json = js;
+    return NCM_OK;
+}
+
+void NcmService::fetchRemote(qint64 songId, const QString& url, const QString& level)
+{
+    if (!m_worker) return;
+    NcmTask t;
+    t.kind = NcmTaskFetch;
+    t.op = "fetch";
+    t.id = songId;
+#ifdef QT3_BUILD
+    t.url = url.utf8();
+    t.extra = level.utf8();
+#else
+    t.url = url.toUtf8().constData();
+    t.extra = level.toUtf8().constData();
+#endif
+    m_worker->push(t);
+}
+
 void NcmService::loadSongDetail(const QString& ids)
 {
     NcmTask t;
@@ -247,6 +349,11 @@ void NcmService::execTask(const NcmTask& t)
         if (out) ncm_free_string(out);
         break;
     }
+    case NcmTaskFetch: {
+        /* 下载不依赖 ncm client（fetchRemoteTask 内自管 curl） */
+        rc = fetchRemoteTask(t, json);
+        break;
+    }
     default:
         return;
     }
@@ -305,6 +412,10 @@ void NcmService::handleResult(NcmResultEvent* e)
     }
     if (op == qFromUtf8("resolve_source")) {
         emit sourceResolved(e->rc, json, e->id);
+        return;
+    }
+    if (op == qFromUtf8("fetch")) {
+        emit fetched(e->rc, json, e->id);
         return;
     }
     if (op == qFromUtf8("song_detail")) {

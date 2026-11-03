@@ -23,6 +23,7 @@
     "auth_required": "This action requires login — please scan the QR code first",
     "unavailable": "Online music engine not ready",
     "loading": "Loading…",
+    "caching": "Caching audio source…",
     "cat_all": "All",
     "playing": "Playback",
     "loaded_quality": "Playing, quality",

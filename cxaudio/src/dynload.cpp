@@ -118,6 +118,8 @@ std::vector<std::string> librarySearchDirs(const std::string& envVar) {
 #elif defined(__APPLE__)
     pushDir(dirs, getenv("DYLD_LIBRARY_PATH"));
     pushDir(dirs, "/usr/local/lib");
+    /* vcpkg 动态 triplet 安装目录（存在与否均无害：不命中即跳过） */
+    pushDir(dirs, "/opt/vcpkg/installed/x64-osx-dynamic/lib");
     pushDir(dirs, "/opt/homebrew/lib");
     pushDir(dirs, "/usr/lib");
     /* app bundle Frameworks next to the executable */

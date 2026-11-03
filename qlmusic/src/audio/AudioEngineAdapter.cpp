@@ -19,7 +19,7 @@ public:
 } // namespace
 
 AudioEngineAdapter::AudioEngineAdapter(QObject* parent)
-    : QObject(parent)
+    : QObject(parent), m_requested(qFromUtf8("auto"))
 {
     m_player.setCallback([this](int ev, int64_t a, int64_t b, const std::string& msg) {
         QApplication::postEvent(this, new AudioEngineEvent(ev, a, b, qFromUtf8(msg)));
@@ -34,6 +34,7 @@ AudioEngineAdapter::~AudioEngineAdapter()
 
 void AudioEngineAdapter::setBackend(const QString& id)
 {
+    m_requested = id;
     m_player.setBackend(qToUtf8(id).data());
 }
 

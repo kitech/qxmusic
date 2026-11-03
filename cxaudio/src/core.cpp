@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 
 namespace cx {
 
@@ -46,29 +47,32 @@ bool Core::open(const std::string& uri) {
         return false;
     }
 
+    const bool remote = (uri.rfind("http://", 0) == 0 ||
+                         uri.rfind("https://", 0) == 0);
+    const bool explicitSel = (!requested_.empty() && requested_ != "auto");
+
     /* 远程流（http/https）自动切换：faad 后端（miniaudio/faad2 链路）
      * 只支持本地文件（ma_decoder_init_file/fopen），须走 ffmpeg ——
      * FfmpegDecoder 的 avformat_open_input 内建 http/mp3 支持。
-     * 显式选定 ffmpeg/mpv 时不介入。 */
-    if (target == "faad" &&
-        (uri.rfind("http://", 0) == 0 || uri.rfind("https://", 0) == 0))
-        target = "ffmpeg";
+     * 显式选定 ffmpeg/mpv 时不介入（mpv 自带远程流能力同理）。 */
+    if (target == "faad" && remote) target = "ffmpeg";
 
     backend_.reset();
     resolved_ = target;
 
-    if (target == "faad") {
-        backend_.reset(new PcmBackend(faadProvider()));
-    } else if (target == "ffmpeg") {
-        backend_.reset(new PcmBackend(ffmpegProvider()));
-    } else if (target == "mpv") {
-        backend_.reset(createMpvBackend());
-    }
-
-    if (!backend_) {
-        std::lock_guard<std::mutex> lk(mutex_);
-        lastError_ = "backend not compiled: " + target;
-        return false;
+    /* 候选序回退：auto 与“faad 被远程流强制切换”路径逐后端尝试，
+     * 首个可用者胜出；用户显式指定单后端时保持不回退，失败如实上报。
+     * 探测过程全景打印到 stderr，供排查后端可用性。 */
+    static const char* const kOrder[3] = { "faad", "ffmpeg", "mpv" };
+    int start = 0, end = 1;
+    if (remote) {
+        start = (target == "mpv") ? 2 : 1;  /* 显式 mpv 单候选；否则 ffmpeg 起 */
+        end = explicitSel ? start + 1 : 3;
+    } else if (explicitSel) {
+        start = (target == "faad") ? 0 : (target == "ffmpeg") ? 1 : 2;
+        end = start + 1;
+    } else {
+        end = 3;                            /* auto：全序 */
     }
 
     cbs_.onState = [this](int st) { dispatch(kEvState, st, 0, ""); };
@@ -79,24 +83,40 @@ bool Core::open(const std::string& uri) {
     cbs_.onError = [this](const std::string& msg) {
         dispatch(kEvError, 0, 0, msg);
     };
-    backend_->setCallbacks(&cbs_);
-    if (!pendingOutputDeviceName_.empty())
-        backend_->setOutputDeviceName(pendingOutputDeviceName_);
 
-    std::string err;
-    if (!backend_->available(&err)) {
-        std::lock_guard<std::mutex> lk(mutex_);
-        lastError_ = err.empty() ? "backend unavailable" : err;
+    std::string lastErr;
+    for (int i = start; i < end; ++i) {
+        const std::string id = kOrder[i];
+        if (id == "faad")
+            backend_.reset(new PcmBackend(faadProvider()));
+        else if (id == "ffmpeg")
+            backend_.reset(new PcmBackend(ffmpegProvider()));
+        else
+            backend_.reset(createMpvBackend());
+
+        if (!backend_) {
+            lastErr = "backend not compiled: " + id;
+            fprintf(stderr, "[cxaudio] backend try=%s fail err=%s\n", id.c_str(), lastErr.c_str());
+            continue;
+        }
+        backend_->setCallbacks(&cbs_);
+        if (!pendingOutputDeviceName_.empty())
+            backend_->setOutputDeviceName(pendingOutputDeviceName_);
+
+        std::string err;
+        if (backend_->available(&err) && backend_->open(uri, &err)) {
+            resolved_ = id;
+            fprintf(stderr, "[cxaudio] backend try=%s ok\n", id.c_str());
+            return true;
+        }
+        lastErr = err;
+        fprintf(stderr, "[cxaudio] backend try=%s fail err=%s\n", id.c_str(), err.c_str());
         backend_.reset();
-        return false;
     }
 
-    if (!backend_->open(uri, &err)) {
-        std::lock_guard<std::mutex> lk(mutex_);
-        lastError_ = err.empty() ? "open failed" : err;
-        return false;
-    }
-    return true;
+    std::lock_guard<std::mutex> lk(mutex_);
+    lastError_ = lastErr.empty() ? std::string("no backend available") : lastErr;
+    return false;
 }
 
 void Core::play() { if (backend_) backend_->play(); }

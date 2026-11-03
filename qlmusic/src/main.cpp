@@ -10,6 +10,9 @@
 #include "version.h"
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #ifdef __linux__
 #include <malloc.h>
 #endif
@@ -36,6 +39,18 @@ int main(int argc, char* argv[]) {
 #ifdef __linux__
     mallopt(M_MMAP_THRESHOLD, 32768);
     mallopt(M_ARENA_MAX, 2);
+#endif
+#if defined(__APPLE__)
+    /* mac 双击 .app 启动的 stdout/stderr 不入终端 —— 落盘供排查
+     * （[cxaudio] 后端探测、core 日志等全部可见） */
+    {
+        const char* home = std::getenv("HOME");
+        if (home && *home) {
+            char path[512];
+            snprintf(path, sizeof(path), "%s/Library/Logs/qlmusic.log", home);
+            if (std::freopen(path, "a", stderr)) setvbuf(stderr, 0, _IOLBF, 0);
+        }
+    }
 #endif
     setenv("QT_IM_MODULE", "xim", true);
     setenv("XMODIFIERS", "@im=fcitx", true);
