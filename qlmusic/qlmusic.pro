@@ -128,6 +128,16 @@ macx {
 unix:!macx: LIBS += -lX11
 LIBS += -lcurl
 
+# NCM 缓存 ID3 tag：系统 libid3tag（pkg-config 探测，可选依赖——
+# 无库环境（mac 等）HAVE_LIBID3TAG 不定义，tag 段整体剔除、仅下载）
+ID3TAG_CFLAGS = $$system(pkg-config --cflags id3tag 2>/dev/null)
+ID3TAG_LIBS   = $$system(pkg-config --libs id3tag 2>/dev/null)
+!isEmpty(ID3TAG_LIBS) {
+    DEFINES += HAVE_LIBID3TAG
+    INCLUDEPATH += $$ID3TAG_CFLAGS
+    LIBS += $$ID3TAG_LIBS
+}
+
 # SQLite 依赖检测（照抄 qltox.pro:155-164）
 SQLITE_CFLAGS = $$system(pkg-config --cflags sqlite3 2>/dev/null)
 SQLITE_LIBS   = $$system(pkg-config --libs sqlite3 2>/dev/null)

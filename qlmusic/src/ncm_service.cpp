@@ -14,6 +14,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#ifdef HAVE_LIBID3TAG
+#include <id3tag.h>   /* 系统 libid3tag 0.16.x（pkg-config 探测链接） */
+#endif
+
 #include <cstring>
 
 #include "limelog.h"
@@ -56,80 +60,151 @@ static std::string sanitizeName(const std::string& raw, long long id)
     return s;
 }
 
-/* ID3v2.4 writer：10 字节 tag 头 + TIT2/TPE1/TALB 文本帧（UTF-8，syncsafe）。
- * 元数据全空 → 空串（调用方 no-op） */
-static std::string makeId3Tag(const std::string& title, const std::string& artist,
-                              const std::string& album)
+#ifdef HAVE_LIBID3TAG
+
+/* 提取一个文本帧（UTF-8 出参；缺帧/空帧 → false） */
+static bool readId3TextField(struct id3_tag* tag, const char* fid, std::string& out)
 {
-    static const char* ids[3] = { "TIT2", "TPE1", "TALB" };
-    const std::string* vals[3] = { &title, &artist, &album };
-    std::string body, out;
-    char fr[10];
-    unsigned cnt = 0;
-    for (int i = 0; i < 3; ++i) {
-        const std::string& v = *vals[i];
-        if (v.empty()) continue;
-        unsigned fsize = (unsigned)(v.size() + 1); /* 内容 = encoding byte + utf8 */
-        memcpy(fr, ids[i], 4);
-        fr[4] = 0;
-        fr[5] = (char)((fsize >> 21) & 0x7f);
-        fr[6] = (char)((fsize >> 14) & 0x7f);
-        fr[7] = (char)((fsize >> 7) & 0x7f);
-        fr[8] = (char)(fsize & 0x7f);
-        fr[9] = 0;                                 /* flags */
-        body.append(fr, 10);
-        body.push_back((char)0x03);                /* encoding: UTF-8 */
-        body.append(v);
-        ++cnt;
-    }
-    if (cnt == 0) return std::string();
-    unsigned tagSize = (unsigned)body.size();      /* 不含 10 字节头 */
-    char hdr[10];
-    memcpy(hdr, "ID3", 3);
-    hdr[3] = 4; hdr[4] = 0;                        /* ver 2.4 rev 0 */
-    hdr[5] = 0;                                    /* flags: 无 */
-    hdr[6] = (char)((tagSize >> 21) & 0x7f);
-    hdr[7] = (char)((tagSize >> 14) & 0x7f);
-    hdr[8] = (char)((tagSize >> 7) & 0x7f);
-    hdr[9] = (char)(tagSize & 0x7f);
-    out.append(hdr, 10);
-    out.append(body);
-    return out;
+    struct id3_frame const* fr = id3_tag_findframe(tag, fid, 0);
+    if (!fr) return false;
+    union id3_field const* fld = id3_frame_field(fr, 1);
+    if (!fld || id3_field_getnstrings(fld) == 0) return false;
+    id3_ucs4_t const* u4 = id3_field_getstrings(fld, 0);
+    if (!u4) return false;
+    id3_utf8_t* u8 = id3_ucs4_utf8duplicate(u4);
+    if (!u8) return false;
+    out.assign((const char*)u8);
+    free(u8);
+    return true;
 }
 
-/* 两段式原子落位：<final> = tag 头 + <part> 原字节，写入后调用方 remove(part)。
- * 源自带 "ID3" 魔数（或非 mp3）→ 原样拷贝不写 tag；失败删 <final> 返回 false */
-static bool writeWithId3(const char* part, const char* finalPath,
-                         const std::string& title, const std::string& artist,
-                         const std::string& album, bool isMp3)
+/* 新文本帧：fid + UTF-8 值；enc 按 tag 版本分支（v2.3 → UTF_16 合法） */
+static bool attachTextFrame(struct id3_tag* tag, const char* fid,
+                            const std::string& val, enum id3_field_textencoding enc)
 {
-    std::string tag;
-    if (isMp3) {
-        FILE* rp0 = fopen(part, "rb");
-        if (rp0) {
-            char magic[3];
-            if (fread(magic, 1, 3, rp0) == 3 && memcmp(magic, "ID3", 3) == 0)
-                ALOG_INFO(qFromUtf8("NCM fetch keep source ID3 tag"));
-            else
-                tag = makeId3Tag(title, artist, album);
-            fclose(rp0);
-        }
+    struct id3_frame* nf = id3_frame_new(fid);
+    if (!nf) return false;
+    id3_ucs4_t* u4 = id3_utf8_ucs4duplicate((id3_utf8_t const*)val.c_str());
+    union id3_field* fld = id3_frame_field(nf, 1);
+    bool ok = (u4 && fld && id3_field_addstring(fld, u4) == 0 &&
+               id3_field_settextencoding(id3_frame_field(nf, 0), enc) == 0);
+    if (u4) free(u4);
+    if (ok) {
+        id3_tag_attachframe(tag, nf);
+    } else {
+        id3_frame_delete(nf);
     }
-    FILE* rp = fopen(part, "rb");
-    if (!rp) return false;
-    FILE* wp = fopen(finalPath, "wb");
-    if (!wp) { fclose(rp); return false; }
-    bool ok = true;
-    if (!tag.empty() && fwrite(tag.data(), 1, tag.size(), wp) != tag.size()) ok = false;
-    char buf[65536];
-    size_t n;
-    while (ok && (n = fread(buf, 1, sizeof(buf), rp)) > 0)
-        if (fwrite(buf, 1, n, wp) != n) ok = false;
-    fclose(rp);
-    if (fclose(wp) != 0) ok = false;
-    if (!ok) remove(finalPath);
     return ok;
 }
+
+/* ID3 tag 处理（系统 libid3tag）：
+ * ① 先提取 TIT2/TPE1/TALB 现值并日志（可能为空）
+ * ② 不全则只补缺失字段（已有保留）：编码版本分支 v2.4→UTF_8 /
+ *    v2.3→UTF_16（库 render 自动转换）/ v2.2 老 tag 仅日志跳写
+ * ③ 有补写 → id3_file_update；全齐 → 跳写
+ * 返回 true=流程完成（含 skip）；false=文件级失败（调用方删 part） */
+static bool updateNcmId3(const char* path, const std::string& title,
+                         const std::string& artist, const std::string& album)
+{
+    static const char* ids[3]  = { "TIT2", "TPE1", "TALB" };
+    const std::string* mine[3] = { &title, &artist, &album };
+    std::string cur[3];
+    bool wrote = false, created = false;
+    int nframes = 0;
+
+    struct id3_file* f = id3_file_open(path, ID3_FILE_MODE_READWRITE);
+    struct id3_tag* tag = f ? id3_file_tag(f) : 0;
+    if (tag)
+        for (int i = 0; i < 3; ++i)
+            if (!readId3TextField(tag, ids[i], cur[i])) cur[i].clear();
+    ALOG_INFO(qFromUtf8("NCM tag extracted title=%1 artist=%2 album=%3")
+                  .arg(qFromUtf8(cur[0]))
+                  .arg(qFromUtf8(cur[1]))
+                  .arg(qFromUtf8(cur[2])));
+
+    unsigned ver = 0;
+    if (tag) ver = id3_tag_version(tag) / 256;   /* 编码值 0x0400 → major=4 */
+    if (tag && ver >= 3) {
+        for (int i = 0; i < 3; ++i) {
+            if (cur[i].empty() && !mine[i]->empty()) {
+                enum id3_field_textencoding enc =
+                    (ver >= 4) ? ID3_FIELD_TEXTENCODING_UTF_8
+                               : ID3_FIELD_TEXTENCODING_UTF_16;
+                if (attachTextFrame(tag, ids[i], *mine[i], enc)) wrote = true;
+            }
+        }
+        if (wrote && id3_file_update(f) != 0) {
+            ALOG_WARN(qFromUtf8("NCM tag update write failed"));
+            wrote = false;
+        }
+    }
+    if (f) id3_file_close(f);
+
+    if (!tag) {
+        /* 无既有 tag（源净流）：全新渲染 + tag+原字节手拼前缀。
+         * 帧编码 UTF_16（v2.3/v2.4 双合法，库 render 自动转换） */
+        struct id3_tag* nt = id3_tag_new();
+        for (int i = 0; nt && i < 3; ++i)
+            if (!mine[i]->empty() &&
+                attachTextFrame(nt, ids[i], *mine[i],
+                                ID3_FIELD_TEXTENCODING_UTF_16))
+                ++nframes;
+        if (nt && nframes > 0) {
+            char buf[2048];
+            id3_length_t len =
+                id3_tag_render(nt, (id3_byte_t*)buf);
+            if (len > 0 && len < sizeof(buf)) {
+                std::string tmp = std::string(path) + ".id3tmp";
+                FILE* wp = fopen(tmp.c_str(), "wb");
+                FILE* rp = fopen(path, "rb");
+                if (wp && rp) {
+                    bool ok = fwrite(buf, 1, len, wp) == len;
+                    char cp[65536];
+                    size_t n;
+                    while (ok && (n = fread(cp, 1, sizeof(cp), rp)) > 0)
+                        if (fwrite(cp, 1, n, wp) != n) ok = false;
+                    fclose(rp);
+                    if (fclose(wp) != 0) ok = false;
+                    if (ok && rename(tmp.c_str(), path) == 0) {
+                        created = true;
+                    } else {
+                        remove(tmp.c_str());
+                    }
+                } else {
+                    if (wp) fclose(wp);
+                    if (rp) fclose(rp);
+                }
+            } else if (len == 0) {
+                ALOG_WARN(qFromUtf8("NCM tag render empty, skip create"));
+            } else {
+                ALOG_WARN(qFromUtf8("NCM tag render too large, skip"));
+            }
+        }
+        if (nt) id3_tag_delete(nt);
+    }
+
+    if (created) {
+        ALOG_INFO(qFromUtf8("NCM tag created frames=%1").arg(nframes));
+    } else if (wrote) {
+        ALOG_INFO(qFromUtf8("NCM tag updated"));
+    } else if (tag) {
+        ALOG_INFO(qFromUtf8("NCM tag complete, skip update"));
+    } else {
+        ALOG_INFO(qFromUtf8("NCM tag absent, create skipped"));
+    }
+    return true;
+}
+
+#else /* !HAVE_LIBID3TAG：无系统库（mac 等）tag 段降级跳写 */
+
+static bool updateNcmId3(const char*, const std::string&,
+                         const std::string&, const std::string&)
+{
+    ALOG_INFO(qFromUtf8("NCM tag libid3tag not linked, skip update"));
+    return true;
+}
+
+#endif /* HAVE_LIBID3TAG */
 
 /* 歌名软链 songs/<名>.<ext> → ../<id>.<ext>（best-effort，失败静默）：
  * 链已存在且指向不同实体（同名不同歌）→ 尾缀 _<id>；每次刷新到最新实体 */
@@ -387,15 +462,25 @@ int fetchRemoteTask(const NcmTask& t, std::string& json)
         return NCM_ERR_NETWORK;
     }
 
-    struct stat st2;
-    long long fsize = (stat(part, &st2) == 0) ? (long long)st2.st_size : nbyte;
-    if (!writeWithId3(part, file, t.title, t.artist, t.album, ext == "mp3")) {
+    long long fsize = 0;
+    if (ext == "mp3") {
+        /* 先提取+日志、不全则补缺（系统 libid3tag；无库时内部 skip） */
+        if (!updateNcmId3(part, t.title, t.artist, t.album)) {
+            remove(part);
+            ALOG_WARN(qFromUtf8("NCM fetch id3 failed"));
+            return NCM_ERR_INTERNAL;
+        }
+    } else {
+        ALOG_INFO(qFromUtf8("NCM tag skip (not mp3: %1)").arg(qFromUtf8(ext)));
+    }
+    if (rename(part, file) != 0) {
         remove(part);
-        ALOG_WARN(qFromUtf8("NCM fetch finalize failed"));
+        ALOG_WARN(qFromUtf8("NCM fetch rename failed"));
         return NCM_ERR_INTERNAL;
     }
-    remove(part);
-    writeSidecar(dir, t.id, t.extra, fsize);
+    struct stat st3;
+    fsize = (stat(file, &st3) == 0) ? (long long)st3.st_size : 0;
+    writeSidecar(dir, t.id, t.extra, fsize);   /* 含 tag 的最终 size（bug2 修复） */
     ensureTitleSymlink(dir, t.id, t.title, ext, file);
 
     char js[1400];

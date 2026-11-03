@@ -141,8 +141,26 @@ curl → `<id>.<ext>.part` → ID3v2.4 前置（源自带 "ID3" 魔数 → 保�
 **命中/音质判定逻辑全部上移 UI 层，双层检测不再冗余。**
 
 ### ID3 元信息（TIT2/题名, TPE1/歌者, TALB/专辑）
-v2.4 + UTF-8 syncsafe 帧（`makeId3Tag` 手写 ~60 行零依赖）；
-元数据全空 → 无帧 no-op；M4A/FLAC 属另一元数据体系（Phase 2）。
+**系统 libid3tag**（0.16.x，`pkg-config id3tag` 探测可选链接
+`HAVE_LIBID3TAG`，本机 0.16.4）：不 vendored；无库环境（mac 默认）
+tag 段整体剔除、仅下载不写 tag（log 明示）。
+工作流程（fetch 后 **.part 上原位操作**，再 rename）：
+```
+① 提取 + 日志：TIT2/TPE1/TALB → id3_field_getstrings →
+   id3_ucs4_utf8duplicate；全量输出现有值（可为空）
+② 补缺（仅缺失字段，已有保留；编码按 tag 版本分支：
+   v2.4→UTF_8、v2.3→UTF_16 库 render 自动转换、v2.2 老 tag 仅日志）
+   → id3_file_update；全齐跳写（log "tag complete"）
+③ 无既有 tag（源净流，id3_file_tag==NULL）→ id3_tag_new 全量三帧
+   （UTF_16，v2.3/v2.4 双合法）+ id3_tag_render + tag+原字节手拼前缀
+```
+**sidecar 顺序**：`stat(rename 后最终文件)` 取**含 tag 最终 size** 写
+`<id>.meta`——pre-tag part 尺寸不入表（旧实现两 bug 修复：
+手写帧头 size 错位 → 弃手写改库；sidecar 记 pre-tag size →
+顺序改为 rename 后 stat）。
+验证：`tools/id3smoke` CLI（读/补双场景）+ `ffprobe -show_format`
+反读 + `xxd -l 12`（"ID3"+version+syncsafe）。
+M4A/FLAC 属另一元数据体系（Phase 2，fetch 时 log skip）。
 
 ### 其他
 - 软链：inode 比对，同名不同歌尾缀 `_<id>`；失败静默；每次 fetch 刷新指向

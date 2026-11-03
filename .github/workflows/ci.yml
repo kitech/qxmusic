@@ -76,6 +76,7 @@ jobs:
             libcurl4-openssl-dev libfreetype-dev \
             libx11-dev libxext-dev uuid-dev libxss-dev \
             libsqlite3-dev \
+            libid3tag0-dev \
             libavformat-dev libavcodec-dev libavutil-dev libswresample-dev
       - name: Download and extract precompiled Qt3
         run: |
