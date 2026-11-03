@@ -1469,6 +1469,19 @@ void MainWindow::onOpenCacheDir()
 void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
 {
     if (rc != NCM_OK) {
+        /* resolve 实锤不可播（灰歌 -6 / 试听 -7 / geo 版权 -5）→
+         * 反馈摘对号（列表阶段服务端 playable 判定的实时兜底）；
+         * NETWORK/CAPTCHA 等**临时**错误不摘 */
+        if (rc == NCM_ERR_NO_RESOURCE || rc == NCM_ERR_TRIAL_ONLY ||
+            rc == NCM_ERR_GEO_BLOCK) {
+            for (size_t i = 0; i < m_library.size(); ++i)
+                if (m_library[i].id == m_ncmSrcPlaylist) {
+                    if (m_ncmSrcTrack >= 0 &&
+                        m_ncmSrcTrack < (int)m_library[i].tracks.size())
+                        m_library[i].tracks[m_ncmSrcTrack].playable = false;
+                    break;
+                }
+        }
         showNcmError(rc, _("ncm.playing"));
         return;
     }
@@ -1488,6 +1501,7 @@ void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
 
     if (url.isEmpty()) {
         (*pl).tracks[m_ncmSrcTrack].url = QString();
+        (*pl).tracks[m_ncmSrcTrack].playable = false;   /* 灰歌实锤 */
         showNcmError(NCM_ERR_NO_RESOURCE, _("ncm.playing"));
         return;
     }

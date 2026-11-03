@@ -354,8 +354,13 @@ void ContentView::paintEvent(QPaintEvent*)
                 p.drawText(QRect(104 + titleW + 14, y, width() - 260 - titleW, row.h),
                            Qt::AlignVCenter | Qt::AlignLeft, sub);
 
+                QString dur = fmtMs(t.durationMs);
+                /* 非灰歌（NCM 源 + 可播）时长后缀对号区分；
+                 * 本地歌曲（ncmId==0）不标，避免满屏 ✓ 噪音 */
+                if (t.ncmId > 0 && t.playable)
+                    dur += QString::fromUtf8(" ✓");
                 p.drawText(QRect(width() - 90, y, 60, row.h), Qt::AlignVCenter | Qt::AlignRight,
-                           fmtMs(t.durationMs));
+                           dur);
             }
         }
     } else if (m_mode == PlaylistListMode) {
