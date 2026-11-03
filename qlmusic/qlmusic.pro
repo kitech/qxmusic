@@ -22,6 +22,7 @@ SOURCES = src/main.cpp src/mainwindow.cpp src/appearance.cpp src/config.cpp \
           src/pending_db.cpp src/cache_db.cpp src/cache_fs.cpp \
           src/sticker_db.cpp \
           src/sidenav.cpp src/contentview.cpp src/queuepanel.cpp src/playerbar.cpp \
+          src/ncm_service.cpp \
           ../qlappcom/eventpoller.cpp
 
 HEADERS = src/mainwindow.h src/appearance.h src/config.h src/globaluiutil.h \
@@ -30,7 +31,18 @@ HEADERS = src/mainwindow.h src/appearance.h src/config.h src/globaluiutil.h \
           src/cache_db.h src/cache_fs.h src/sticker_db.h \
           src/musicmodel.h src/musicstyle.h \
           src/sidenav.h src/contentview.h src/queuepanel.h src/playerbar.h \
+          src/ncm_service.h \
           ../qlappcom/eventpoller.h
+
+# ---- NCM (go163-music-core / libncm) ----
+# 仅当 out/libncm.so 存在时才启用；否则 qt3/qt4 构建不受影响。
+unix:!macx:exists($$PWD/../go163-music-core/out/libncm.so) {
+    message("NCM: link go163-music-core")
+    INCLUDEPATH += $$PWD/../go163-music-core/out/include
+    LIBS += -L$$PWD/../go163-music-core/out -lncm \
+            -Wl,-rpath,$$PWD/../go163-music-core/out
+    DEFINES += NCM_ENABLE
+}
 
 include(../qlcomp/qlite.pri)
 include($$PWD/audio.pri)

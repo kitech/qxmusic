@@ -22,11 +22,16 @@ import "C"
 
 import (
 	"encoding/json"
+	"io"
+	"log"
+	"runtime/debug"
+	"regexp"
 	"runtime/cgo"
 	"sync"
 	"unsafe"
 
 	"qx163/ncm/internal/auth"
+	"qx163/ncm/internal/catalog"
 	"qx163/ncm/internal/client"
 	"qx163/ncm/internal/errs"
 	"qx163/ncm/internal/version"
@@ -40,6 +45,31 @@ var apiMu sync.Mutex
 
 // registry 把 cgo.Handle 映射到会话对象。
 var registry sync.Map
+
+// --- 日志脱敏 ---
+//
+// util.CreateRequest 在 code != 200 时把整个 Options（含 cookie）打进
+// 默认 log。宿主是 UI 进程，MUSIC_U 一旦泄漏给终端日志等于交出账号。
+// 这里在首次 ncm_new 时安装一个只做替换的 io.Writer，值一律变 ***。
+var (
+	logRedactOnce sync.Once
+	cookieNameRe  = regexp.MustCompile(`(MUSIC_U|MUSIC_A|__csrf|NMTID)=[^ ,}\]]+`)
+)
+
+type redactWriter struct {
+	next io.Writer
+}
+
+func (w *redactWriter) Write(p []byte) (int, error) {
+	_, err := w.next.Write(cookieNameRe.ReplaceAll(p, []byte("$1=***")))
+	return len(p), err
+}
+
+func installLogRedactor() {
+	logRedactOnce.Do(func() {
+		log.SetOutput(&redactWriter{next: log.Writer()})
+	})
+}
 
 // ffiClient 是跨边界的会话句柄内容。
 type ffiClient struct {
@@ -71,6 +101,7 @@ func lookup(h *C.ncm_client) *ffiClient {
 func guard(fn func() C.int32_t) (ret C.int32_t) {
 	defer func() {
 		if r := recover(); r != nil {
+			log.Printf("[ncm] panic recovered: %v\nstack:\n%s", r, debug.Stack())
 			ret = C.int32_t(errs.Internal)
 		}
 	}()
@@ -144,24 +175,33 @@ func (fc *ffiClient) emitLogin(ok bool, err error) {
 
 //export ncm_new
 func ncm_new(configDir *C.char) (ret *C.ncm_client) {
+	log.Printf("[ncm] ncm_new enter")
+	defer log.Printf("[ncm] ncm_new exit ret=%v", ret != nil)
 	guard(func() C.int32_t {
+		log.Printf("[ncm] ncm_new step: redactor")
+		installLogRedactor()
 		dir := ""
 		if configDir != nil {
 			dir = C.GoString(configDir)
 		}
+		log.Printf("[ncm] ncm_new step: dir=%q", dir)
 
 		fc := &ffiClient{
 			inner: client.New(client.Options{ConfigDir: dir}),
 			auth:  &auth.Service{},
 		}
 		fc.inner.SetEventSink(fc.dispatch)
+		log.Printf("[ncm] ncm_new step: client ok")
 
 		h := cgo.NewHandle(fc)
+		log.Printf("[ncm] ncm_new step: handle=%d", h)
 		p := C.malloc(C.size_t(unsafe.Sizeof(C.ncm_client{})))
 		if p == nil {
+			log.Printf("[ncm] ncm_new: malloc failed")
 			h.Delete()
 			return C.int32_t(errs.Internal)
 		}
+		log.Printf("[ncm] ncm_new step: malloc ok")
 		c := (*C.ncm_client)(p)
 		c.handle = C.uintptr_t(h)
 		c.magic = C.uint32_t(clientMagic)
@@ -385,7 +425,99 @@ func ncm_logout(h *C.ncm_client) C.int32_t {
 	})
 }
 
-// ---- 目录 ----
+// ---- 目录（免认证部分已实现，其余 P2+） ----
+
+//export ncm_playlist_categories
+func ncm_playlist_categories(h *C.ncm_client, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := catalog.Categories()
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_top_playlists
+func ncm_top_playlists(h *C.ncm_client, cat *C.char, order *C.char,
+	limit C.int32_t, offset C.int32_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		catStr := ""
+		if cat != nil {
+			catStr = C.GoString(cat)
+		}
+		orderStr := ""
+		if order != nil {
+			orderStr = C.GoString(order)
+		}
+		res, err := catalog.TopPlaylists(catStr, orderStr, int(limit), int(offset))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_playlist_detail
+func ncm_playlist_detail(h *C.ncm_client, id C.int64_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := catalog.PlaylistDetail(int64(id))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_song_detail
+func ncm_song_detail(h *C.ncm_client, ids *C.char, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		if ids == nil {
+			return badHandle(out)
+		}
+		res, err := catalog.SongDetail(C.GoString(ids))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_check_music
+func ncm_check_music(h *C.ncm_client, songID C.int64_t, br C.int32_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := catalog.CheckMusic(int64(songID), int32(br))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
 
 //export ncm_daily_recommend
 func ncm_daily_recommend(h *C.ncm_client, out **C.char) C.int32_t {
@@ -413,7 +545,11 @@ func ncm_playlist_tracks(h *C.ncm_client, id C.int64_t, out **C.char) C.int32_t 
 			}
 			return C.int32_t(errs.InvalidArg)
 		}
-		return stub(out)
+		res, err := catalog.PlaylistTracks(int64(id))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
 	})
 }
 
@@ -478,7 +614,11 @@ func ncm_resolve_source(h *C.ncm_client, songID C.int64_t, quality C.int32_t, ou
 			}
 			return C.int32_t(errs.InvalidArg)
 		}
-		return stub(out)
+		res, err := catalog.ResolveSource(int64(songID), int32(quality))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
 	})
 }
 

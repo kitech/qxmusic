@@ -225,6 +225,36 @@ public:
 
   /* ---- 目录 ---- */
 
+  /* out_json: {"hot":[...],"groups":[{"name":"语种","categories":[...]}]} */
+  [[nodiscard]] Status playlist_categories(std::string &out_json) {
+    return fetch([&](char **o) { return ncm_playlist_categories(h_, o); }, out_json);
+  }
+
+  /* out_json: {"cat":"...","order":"hot|new","total":N,"more":bool,
+   *            "playlists":[{"id","name","cover","creator","track_count","play_count"}]} */
+  [[nodiscard]] Status top_playlists(std::string_view cat, std::string_view order,
+                                     int32_t limit, int32_t offset, std::string &out_json) {
+    detail::InStr c(cat), ord(order);
+    return fetch([&](char **o) { return ncm_top_playlists(h_, c.get(), ord.get(), limit, offset, o); }, out_json);
+  }
+
+  /* out_json: {"id","name","cover","creator","track_count","description"} */
+  [[nodiscard]] Status playlist_detail(int64_t id, std::string &out_json) {
+    return fetch([&](char **o) { return ncm_playlist_detail(h_, id, o); }, out_json);
+  }
+
+  /* out_json: {"songs":[{"id","name","artists":[],"album","album_id",
+   *            "duration_ms","cover","playable"}]} */
+  [[nodiscard]] Status song_detail(std::string_view ids, std::string &out_json) {
+    detail::InStr k(ids);
+    return fetch([&](char **o) { return ncm_song_detail(h_, k.get(), o); }, out_json);
+  }
+
+  /* out_json: {"song_id","playable","reason"} */
+  [[nodiscard]] Status check_music(int64_t id, int32_t br, std::string &out_json) {
+    return fetch([&](char **o) { return ncm_check_music(h_, id, br, o); }, out_json);
+  }
+
   [[nodiscard]] Status daily_recommend(std::string &out_json) {
     return fetch([&](char **o) { return ncm_daily_recommend(h_, o); }, out_json);
   }

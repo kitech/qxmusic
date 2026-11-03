@@ -106,17 +106,57 @@ int main(void) {
   if (out) ncm_free_string(out);
   out = NULL;
 
-  /* ---- 尚未实现的接口（P3+）：必须返回 NOT_IMPLEMENTED ---- */
+  /* ---- 尚未实现的接口（P2+）：必须返回 NOT_IMPLEMENTED ---- */
 
   rc = ncm_playlist_tracks(c, 0, &out);
   CHECK(rc == NCM_ERR_INVALID_ARG, "非法 id 返回 NCM_ERR_INVALID_ARG");
 
   rc = ncm_playlist_tracks(c, 12345, &out);
-  CHECK(rc == NCM_ERR_NOT_IMPLEMENTED, "未实现的目录接口返回 NCM_ERR_NOT_IMPLEMENTED");
-  CHECK(out == NULL, "失败时不分配出参（调用方无需释放）");
+  CHECK(rc == NCM_OK || rc == NCM_ERR_NETWORK || rc == NCM_ERR_UPSTREAM ||
+            rc == NCM_ERR_NOT_FOUND,
+        "已实现的目录接口在离线/在线下都不应失败为未实现");
+  if (out) ncm_free_string(out);
+  out = NULL;
 
   rc = ncm_resolve_source(c, 12345, NCM_QUALITY_JYMASTER, &out);
-  CHECK(rc == NCM_ERR_NOT_IMPLEMENTED, "合法参数走到未实现分支");
+  CHECK(rc == NCM_OK || rc == NCM_ERR_NETWORK || rc == NCM_ERR_UPSTREAM ||
+            rc == NCM_ERR_NO_RESOURCE || rc == NCM_ERR_NOT_FOUND,
+        "合法参数取流返回预期状态（NO_RESOURCE=灰歌）");
+  if (out) ncm_free_string(out);
+  out = NULL;
+
+  /* ---- Phase 1 新增目录接口 ---- */
+
+  rc = ncm_playlist_categories(c, &out);
+  CHECK(rc == NCM_OK || rc == NCM_ERR_NETWORK || rc == NCM_ERR_UPSTREAM,
+        "ncm_playlist_categories 状态正常");
+  if (out) ncm_free_string(out);
+  out = NULL;
+
+  rc = ncm_top_playlists(c, "全部", "hot", 10, 0, &out);
+  CHECK(rc == NCM_OK || rc == NCM_ERR_NETWORK || rc == NCM_ERR_UPSTREAM,
+        "ncm_top_playlists 状态正常");
+  if (out) ncm_free_string(out);
+  out = NULL;
+
+  rc = ncm_playlist_detail(c, 12345, &out);
+  CHECK(rc == NCM_OK || rc == NCM_ERR_NETWORK || rc == NCM_ERR_UPSTREAM ||
+            rc == NCM_ERR_NOT_FOUND,
+        "ncm_playlist_detail 状态正常");
+  if (out) ncm_free_string(out);
+  out = NULL;
+
+  rc = ncm_song_detail(c, "12345", &out);
+  CHECK(rc == NCM_OK || rc == NCM_ERR_NETWORK || rc == NCM_ERR_UPSTREAM,
+        "ncm_song_detail 状态正常");
+  if (out) ncm_free_string(out);
+  out = NULL;
+
+  rc = ncm_check_music(c, 12345, 0, &out);
+  CHECK(rc == NCM_OK || rc == NCM_ERR_NETWORK || rc == NCM_ERR_UPSTREAM,
+        "ncm_check_music 状态正常");
+  if (out) ncm_free_string(out);
+  out = NULL;
 
   rc = ncm_resolve_source(c, 12345, 999999, &out);
   CHECK(rc == NCM_ERR_INVALID_ARG, "非法音质枚举被拦截（brMap 缺档问题的前置防线）");
@@ -152,12 +192,22 @@ int main(void) {
     o = NULL;
     if (ncm_lyric(NULL, 1, &o) != NCM_ERR_INVALID_ARG) violations++;
     o = NULL;
+    if (ncm_playlist_categories(NULL, &o) != NCM_ERR_INVALID_ARG) violations++;
+    o = NULL;
+    if (ncm_top_playlists(NULL, "全部", "hot", 10, 0, &o) != NCM_ERR_INVALID_ARG) violations++;
+    o = NULL;
+    if (ncm_playlist_detail(NULL, 1, &o) != NCM_ERR_INVALID_ARG) violations++;
+    o = NULL;
+    if (ncm_song_detail(NULL, "1", &o) != NCM_ERR_INVALID_ARG) violations++;
+    o = NULL;
+    if (ncm_check_music(NULL, 1, 320000, &o) != NCM_ERR_INVALID_ARG) violations++;
+    o = NULL;
 
     /* 无出参的接口 */
     if (ncm_logout(NULL) != NCM_ERR_INVALID_ARG) violations++;
     if (ncm_clear_cache(NULL) != NCM_ERR_INVALID_ARG) violations++;
 
-    CHECK(violations == 0, "全部 14 个导出函数对 NULL 句柄返回 NCM_ERR_INVALID_ARG");
+    CHECK(violations == 0, "全部 19 个导出函数对 NULL 句柄返回 NCM_ERR_INVALID_ARG");
   }
 
   ncm_free(c);

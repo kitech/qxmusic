@@ -9,6 +9,7 @@ var (
 	ErrNotLogin       = errors.New("未登录")
 	ErrCaptcha        = errors.New("触发风控，需要行为验证码")
 	ErrMissingMusicU  = errors.New("cookie 中缺少 MUSIC_U")
+	ErrNetwork        = errors.New("网络请求失败")
 	ErrUpstream       = errors.New("上游接口返回异常")
 	ErrBadResponse    = errors.New("上游响应无法解析")
 	ErrUnknownCode    = errors.New("无法识别的状态码")
@@ -40,6 +41,8 @@ func StatusOf(err error) Status {
 		return Unauthorized
 	case errors.Is(err, ErrCaptcha):
 		return Captcha
+	case errors.Is(err, ErrNetwork):
+		return Network
 	case errors.Is(err, ErrGeoBlock):
 		return GeoBlock
 	case errors.Is(err, ErrNoResource):

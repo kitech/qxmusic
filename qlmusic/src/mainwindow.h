@@ -4,6 +4,8 @@
 #include "compat34.h"
 #include "appearance.h"
 #include "musicmodel.h"
+#include "contentview.h"
+#include "ncm_service.h"
 
 #include <qmainwindow.h>
 #include <qwidget.h>
@@ -61,6 +63,18 @@ private slots:
     void onAudioFinished();
     void onAudioError(const QString& msg);
 
+    /* NCM（libncm 网易云源）*/
+    void onNcmCategorySelected(const QString& catKey);
+    void onNavAction(int action);
+    void onNcmPlaylistActivated(qint64 ncmPlaylistId);
+    void onNcmLoadMore();
+    void onNcmBack();
+    void onNcmCategories(int rc, const QString& json, int sel);
+    void onNcmTopPlaylists(int rc, const QString& json, int sel);
+    void onNcmPlaylistTracks(int rc, const QString& json, int localId);
+    void onNcmSource(int rc, const QString& json, qint64 songId);
+    void onNcmAuthRequired(const QString& op);
+
 private:
     struct MenuItemRef {
         const char* key;
@@ -92,6 +106,12 @@ private:
     void playTrack(int playlistId, int trackIndex);
     void updateBackendChecks();
 
+    /* NCM 视图流转（UI 线程，禁止直接调 ncm_* 阻塞调用） */
+    void requestTopPlaylists(const QString& catKey, int offset);
+    void showNcmError(int rc, const QString& op);
+    void showNcmAuthToast(const QString& op);
+    void appendNcmPlaylist(int playlistId /* local */);
+
     void addMenuItem(void* menu, const QObject* receiver, const char* slot,
                      const char* key, bool darkToggle = false);
     void* addTopMenu(const char* key);
@@ -120,6 +140,20 @@ private:
     int m_curPlaylistId;
     int m_curTrackIndex;
     int m_backendMenuFirst;
+
+    /* NCM 状态（全部只属于 UI 线程；队列工作走 NcmService worker） */
+    NcmService* m_ncm;
+    bool m_ncmAvailable;
+    bool m_ncmBusy;
+    QString m_ncmCatKey;     /* 当前分类（kHotViewKey=热门歌单） */
+    QString m_ncmListTitle;  /* 列表标题 */
+    QStringList m_ncmAllCats;   /* 暂未使用：备用扁平分类 */
+    int m_ncmOffset;
+    std::vector<RemotePlaylistCard> m_ncmPendingCards;
+    bool m_ncmHasMore;
+    qint64 m_ncmSrcPlaylist;    /* 等待 resolve 的本地歌单 */
+    int m_ncmSrcTrack;
+    qint64 m_ncmLastToastMs;    /* auth toast 节流 */
 
     // 演示用状态栏控件（演示菜单可反复增删）
     QLabel* demoLeftLabel;

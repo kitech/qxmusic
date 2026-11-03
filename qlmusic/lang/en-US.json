@@ -8,10 +8,35 @@
     "rank": "Ranking",
     "mymusic": "My Music",
     "created": "Created Playlists",
-    "collected": "Collected Playlists"
+    "collected": "Collected Playlists",
+    "categories": "Categories",
+    "rank_coming": "Rankings coming soon"
   },
   "content": {
-    "playall": "Play All"
+    "playall": "Play All",
+    "back": "Back",
+    "load_more": "Load more",
+    "loading": "Loading…",
+    "categories": "Categories"
+  },
+  "ncm": {
+    "auth_required": "This action requires login — please scan the QR code first",
+    "unavailable": "Online music engine not ready",
+    "loading": "Loading…",
+    "cat_all": "All",
+    "playing": "Playback",
+    "loaded_quality": "Playing, quality",
+    "error_network": "Network error",
+    "error_geo": "Restricted by copyright region",
+    "error_not_found": "Resource not found",
+    "error_no_resource": "No playable resource (grayed out)",
+    "error_trial": "Trial clip only",
+    "error_captcha": "Risk-control verification triggered, try again later",
+    "error_generic": "Load failed"
+  },
+  "num": {
+    "wan": "W",
+    "yi": "Yi"
   },
   "player": {
     "prev": "Previous",

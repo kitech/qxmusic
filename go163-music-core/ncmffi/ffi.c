@@ -23,5 +23,5 @@ void ncm_invoke_event(ncm_event_fn cb, void *user_data, int32_t event, const cha
   if (cb == NULL) {
     return;
   }
-  cb(user_data, event, json);
+  cb(user_data, event, (NCM_CPARAM char *)json);
 }

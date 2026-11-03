@@ -8,10 +8,35 @@
     "rank": "排行榜",
     "mymusic": "我的音樂",
     "created": "建立的歌單",
-    "collected": "收藏的歌單"
+    "collected": "收藏的歌單",
+    "categories": "分類",
+    "rank_coming": "排行榜即將支援"
   },
   "content": {
-    "playall": "播放全部"
+    "playall": "播放全部",
+    "back": "返回",
+    "load_more": "載入更多",
+    "loading": "載入中…",
+    "categories": "分類"
+  },
+  "ncm": {
+    "auth_required": "此操作需要登入，請先掃碼登入",
+    "unavailable": "線上音樂引擎未就緒",
+    "loading": "正在載入…",
+    "cat_all": "全部",
+    "playing": "播放",
+    "loaded_quality": "已播放，音質",
+    "error_network": "網路錯誤",
+    "error_geo": "該資源受版權地區限制",
+    "error_not_found": "資源不存在",
+    "error_no_resource": "無版權資源，無法播放（灰歌）",
+    "error_trial": "僅提供試聽片段",
+    "error_captcha": "觸發風控驗證，請稍後再試",
+    "error_generic": "載入失敗"
+  },
+  "num": {
+    "wan": "萬",
+    "yi": "億"
   },
   "player": {
     "prev": "上一首",

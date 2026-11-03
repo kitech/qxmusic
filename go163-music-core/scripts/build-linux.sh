@@ -93,7 +93,7 @@ env CGO_ENABLED=1 \
     GOARCH="$GOARCH" \
     ${GOARM:+GOARM="$GOARM"} \
     CC="$CC" \
-    CGO_CFLAGS="${CGO_CFLAGS:-} ${EXTRA_CFLAGS}" \
+    CGO_CFLAGS="${CGO_CFLAGS:-} ${EXTRA_CFLAGS} -DNCM_GO_CGO" \
     CGO_LDFLAGS="${CGO_LDFLAGS:-} ${EXTRA_LDFLAGS}" \
     go build \
       -buildmode=c-shared \

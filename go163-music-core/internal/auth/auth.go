@@ -97,6 +97,22 @@ type Service struct{}
 // jar 返回全局 CookieJar；首次调用会顺带生成 sDeviceId。
 func jar() http.CookieJar { return util.GetGlobalCookieJar() }
 
+// LoggedIn 报告进程级 CookieJar 中是否存在 MUSIC_U。
+// 只用于日志与 UI 提示（是否"其实已登录却收到 301"），
+// 真正的登录态以服务端响应为准。
+func LoggedIn() bool {
+	u, err := url.Parse(musicHost)
+	if err != nil {
+		return false
+	}
+	for _, c := range jar().Cookies(u) {
+		if c.Name == "MUSIC_U" && c.Value != "" {
+			return true
+		}
+	}
+	return false
+}
+
 // StatusFromQR 把网易云的二维码状态码映射为 (status, error)。
 //
 // 800/801/802/803 全部是正常流程中的状态，必须返回 nil error ——

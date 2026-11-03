@@ -8,10 +8,35 @@
     "rank": "排行榜",
     "mymusic": "我的音乐",
     "created": "创建的歌单",
-    "collected": "收藏的歌单"
+    "collected": "收藏的歌单",
+    "categories": "分类",
+    "rank_coming": "排行榜即将支持"
   },
   "content": {
-    "playall": "播放全部"
+    "playall": "播放全部",
+    "back": "返回",
+    "load_more": "加载更多",
+    "loading": "加载中…",
+    "categories": "分类"
+  },
+  "ncm": {
+    "auth_required": "此操作需要登录，请先扫码登录",
+    "unavailable": "在线音乐引擎未就绪",
+    "loading": "正在加载…",
+    "cat_all": "全部",
+    "playing": "播放",
+    "loaded_quality": "已播放，音质",
+    "error_network": "网络错误",
+    "error_geo": "该资源受版权地区限制",
+    "error_not_found": "资源不存在",
+    "error_no_resource": "无版权资源，无法播放（灰歌）",
+    "error_trial": "仅提供试听片段",
+    "error_captcha": "触发风控验证，请稍后再试",
+    "error_generic": "加载失败"
+  },
+  "num": {
+    "wan": "万",
+    "yi": "亿"
   },
   "player": {
     "prev": "上一首",

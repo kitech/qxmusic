@@ -21,6 +21,13 @@
 #include "queuepanel.h"
 #include "playerbar.h"
 #include "audio/AudioEngineAdapter.h"
+#include "toastwidget.h"
+
+#ifdef NCM_ENABLE
+#include "ncm.h"
+#include "cJSON.h"
+#include "limelog.h"
+#endif
 
 #include <qpixmap.h>
 #include <qevent.h>
@@ -121,6 +128,14 @@ MainWindow::MainWindow(QWidget* parent)
     , m_curPlaylistId(0)
     , m_curTrackIndex(-1)
     , m_backendMenuFirst(0)
+    , m_ncm(0)
+    , m_ncmAvailable(false)
+    , m_ncmBusy(false)
+    , m_ncmOffset(0)
+    , m_ncmHasMore(false)
+    , m_ncmSrcPlaylist(0)
+    , m_ncmSrcTrack(-1)
+    , m_ncmLastToastMs(0)
     , demoLeftLabel(0)
     , demoLeftBtn(0)
     , demoRightLabel(0)
@@ -161,6 +176,9 @@ MainWindow::MainWindow(QWidget* parent)
 
 MainWindow::~MainWindow() {
     s_trayIcon = 0;
+#ifdef NCM_ENABLE
+    if (m_ncm) m_ncm->shutdown();   /* 先停 worker（join），再走 Qt 清理 */
+#endif
     EventPoller::stop();          // 先停泵线程，再关库（qldox mainwindow.cpp:943-945 顺序）
     Storage::instance().close();
 }
@@ -263,6 +281,47 @@ void MainWindow::buildCentralWidget()
                      contentView, SLOT(showPlaylist(int)));
     QObject::connect(contentView, SIGNAL(trackActivated(int, int)),
                      this, SLOT(onTrackActivated(int, int)));
+
+#ifdef NCM_ENABLE
+    m_ncm = new NcmService(this);
+    QString ncmDir = qGetHomePath() + "/.cache/qlmusic/ncm";
+    qMkdir(ncmDir, true);
+    m_ncmAvailable = m_ncm->init(ncmDir);
+    ALOG_WARN(qFromUtf8("NCM init: available=%1 dir=%2")
+                  .arg(m_ncmAvailable ? 1 : 0).arg(ncmDir));
+    if (!m_ncmAvailable) {
+        SharedStatusBar::instance()->showMessageTyped(_("ncm.unavailable"),
+                                                      StatusWarning, 4000);
+    } else {
+        QObject::connect(m_ncm, SIGNAL(categoriesLoaded(int, const QString&, int)),
+                         this, SLOT(onNcmCategories(int, const QString&, int)));
+        QObject::connect(m_ncm, SIGNAL(topPlaylistsLoaded(int, const QString&, int)),
+                         this, SLOT(onNcmTopPlaylists(int, const QString&, int)));
+        QObject::connect(m_ncm, SIGNAL(playlistTracksLoaded(int, const QString&, int)),
+                         this, SLOT(onNcmPlaylistTracks(int, const QString&, int)));
+        QObject::connect(m_ncm, SIGNAL(sourceResolved(int, const QString&, qint64)),
+                         this, SLOT(onNcmSource(int, const QString&, qint64)));
+        QObject::connect(m_ncm, SIGNAL(authRequired(const QString&)),
+                         this, SLOT(onNcmAuthRequired(const QString&)));
+        /* 启动即拉分类（侧栏），随后自动进入"推荐=热门歌单"视图，
+         * 内容区直接展示网络歌单列表，无需手点 */
+        m_ncm->loadCategories();
+        m_ncmListTitle = _("nav.recommend");
+        sideNav->setCurrentCategory(QString("__hot__"));
+        requestTopPlaylists(QString("__hot__"), 0);
+    }
+
+    QObject::connect(sideNav, SIGNAL(categorySelected(const QString&)),
+                     this, SLOT(onNcmCategorySelected(const QString&)));
+    QObject::connect(sideNav, SIGNAL(actionTriggered(int)),
+                     this, SLOT(onNavAction(int)));
+    QObject::connect(contentView, SIGNAL(playlistActivated(qint64)),
+                     this, SLOT(onNcmPlaylistActivated(qint64)));
+    QObject::connect(contentView, SIGNAL(loadMoreRequested()),
+                     this, SLOT(onNcmLoadMore()));
+    QObject::connect(contentView, SIGNAL(backRequested()),
+                     this, SLOT(onNcmBack()));
+#endif /* NCM_ENABLE */
 
     if (playerBar) {
         QObject::connect(playerBar, SIGNAL(playPauseRequested()),
@@ -679,6 +738,17 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
     queuePanel->setQueue(pl->tracks, trackIndex);
     sideNav->setCurrentPlaylist(playlistId);
 
+#ifdef NCM_ENABLE
+    /* NCM 远端曲目：先走 resolveSource（worker 线程），回调里再开播 */
+    if (t.ncmId > 0 && m_ncmAvailable) {
+        m_ncmSrcPlaylist = playlistId;
+        m_ncmSrcTrack = trackIndex;
+        SharedStatusBar::instance()->showMessage(_("ncm.loading"), 3000);
+        m_ncm->resolveSource(t.ncmId, NCM_QUALITY_EXHIGH);
+        return;
+    }
+#endif
+
     QString url = resolveTrackUrl(t);
     if (url.isEmpty()) {
         playerBar->setPlaying(false);
@@ -811,6 +881,13 @@ void MainWindow::onDemoApiRequest()
 
 void MainWindow::customEvent(CustomEventBase* event)
 {
+    if (event->type() == NcmResultType) {
+#ifdef NCM_ENABLE
+        if (m_ncm)
+            m_ncm->handleResult(static_cast<NcmResultEvent*>(event));
+#endif
+        return;   // postEvent 投递的事件由事件循环自动删除，不手动 delete
+    }
     if (event->type() == ApiResultReadyType) {
         ApiHttpResultEvent* e = static_cast<ApiHttpResultEvent*>(event);
         if (e->resp.curlErrStr.empty()) {
@@ -826,3 +903,393 @@ void MainWindow::customEvent(CustomEventBase* event)
     }
     QMainWindow::customEvent(event);
 }
+
+#ifdef NCM_ENABLE
+
+#include <ctime>
+
+/* Qt3 QString::utf8()（QCString）与 Qt4+ QString::toUtf8() 的统一入口，
+ * 供 cJSON_Parse 使用 */
+static const char* cjsonUtf8(const QString& s)
+{
+#ifdef QT3_BUILD
+    return s.utf8();
+#else
+    return s.toUtf8().constData();
+#endif
+}
+
+/* ───────────────────────── NCM（libncm）编排 ─────────────────────────
+ * UI 线程只做：发起请求 + 解析回投结果 + 三处提示。
+ * 阻塞的网络调用全部在 NcmService 的 worker 线程里。
+ */
+
+static QString cJSONStr(cJSON* obj, const char* key, const QString& def)
+{
+    if (!obj) return def;
+    cJSON* n = cJSON_GetObjectItem(obj, key);
+    if (!n || n->type != cJSON_String || !n->valuestring) return def;
+    return qFromUtf8(n->valuestring);
+}
+
+static qint64 cJSONInt(cJSON* obj, const char* key, qint64 def)
+{
+    if (!obj) return def;
+    cJSON* n = cJSON_GetObjectItem(obj, key);
+    if (!n) return def;
+    if (n->type == cJSON_Number) return (qint64)n->valuedouble;
+    return def;
+}
+
+static bool cJSONBool(cJSON* obj, const char* key, bool def)
+{
+    if (!obj) return def;
+    cJSON* n = cJSON_GetObjectItem(obj, key);
+    if (!n) return def;
+    if (n->type == cJSON_True) return true;
+    if (n->type == cJSON_False) return false;
+    if (n->type == cJSON_Number) return n->valueint != 0;
+    return def;
+}
+
+static QStringList cJSONStrArray(cJSON* arr)
+{
+    QStringList out;
+    if (!arr) return out;
+    for (int i = 0; i < cJSON_GetArraySize(arr); ++i) {
+        cJSON* it = cJSON_GetArrayItem(arr, i);
+        if (it && it->type == cJSON_String && it->valuestring)
+            out.append(qFromUtf8(it->valuestring));
+    }
+    return out;
+}
+
+void MainWindow::onNcmCategories(int rc, const QString& json, int /*sel*/)
+{
+    if (rc != NCM_OK) {
+        /* 静默：离线/未实现时只是侧栏没有分类树 */
+        return;
+    }
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) return;
+
+    QStringList hot = cJSONStrArray(cJSON_GetObjectItem(root, "hot"));
+    QStringList groupNames;
+    QStringList groupCounts;
+    QStringList matrix;
+    cJSON* groups = cJSON_GetObjectItem(root, "groups");
+    for (int i = 0; groups && i < cJSON_GetArraySize(groups); ++i) {
+        cJSON* g = cJSON_GetArrayItem(groups, i);
+        if (!g) continue;
+        groupNames.append(cJSONStr(g, "name", ""));
+        cJSON* cats = cJSON_GetObjectItem(g, "categories");
+        int cnt = 0;
+        for (int c = 0; cats && c < cJSON_GetArraySize(cats); ++c) {
+            cJSON* it = cJSON_GetArrayItem(cats, c);
+            if (it && it->type == cJSON_String && it->valuestring) {
+                matrix.append(qFromUtf8(it->valuestring));
+                ++cnt;
+            }
+        }
+        groupCounts.append(QString::number(cnt));
+    }
+    m_ncmAllCats = hot;
+    for (int i = 0; i < matrix.size(); ++i)
+        m_ncmAllCats.append(matrix[i]);
+    cJSON_Delete(root);
+
+    if (sideNav)
+        sideNav->setCategories(hot, groupNames, groupCounts, matrix);
+}
+
+void MainWindow::requestTopPlaylists(const QString& catKey, int offset)
+{
+    if (!m_ncmAvailable) {
+        SharedStatusBar::instance()->showMessageTyped(_("ncm.unavailable"),
+                                                      StatusWarning, 4000);
+        return;
+    }
+    if (m_ncmBusy) return;
+    m_ncmBusy = true;
+
+    /* "__hot__" 是 sidenav 的热门歌单视图哨兵 → 服务端 cat=全部 order=hot */
+    m_ncmCatKey = catKey;
+    m_ncmOffset = offset;
+    if (offset == 0) {
+        m_ncmHasMore = false;
+        m_ncmPendingCards.clear();
+        if (contentView)
+            contentView->showPlaylistList(m_ncmListTitle, m_ncmPendingCards, false, true);
+    }
+
+    QString cat = (catKey == QString("__hot__")) ? _("ncm.cat_all") : catKey;
+    const char* order = "hot";
+    m_ncm->loadTopPlaylists(cat, qFromUtf8(order), 30, offset);
+}
+
+void MainWindow::onNcmTopPlaylists(int rc, const QString& json, int /*sel*/)
+{
+    m_ncmBusy = false;
+    if (rc != NCM_OK) {
+        showNcmError(rc, _("nav.recommend"));
+        if (contentView)
+            contentView->setListLoading(false);
+        return;
+    }
+
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) {
+        showNcmError(NCM_ERR_UPSTREAM, _("nav.recommend"));
+        if (contentView)
+            contentView->setListLoading(false);
+        return;
+    }
+    cJSON* arr = cJSON_GetObjectItem(root, "playlists");
+    for (int i = 0; arr && i < cJSON_GetArraySize(arr); ++i) {
+        cJSON* it = cJSON_GetArrayItem(arr, i);
+        if (!it) continue;
+        RemotePlaylistCard card;
+        card.id = cJSONInt(it, "id", 0);
+        card.name = cJSONStr(it, "name", QString::number((long long)card.id));
+        card.creator = cJSONStr(it, "creator", "");
+        card.coverUrl = cJSONStr(it, "cover", "");
+        card.trackCount = (int)cJSONInt(it, "track_count", 0);
+        card.playCount = cJSONInt(it, "play_count", 0);
+        m_ncmPendingCards.push_back(card);
+    }
+    m_ncmHasMore = cJSONBool(root, "more", false);
+    cJSON_Delete(root);
+
+    /* 服务端 offset = 已取条数（load more 追加语义） */
+    m_ncmOffset = (int)m_ncmPendingCards.size();
+    if (contentView)
+        contentView->showPlaylistList(m_ncmListTitle, m_ncmPendingCards,
+                                      m_ncmHasMore && !m_ncmPendingCards.empty(), false);
+}
+
+void MainWindow::onNcmPlaylistActivated(qint64 ncmPlaylistId)
+{
+    if (ncmPlaylistId <= 0) return;
+
+    /* 已拉取过：直接展示 */
+    for (size_t i = 0; i < m_library.size(); ++i) {
+        if (m_library[i].ncmId == ncmPlaylistId) {
+            int lid = m_library[i].id;
+            contentView->showPlaylist(lid);
+            sideNav->setCurrentPlaylist(lid);
+            return;
+        }
+    }
+
+    if (!m_ncmAvailable) {
+        SharedStatusBar::instance()->showMessageTyped(_("ncm.unavailable"),
+                                                      StatusWarning, 4000);
+        return;
+    }
+    if (m_ncmBusy) return;
+    m_ncmBusy = true;
+    SharedStatusBar::instance()->showMessage(_("ncm.loading"), 8000);
+
+    /* 新分配一个不与现有本地歌单冲突的 id 给这个远端歌单 */
+    int localId = 1;
+    for (size_t i = 0; i < m_library.size(); ++i)
+        if (m_library[i].id >= localId) localId = m_library[i].id + 1;
+    m_ncm->loadPlaylistTracks(ncmPlaylistId, localId);
+}
+
+void MainWindow::onNcmPlaylistTracks(int rc, const QString& json, int localId)
+{
+    m_ncmBusy = false;
+    if (rc != NCM_OK) {
+        showNcmError(rc, _("nav.recommend"));
+        return;
+    }
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) {
+        showNcmError(NCM_ERR_UPSTREAM, _("nav.recommend"));
+        return;
+    }
+    cJSON* pl = cJSON_GetObjectItem(root, "playlist");
+    Playlist p;
+    p.id = localId;
+    p.name = pl ? cJSONStr(pl, "name", _("nav.recommend")) : _("nav.recommend");
+    p.coverSeed = pl ? cJSONStr(pl, "cover", "") : "";
+    p.creator = pl ? cJSONStr(pl, "creator", "") : "";
+    p.coverUrl = p.coverSeed;
+    p.trackCount = pl ? (int)cJSONInt(pl, "track_count", 0) : 0;
+
+    static int nextTrackId = 100;
+    cJSON* tracks = cJSON_GetObjectItem(root, "tracks");
+    for (int i = 0; tracks && i < cJSON_GetArraySize(tracks); ++i) {
+        cJSON* it = cJSON_GetArrayItem(tracks, i);
+        if (!it) continue;
+        QString name = cJSONStr(it, "name", "");
+        if (name.isEmpty()) continue;
+        QString artists;
+        cJSON* art = cJSON_GetObjectItem(it, "artists");
+        for (int a = 0; art && a < cJSON_GetArraySize(art); ++a) {
+            cJSON* ai = cJSON_GetArrayItem(art, a);
+            if (ai && ai->type == cJSON_String && ai->valuestring) {
+                if (!artists.isEmpty()) artists += qFromUtf8("/");
+                artists += qFromUtf8(ai->valuestring);
+            }
+        }
+        Track t = makeNcmTrack(nextTrackId++,
+                               cJSONInt(it, "id", 0),
+                               name, artists,
+                               cJSONStr(it, "album", ""),
+                               (int)cJSONInt(it, "duration_ms", 0),
+                               cJSONStr(it, "cover", ""),
+                               cJSONInt(it, "album_id", 0));
+        t.playable = cJSONBool(it, "playable", true);
+        p.tracks.push_back(t);
+    }
+    p.trackCount = p.trackCount > 0 ? p.trackCount : (int)p.tracks.size();
+    cJSON_Delete(root);
+
+    m_library.push_back(p);
+    sideNav->setLibrary(m_library);
+    contentView->setLibrary(m_library);
+    contentView->showPlaylist(p.id);
+    sideNav->setCurrentPlaylist(p.id);
+}
+
+void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
+{
+    if (rc != NCM_OK) {
+        showNcmError(rc, _("ncm.playing"));
+        return;
+    }
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) {
+        showNcmError(NCM_ERR_UPSTREAM, _("ncm.playing"));
+        return;
+    }
+    QString url = cJSONStr(root, "url", "");
+    QString level = cJSONStr(root, "level", "");
+    cJSON_Delete(root);
+
+    Playlist* pl = 0;
+    for (size_t i = 0; i < m_library.size(); ++i)
+        if (m_library[i].id == m_ncmSrcPlaylist) { pl = &m_library[i]; break; }
+    if (!pl || m_ncmSrcTrack < 0 || m_ncmSrcTrack >= (int)pl->tracks.size()) return;
+
+    if (url.isEmpty()) {
+        (*pl).tracks[m_ncmSrcTrack].url = QString();
+        showNcmError(NCM_ERR_NO_RESOURCE, _("ncm.playing"));
+        return;
+    }
+    (*pl).tracks[m_ncmSrcTrack].url = url;
+    const Track& t = (*pl).tracks[m_ncmSrcTrack];
+
+    ensureEngine();
+    audioEngine->open(url);
+    audioEngine->play();
+    SharedStatusBar::instance()->showMessage(
+        _("ncm.loaded_quality") + qFromUtf8(" ") + level, 3000);
+}
+
+void MainWindow::onNcmLoadMore()
+{
+    if (m_ncmBusy || m_ncmCatKey.isEmpty()) return;
+    requestTopPlaylists(m_ncmCatKey, m_ncmOffset);
+}
+
+void MainWindow::onNcmBack()
+{
+    /* 列表/宫格返回：回到分类宫格（若无分类数据则回热门歌单） */
+    if (sideNav)
+        sideNav->setCurrentCategory(QString("__hot__"));
+    if (contentView && !m_ncmAllCats.isEmpty()) {
+        contentView->showCategoryGrid(m_ncmAllCats);
+        return;
+    }
+    m_ncmListTitle = _("nav.recommend");
+    requestTopPlaylists(QString("__hot__"), 0);
+}
+
+void MainWindow::onNcmCategorySelected(const QString& catKey)
+{
+    m_ncmListTitle = (catKey == QString("__hot__")) ? _("nav.recommend") : catKey;
+    requestTopPlaylists(catKey, 0);
+}
+
+void MainWindow::onNavAction(int action)
+{
+    if (action == 0) {
+        /* 排行榜：暂缓，Phase 2 */
+        SharedStatusBar::instance()->showMessage(_("nav.rank_coming"), 3000);
+        return;
+    }
+    if (action == 1) {
+        /* 我的音乐：需要登录（Phase 2），提示即回 */
+        showNcmAuthToast(_("nav.mymusic"));
+        return;
+    }
+}
+
+void MainWindow::showNcmError(int rc, const QString& op)
+{
+    switch (rc) {
+    case NCM_ERR_UNAUTHORIZED:
+        showNcmAuthToast(op);
+        return;
+    case NCM_ERR_NETWORK:
+        SharedStatusBar::instance()->showMessageTyped(_("ncm.error_network"),
+                                                      StatusError, 5000);
+        ToastWidget::showCenter(this, _("ncm.error_network"), ToastWidget::Error, 2500);
+        return;
+    case NCM_ERR_CAPTCHA:
+        ToastWidget::showCenter(this, _("ncm.error_captcha"), ToastWidget::Warning, 3000);
+        return;
+    case NCM_ERR_GEO_BLOCK:
+        ToastWidget::showCenter(this, _("ncm.error_geo"), ToastWidget::Warning, 3000);
+        return;
+    case NCM_ERR_NOT_FOUND:
+        ToastWidget::showCenter(this, _("ncm.error_not_found"), ToastWidget::Warning, 3000);
+        return;
+    case NCM_ERR_NO_RESOURCE:
+        ToastWidget::showCenter(this, _("ncm.error_no_resource"), ToastWidget::Error, 3000);
+        return;
+    case NCM_ERR_TRIAL_ONLY:
+        ToastWidget::showCenter(this, _("ncm.error_trial"), ToastWidget::Warning, 3000);
+        return;
+    default:
+        ToastWidget::showCenter(this, _("ncm.error_generic"), ToastWidget::Error, 3000);
+        return;
+    }
+}
+
+void MainWindow::showNcmAuthToast(const QString& op)
+{
+    Q_UNUSED(op);
+    /* 认证要求：状态栏 + 托盘气泡 + 屏幕中央 toast，5 秒节流 */
+    qint64 now = (qint64)time(0);
+    if (m_ncmLastToastMs > 0 && now - m_ncmLastToastMs < 5) return;
+    m_ncmLastToastMs = now;
+
+    SharedStatusBar::instance()->showMessageTyped(_("ncm.auth_required"),
+                                                  StatusWarning, 5000);
+    sticonShowStatusMessage(_("ncm.auth_required"), SticonWarning, 4000);
+    ToastWidget::showCenter(this, _("ncm.auth_required"), ToastWidget::Warning, 2500);
+}
+
+void MainWindow::onNcmAuthRequired(const QString& /*op*/)
+{
+    showNcmAuthToast(_("nav.recommend"));
+}
+
+#else /* !NCM_ENABLE：libncm 不可用，仅保留符号满足 moc */
+
+void MainWindow::onNcmCategorySelected(const QString&) {}
+void MainWindow::onNavAction(int) {}
+void MainWindow::onNcmPlaylistActivated(qint64) {}
+void MainWindow::onNcmLoadMore() {}
+void MainWindow::onNcmBack() {}
+void MainWindow::onNcmCategories(int, const QString&, int) {}
+void MainWindow::onNcmTopPlaylists(int, const QString&, int) {}
+void MainWindow::onNcmPlaylistTracks(int, const QString&, int) {}
+void MainWindow::onNcmSource(int, const QString&, qint64) {}
+void MainWindow::onNcmAuthRequired(const QString&) {}
+
+#endif /* NCM_ENABLE */

@@ -57,19 +57,33 @@ int main() {
     client.on_event(nullptr, nullptr);
     CHECK(true, "on_event 订阅/取消订阅不崩溃");
 
+    // Phase 1：qr_begin / playlist_tracks / resolve_source / logout 已实现。
+    // 在线成功或离线网络错误都算预期；NotImplemented 只剩 search/clear_cache。
     std::string json;
-    CHECK(client.qr_begin(json) == ncm::Status::NotImplemented,
-          "qr_begin 返回 NotImplemented");
-    CHECK(json.empty(), "失败时 out_json 保持为空");
+    {
+      const auto rc = client.qr_begin(json);
+      CHECK(rc == ncm::Status::Ok || rc == ncm::Status::Network ||
+                rc == ncm::Status::Captcha || rc == ncm::Status::Upstream,
+            "qr_begin 状态为 OK 或网络/风控类");
+      CHECK(!(rc == ncm::Status::Ok) || !json.empty(), "成功时 out_json 非空");
+    }
 
     CHECK(client.playlist_tracks(0, json) == ncm::Status::InvalidArg,
           "非法 id 返回 InvalidArg");
-    CHECK(client.playlist_tracks(12345, json) == ncm::Status::NotImplemented,
-          "合法 id 返回 NotImplemented");
+    {
+      const auto rc = client.playlist_tracks(12345, json);
+      CHECK(rc == ncm::Status::Ok || rc == ncm::Status::Network ||
+                rc == ncm::Status::Upstream || rc == ncm::Status::NotFound,
+            "歌单曲目加载为已实现状态（404=歌单不存在）");
+    }
 
-    CHECK(client.resolve_source(12345, ncm::Quality::Jymaster, json) ==
-              ncm::Status::NotImplemented,
-          "resolve_source(Jymaster) 走到未实现分支");
+    {
+      const auto rc = client.resolve_source(12345, ncm::Quality::Jymaster, json);
+      CHECK(rc == ncm::Status::Ok || rc == ncm::Status::Network ||
+                rc == ncm::Status::Upstream || rc == ncm::Status::NoResource ||
+                rc == ncm::Status::NotFound,
+            "resolve_source 已实现（NO_RESOURCE=灰歌）");
+    }
     CHECK(client.resolve_source(12345, static_cast<ncm::Quality>(999999), json) ==
               ncm::Status::InvalidArg,
           "非法音质枚举被拦截");
@@ -77,8 +91,12 @@ int main() {
     CHECK(client.search("周杰伦", 0, json) == ncm::Status::NotImplemented,
           "search 接受空 limit 并回退默认值");
 
-    CHECK(client.logout() == ncm::Status::NotImplemented, "logout 不崩溃");
-    CHECK(client.clear_cache() == ncm::Status::NotImplemented, "clear_cache 不崩溃");
+    const auto lr = client.logout();
+    CHECK(lr == ncm::Status::Ok || lr == ncm::Status::Network ||
+              lr == ncm::Status::Unauthorized,
+          "logout 已实现（未登录时回 UNAUTHORIZED）");
+    CHECK(client.clear_cache() == ncm::Status::NotImplemented,
+          "clear_cache 不崩溃");
   }
   CHECK(true, "作用域结束时析构未泄漏（配合 ASan 验证）");
 
