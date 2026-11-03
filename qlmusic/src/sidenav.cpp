@@ -1,6 +1,7 @@
 #include "sidenav.h"
 #include "musicstyle.h"
 #include "searchline.h"
+#include "userinfopanel.h"
 #include "translator.h"
 
 #include <qglobal.h>
@@ -10,6 +11,7 @@
 
 namespace {
 const int kTop = 8;
+const int kUserH = 60;   /* 用户信息块（两行：昵称 + 副信息），搜索框上方 */
 const int kSearchH = 28;
 const int kItemH = 30;
 const int kGroupH = 26;
@@ -18,17 +20,24 @@ const char* kHotViewKey = "__hot__";
 }
 
 SideNav::SideNav(QWidget* parent)
-    : QWidget(parent), m_search(0), m_scrollBar(0), m_scroll(0), m_contentH(0),
-      m_current(-1), m_hover(-1)
+    : QWidget(parent), m_search(0), m_user(0), m_scrollBar(0), m_scroll(0),
+      m_contentH(0), m_current(-1), m_hover(-1)
 {
     setMouseTracking(true);
     setMinimumWidth(170);
     setMaximumWidth(280);
+    m_user = new UserInfoPanel(this);
+    connect(m_user, SIGNAL(loginRequested()), this, SIGNAL(loginRequested()));
     m_search = new SearchLineEdit(this);
     m_scrollBar = new LimeScrollBar(Qt::Vertical, this);
     m_scrollBar->hide();
     connect(m_scrollBar, SIGNAL(valueChanged(int)), this, SLOT(onNavScroll(int)));
     retranslateUi();
+}
+
+void SideNav::setUserLoggedIn(const QString& name, const QString& avatarSeed)
+{
+    if (m_user) m_user->setLoggedIn(name, avatarSeed);
 }
 
 void SideNav::retranslateUi()
@@ -81,7 +90,7 @@ void SideNav::relayout()
 {
     m_items.clear();
     m_contentH = 0;
-    int y = kTop + kSearchH + 8;
+    int y = kTop + kUserH + kSearchH + 8;
 
     NavItem it;
     it.kind = NavHotPlaylists; it.id = -1; it.text = m_navRecommend; it.cat = QString();
@@ -203,8 +212,10 @@ int SideNav::itemAt(const QPoint& p) const
 void SideNav::resizeEvent(QResizeEvent* e)
 {
     QWidget::resizeEvent(e);
+    if (m_user)
+        m_user->setGeometry(10, kTop, width() - 20, kUserH);
     if (m_search)
-        m_search->setGeometry(10, kTop, width() - 20, kSearchH);
+        m_search->setGeometry(10, kTop + kUserH + 4, width() - 20, kSearchH);
     applyScrollBar();
     update();
 }
@@ -238,7 +249,8 @@ void SideNav::paintEvent(QPaintEvent*)
     QPainter p(this);
     p.fillRect(rect(), pal.baseBg);
 
-    p.setClipRect(QRect(0, kTop + kSearchH + 4, width(), height() - kTop - kSearchH - 4));
+    p.setClipRect(QRect(0, kTop + kUserH + kSearchH + 4, width(),
+                        height() - kTop - kUserH - kSearchH - 4));
 
     QFont normal = font();
     QFont bold = font();

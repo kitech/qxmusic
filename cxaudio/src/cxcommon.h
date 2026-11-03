@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace cx {
 
@@ -21,6 +22,13 @@ enum EventType {
     kEvDuration = 2,
     kEvEof      = 3,
     kEvError    = 4
+};
+
+struct AudioDeviceInfo {
+    std::string name;
+    std::string id;
+    bool        isDefault;
+    AudioDeviceInfo() : isDefault(false) {}
 };
 
 struct BackendCallbacks {
@@ -48,6 +56,12 @@ public:
     virtual int64_t position() const = 0;
     virtual int64_t duration() const = 0;
     virtual int state() const = 0;
+
+    /* 输出设备枚举/选定；A/B 有效，mpv 暂不支持（默认空表+忽略） */
+    virtual std::vector<AudioDeviceInfo> listOutputDevices() {
+        return std::vector<AudioDeviceInfo>();
+    }
+    virtual void setOutputDeviceName(const std::string&) {}
 
     void setCallbacks(BackendCallbacks* cb) { cb_ = cb; }
 

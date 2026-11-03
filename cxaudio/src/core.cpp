@@ -80,6 +80,8 @@ bool Core::open(const std::string& uri) {
         dispatch(kEvError, 0, 0, msg);
     };
     backend_->setCallbacks(&cbs_);
+    if (!pendingOutputDeviceName_.empty())
+        backend_->setOutputDeviceName(pendingOutputDeviceName_);
 
     std::string err;
     if (!backend_->available(&err)) {
@@ -106,6 +108,18 @@ void Core::setVolume(int v) { if (backend_) backend_->setVolume(v); }
 int64_t Core::position() const { return backend_ ? backend_->position() : 0; }
 int64_t Core::duration() const { return backend_ ? backend_->duration() : 0; }
 int Core::state() const { return backend_ ? backend_->state() : kStopped; }
+
+std::vector<AudioDeviceInfo> Core::listOutputDevices() {
+    if (backend_) return backend_->listOutputDevices();
+    /* 未 open 枚举：临时 PcmBackend（枚举自建临时 context，与 backend 选择无关） */
+    PcmBackend probe(faadProvider());
+    return probe.listOutputDevices();
+}
+
+void Core::setOutputDeviceName(const std::string& name) {
+    pendingOutputDeviceName_ = name;
+    if (backend_) backend_->setOutputDeviceName(name);
+}
 
 std::string Core::backendId() const { return resolved_; }
 

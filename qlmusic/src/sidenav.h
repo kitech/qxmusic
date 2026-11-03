@@ -8,6 +8,7 @@
 #include <qstringlist.h>
 
 class SearchLineEdit;
+class UserInfoPanel;
 
 class SideNav : public QWidget {
     Q_OBJECT
@@ -21,6 +22,10 @@ public:
     void setCategories(const QStringList& hot, const QStringList& groupNames,
                        const QStringList& groupCounts, const QStringList& categoryMatrix);
 
+    /* 左上角用户区（搜索框上方两行块）；Phase 2 登录成功后调用 */
+    void setUserLoggedIn(const QString& name, const QString& avatarSeed);
+    UserInfoPanel* userPanel() { return m_user; }
+
 public slots:
     void onNavScroll(int v);
 
@@ -28,6 +33,7 @@ signals:
     void playlistSelected(int playlistId);
     void categorySelected(const QString& cat);
     void actionTriggered(int actionId);
+    void loginRequested();
 
 protected:
     void paintEvent(QPaintEvent* e);
@@ -61,6 +67,7 @@ private:
     void clampScroll() { if (m_contentH < height() - 4) m_scroll = 0; }
 
     SearchLineEdit* m_search;
+    UserInfoPanel* m_user;
     LimeScrollBar* m_scrollBar;
     int m_scroll;
     int m_contentH;

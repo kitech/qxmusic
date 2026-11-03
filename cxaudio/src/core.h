@@ -7,6 +7,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <vector>
 
 namespace cx {
 
@@ -33,6 +34,9 @@ public:
     int64_t duration() const;
     int state() const;
 
+    std::vector<AudioDeviceInfo> listOutputDevices();
+    void setOutputDeviceName(const std::string& name);
+
     std::string backendId() const;
     std::string lastError() const;
 
@@ -47,6 +51,7 @@ private:
 
     std::string requested_ = "auto";
     std::string resolved_ = "";
+    std::string pendingOutputDeviceName_; /* open 前设置 → open 时下发 */
     std::unique_ptr<IBackend> backend_;
     BackendCallbacks cbs_;
 

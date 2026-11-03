@@ -77,7 +77,27 @@
     "help": "&Help",
     "aboutqt": "About Qt",
     "about_qlmusic": "About qlmusic",
-    "audio_backend": "Audio Backend"
+    "audio_backend": "Audio Backend",
+    "settings": "Settings…"
+  },
+  "user": {
+    "not_login": "Not logged in",
+    "click_to_login": "Not logged in · Click to log in",
+    "logged_in": "Logged in"
+  },
+  "settings": {
+    "window_title": "Settings",
+    "audio_tab": "Audio",
+    "backend_label": "Audio backend (effective next play)",
+    "device_label": "Output device (effective next play)",
+    "quality_label": "Playback quality",
+    "test_label": "Test",
+    "test_btn": "Play test tone (440Hz sine, 2s)",
+    "test_gen_fail": "Failed to generate test tone (no write permission?)",
+    "test_playing": "Playing test tone (",
+    "quality_changed": "Quality switched: ",
+    "device_changed": "Output device selected: ",
+    "next_play": " (effective next play)"
   },
   "action": {
     "new": "New",

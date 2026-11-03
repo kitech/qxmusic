@@ -4,6 +4,8 @@
 #include "compat34.h"
 #include "cxaudio.hpp"
 
+#include <vector>
+
 /* Qt wrapper around cxaudio::Player. Engine callbacks arrive on worker threads;
  * they are marshalled to this object's thread (the UI thread) via posted events,
  * then re-emitted as Qt signals. */
@@ -17,6 +19,14 @@ public:
     void setBackend(const QString& id);
     QString backendId() const;
     QString lastError() const;
+
+    struct OutputDevice {
+        QString name;
+        bool isDefault;
+        OutputDevice() : isDefault(false) {}
+    };
+    void setOutputDevice(const QString& name);   /* 空串=系统默认，下次 open 生效 */
+    std::vector<OutputDevice> outputDevices();
 
     void open(const QString& uri);
     void play();

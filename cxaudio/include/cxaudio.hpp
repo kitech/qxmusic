@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <vector>
 
 namespace cxaudio {
 
@@ -21,6 +22,13 @@ enum State {
     Paused    = 2,
     Buffering = 3,
     Error     = 4
+};
+
+struct AudioDeviceInfo {
+    std::string name;
+    std::string id;
+    bool        isDefault;
+    AudioDeviceInfo() : isDefault(false) {}
 };
 
 /* Thin C++ wrapper over the same engine used by the C ABI.
@@ -50,6 +58,11 @@ public:
 
     std::string backendId() const;
     std::string lastError() const;
+
+    /* 枚举系统 playback 设备（miniaudio 后端序与 open() 相同） */
+    std::vector<AudioDeviceInfo> listOutputDevices();
+    /* 名称匹配选定输出设备；空串 = 系统默认。下次 open() 生效 */
+    void setOutputDeviceName(const std::string& name);
 
     void setCallback(Callback cb);
 

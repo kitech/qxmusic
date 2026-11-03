@@ -22,6 +22,7 @@
 #include "playerbar.h"
 #include "audio/AudioEngineAdapter.h"
 #include "toastwidget.h"
+#include "userinfopanel.h"
 
 #ifdef NCM_ENABLE
 #include "ncm.h"
@@ -37,6 +38,8 @@
 #include <qsplitter.h>
 
 #include <cstdlib>
+#include <cmath>
+#include <fstream>
 
 #include "app_icon.xpm"
 
@@ -55,6 +58,84 @@ static QString resolveTrackUrl(const Track& t)
     const char* env = getenv("QLMUSIC_SAMPLE");
     if (env && *env) return qFromUtf8(env);
     return Config::value("samplemedia");
+}
+
+/* —— 音质映射：展示名 ↔ NCM_QUALITY_* 值 ——
+ * VIP 五档（LOSSLESS/HIRES/JYEFFECT/SKY/JYMASTER）免登录 decode 大概率
+ * resolve 失败（NO_RESOURCE/TRIAL），失败时由既有 showNcmError 状态栏提示
+ * 兜底；完整 VIP 登录鉴权 + 降级重选归 Phase 2（二维码登录 + Cookie）。
+ * 接入后仅需在此表增加可用性位并按用户 VIP 状态过滤选项。 */
+static const struct {
+    const char* zh;
+    int value;
+} kQualityMap[] = {
+    { "标准（128k）",      NCM_QUALITY_STANDARD },
+    { "较高（192k）",      NCM_QUALITY_HIGHER   },
+    { "极高（320k）",      NCM_QUALITY_EXHIGH   },
+    { "无损（VIP）",       NCM_QUALITY_LOSSLESS },
+    { "Hi-Res（VIP）",     NCM_QUALITY_HIRES    },
+    { "高清环绕声（VIP）", NCM_QUALITY_JYEFFECT },
+    { "沉浸环绕（VIP）",   NCM_QUALITY_SKY      },
+    { "超清母带（VIP）",   NCM_QUALITY_JYMASTER },
+};
+static const int kQualityCount = (int)(sizeof(kQualityMap) / sizeof(kQualityMap[0]));
+
+static const char* kDefaultDeviceLabel = "系统默认";
+
+static const char* const kBackendOptionKeys[4] = {
+    "audio.backend.auto", "audio.backend.ffmpeg",
+    "audio.backend.faad", "audio.backend.mpv"
+};
+
+static QString qualityLabelForValue(int v)
+{
+    for (int i = 0; i < kQualityCount; i++)
+        if (kQualityMap[i].value == v) return qFromUtf8(kQualityMap[i].zh);
+    return qFromUtf8(kQualityMap[2].zh); /* 缺省回极高档 */
+}
+
+static int qualityValueForLabel(const QString& label)
+{
+    for (int i = 0; i < kQualityCount; i++)
+        if (label == qFromUtf8(kQualityMap[i].zh)) return kQualityMap[i].value;
+    return NCM_QUALITY_EXHIGH;
+}
+
+static QString backendIdForLabel(const QString& label)
+{
+    static const char* const ids[4] = { "auto", "ffmpeg", "faad", "mpv" };
+    for (int i = 0; i < 4; i++)
+        if (label == _(qFromUtf8(kBackendOptionKeys[i]))) return qFromUtf8(ids[i]);
+    return QString();
+}
+
+/* 生成 2s 440Hz 正弦 S16 双声道 WAV（设置窗播放测试用） */
+static bool writeTestWav(const QString& path, int seconds)
+{
+    const int sr = 44100, ch = 2;
+    const int dataBytes = sr * ch * 2 * seconds;
+    std::ofstream f(qToUtf8(path).data(), std::ios::binary | std::ios::trunc);
+    if (!f.is_open()) return false;
+    uint32_t sampleRate = sr, byteRate = sr * ch * 2;
+    uint16_t blockAlign = ch * 2, bits = 16, fmtTag = 1;
+    f.write("RIFF", 4);
+    { uint32_t v = 36 + dataBytes; f.write((char*)&v, 4); }
+    f.write("WAVEfmt ", 8);
+    { uint32_t v = 16; f.write((char*)&v, 4); }
+    f.write((char*)&fmtTag, 2);
+    f.write((char*)&ch, 2);
+    f.write((char*)&sampleRate, 4);
+    f.write((char*)&byteRate, 4);
+    f.write((char*)&blockAlign, 2);
+    f.write((char*)&bits, 2);
+    f.write("data", 4);
+    { uint32_t v = dataBytes; f.write((char*)&v, 4); }
+    for (int i = 0; i < sr * seconds; i++) {
+        int16_t s = (int16_t)(sin(2.0 * M_PI * 440.0 * i / sr) * 0.25 * 32767.0);
+        f.write((char*)&s, 2);
+        f.write((char*)&s, 2);
+    }
+    return f.good();
 }
 
 static const char* const kTopMenuKeys[] = {
@@ -128,6 +209,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_curPlaylistId(0)
     , m_curTrackIndex(-1)
     , m_backendMenuFirst(0)
+    , m_ncmQuality(NCM_QUALITY_EXHIGH)
     , m_ncm(0)
     , m_ncmAvailable(false)
     , m_ncmBusy(false)
@@ -168,6 +250,13 @@ MainWindow::MainWindow(QWidget* parent)
     buildTray();
     QObject::connect(&Translator::instance(), SIGNAL(languageChanged()),
                      this, SLOT(retranslateUi()));
+
+    /* 设置窗记忆的播放音质还原（audio.conf；缺省极高档） */
+    {
+        QSettings34 s("qlmusic", "audio");
+        int q = qualityValueForLabel(s.valueStr("audio/quality", ""));
+        m_ncmQuality = q;
+    }
 
     // 启动事件轮询引擎（对照 qldox mainwindow.cpp:630-631）
     EventPoller::start();
@@ -313,6 +402,10 @@ void MainWindow::buildCentralWidget()
 
     QObject::connect(sideNav, SIGNAL(categorySelected(const QString&)),
                      this, SLOT(onNcmCategorySelected(const QString&)));
+    /* 侧栏左上用户区（登录占位；Phase 2 接二维码登录）
+     * 登录成功后经 sideNav->setUserLoggedIn(昵称, 头像 seed) 更新该区域 */
+    QObject::connect(sideNav, SIGNAL(loginRequested()),
+                     this, SLOT(onUserLoginPlaceholder()));
     QObject::connect(sideNav, SIGNAL(actionTriggered(int)),
                      this, SLOT(onNavAction(int)));
     QObject::connect(contentView, SIGNAL(playlistActivated(qint64)),
@@ -457,6 +550,7 @@ void MainWindow::buildMenus()
     topMenuRefs.clear();
     MenuWidget34* file = static_cast<MenuWidget34*>(addTopMenu("menu.file"));
     addMenuItem(file, this, SLOT(onMenu1Stub()), "action.new");
+    addMenuItem(file, this, SLOT(openSettings()), "menu.settings");
     addMenuSeparator(file);
     addMenuItem(file, this, SLOT(quitApp()), "action.quit");
     MenuWidget34* edit = static_cast<MenuWidget34*>(addTopMenu("menu.edit"));
@@ -475,6 +569,8 @@ void MainWindow::buildMenus()
     addMenuItem(tool, this, SLOT(onDemoApiRequest()), "demo.api_request");
     addMenuSeparator(tool);
     buildBackendMenu(tool);
+    addMenuSeparator(tool);
+    addMenuItem(tool, this, SLOT(openSettings()), "menu.settings");
     MenuWidget34* help = static_cast<MenuWidget34*>(addTopMenu("menu.help"));
     addMenuItem(help, qApp, SLOT(aboutQt()), "menu.aboutqt");
     addMenuItem(help, this, SLOT(onAboutApp()), "menu.about_qlmusic");
@@ -722,6 +818,11 @@ void MainWindow::ensureEngine()
     QObject::connect(audioEngine, SIGNAL(errorOccurred(const QString&)),
                      this, SLOT(onAudioError(const QString&)));
     audioEngine->setBackend(resolveBackendId());
+    /* 设置窗记忆的输出设备（audio.conf 镜像真源；空=系统默认） */
+    QSettings34 s("qlmusic", "audio");
+    QString dev = s.valueStr("audio/device", "");
+    if (!dev.isEmpty() && dev != qFromUtf8(kDefaultDeviceLabel))
+        audioEngine->setOutputDevice(dev);
 }
 
 void MainWindow::playTrack(int playlistId, int trackIndex)
@@ -744,7 +845,7 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
         m_ncmSrcPlaylist = playlistId;
         m_ncmSrcTrack = trackIndex;
         SharedStatusBar::instance()->showMessage(_("ncm.loading"), 3000);
-        m_ncm->resolveSource(t.ncmId, NCM_QUALITY_EXHIGH);
+        m_ncm->resolveSource(t.ncmId, m_ncmQuality);
         return;
     }
 #endif
@@ -792,6 +893,124 @@ void MainWindow::updateBackendChecks()
         if (ref.action) static_cast<QAction*>(ref.action)->setChecked(on);
 #endif
     }
+}
+
+void MainWindow::openSettings()
+{
+    /* 双入口（Tool 菜单后端子菜单 ↔ 设置窗）共享真源：
+     * 后端 = config.json "audioengine"；音质/设备 = audio.conf（QSettings34）。
+     * 后端键缺省时惰性 seed，保持两个视图一致。 */
+    {
+        QSettings34 s("qlmusic", "audio");
+        if (!s.contains("audio/backend"))
+            s.setValue("audio/backend", QVariant(Config::value("audioengine")));
+        s.sync();
+    }
+    ensureEngine();
+
+    ConfigDialog* dlg = new ConfigDialog(_("settings.window_title"), this);
+    CategoryPage* page = new CategoryPage(_("settings.audio_tab"), dlg);
+
+    SelectConfigItem* backendItem = new SelectConfigItem(
+        "audio/backend", "auto", "",
+        QStringList() << _(qFromUtf8(kBackendOptionKeys[0]))
+                      << _(qFromUtf8(kBackendOptionKeys[1]))
+                      << _(qFromUtf8(kBackendOptionKeys[2]))
+                      << _(qFromUtf8(kBackendOptionKeys[3])), page);
+    page->addLabeledControl(_("settings.backend_label"), backendItem->comboBox());
+
+    /* 输出设备：实时枚举系统 playback 设备（cxaudio listOutputDevices） */
+    QStringList deviceLabels;
+    deviceLabels << qFromUtf8(kDefaultDeviceLabel);
+    std::vector<AudioEngineAdapter::OutputDevice> devs = audioEngine->outputDevices();
+    for (size_t i = 0; i < devs.size(); i++)
+        if (!devs[i].name.isEmpty()) deviceLabels << devs[i].name;
+    SelectConfigItem* devItem = new SelectConfigItem(
+        "audio/device", qFromUtf8(kDefaultDeviceLabel), "", deviceLabels, page);
+    page->addLabeledControl(_("settings.device_label"), devItem->comboBox());
+
+    SelectConfigItem* qualityItem = new SelectConfigItem(
+        "audio/quality", qualityLabelForValue(m_ncmQuality), "",
+        QStringList() << qFromUtf8("标准（128k）") << qFromUtf8("较高（192k）")
+                      << qFromUtf8("极高（320k）") << qFromUtf8("无损（VIP）")
+                      << qFromUtf8("Hi-Res（VIP）") << qFromUtf8("高清环绕声（VIP）")
+                      << qFromUtf8("沉浸环绕（VIP）") << qFromUtf8("超清母带（VIP）"), page);
+    page->addLabeledControl(_("settings.quality_label"), qualityItem->comboBox());
+
+    QPushButton* testBtn = new QPushButton(_("settings.test_btn"), page);
+    LambdaSlot* testSlot = new LambdaSlot(this, [this]() { onAudioTestPlay(); });
+    connect(testBtn, SIGNAL(clicked()), testSlot, SLOT(call()));
+    page->addLabeledControl(_("settings.test_label"), testBtn);
+
+    dlg->addCategory(_("settings.audio_tab"), page);
+    dlg->registerConfigItem(backendItem);
+    dlg->registerConfigItem(devItem);
+    dlg->registerConfigItem(qualityItem);
+
+    dlg->setSettingsName("qlmusic", "audio");
+    QObject::connect(dlg, SIGNAL(settingsSaved(const SettingsChangedMap&)),
+                     this, SLOT(onSettingsSaved(const SettingsChangedMap&)));
+    dlg->loadSettings();
+    dlg->exec();
+    delete dlg;
+}
+
+void MainWindow::onSettingsSaved(const SettingsChangedMap& changed)
+{
+    if (changed.contains("audio/backend")) {
+        QString id = backendIdForLabel(changed["audio/backend"].toString());
+        if (!id.isEmpty()) {
+            Config::setValue("audioengine", id);
+            if (audioEngine) audioEngine->setBackend(id);
+            updateBackendChecks();
+            SharedStatusBar::instance()->showMessage(
+                _("audio.backend_changed") + qFromUtf8(" ") + id, 3000);
+        }
+    }
+    if (changed.contains("audio/quality")) {
+        int q = qualityValueForLabel(changed["audio/quality"].toString());
+        if (q > 0 && q != m_ncmQuality) {
+            m_ncmQuality = q;
+            /* VIP 档 resolve 失败由 showNcmError 兜底；Phase 2 接登录鉴权+降级 */
+            SharedStatusBar::instance()->showMessage(
+                _("settings.quality_changed") + qFromUtf8(" ")
+                + changed["audio/quality"].toString()
+                + _("settings.next_play"), 3000);
+        }
+    }
+    if (changed.contains("audio/device")) {
+        QString v = changed["audio/device"].toString();
+        if (audioEngine)
+            audioEngine->setOutputDevice(v == qFromUtf8(kDefaultDeviceLabel)
+                                             ? QString() : v);
+        SharedStatusBar::instance()->showMessage(
+            _("settings.device_changed") + qFromUtf8(" ") + v
+            + _("settings.next_play"), 3000);
+    }
+}
+
+void MainWindow::onAudioTestPlay()
+{
+    ensureEngine();
+    /* 440Hz 正弦 2s S16 WAV → 同一条真实链路（当前后端 + 当前输出设备） */
+    QString path = qGetHomePath() + "/.cache/qlmusic/audio_test.wav";
+    if (!writeTestWav(path, 2)) {
+        SharedStatusBar::instance()->showMessage(_("settings.test_gen_fail"), 4000);
+        return;
+    }
+    audioEngine->open(path);
+    audioEngine->play();
+    SharedStatusBar::instance()->showMessage(
+        _("settings.test_playing") + audioEngine->backendId()
+        + qFromUtf8("）…"), 3000);
+}
+
+void MainWindow::onUserLoginPlaceholder()
+{
+    /* Phase 2：二维码登录（login/qrcode_generate/qrcode_check + Cookie 落盘）；
+     * 登录成功后经 userPanel->setLoggedIn(昵称, 头像 seed) 更新右上角区域 */
+    ToastWidget::showCenter(this, qFromUtf8("登录功能开发中（Phase 2）"),
+                            ToastWidget::Info, 2500);
 }
 
 void MainWindow::onPlayPause()

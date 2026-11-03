@@ -47,6 +47,24 @@ QString AudioEngineAdapter::lastError() const
     return qFromUtf8(m_player.lastError());
 }
 
+void AudioEngineAdapter::setOutputDevice(const QString& name)
+{
+    m_player.setOutputDeviceName(std::string(qToUtf8(name).data()));
+}
+
+std::vector<AudioEngineAdapter::OutputDevice> AudioEngineAdapter::outputDevices()
+{
+    std::vector<OutputDevice> list;
+    std::vector<cxaudio::AudioDeviceInfo> devs = m_player.listOutputDevices();
+    for (size_t i = 0; i < devs.size(); ++i) {
+        OutputDevice d;
+        d.name = qFromUtf8(devs[i].name.c_str());
+        d.isDefault = devs[i].isDefault;
+        list.push_back(d);
+    }
+    return list;
+}
+
 void AudioEngineAdapter::open(const QString& uri)
 {
     /* Player::open 返回 bool，失败原因在 lastError()。经 EvError 事件

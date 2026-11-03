@@ -36,6 +36,9 @@ public:
     int64_t duration() const override;
     int state() const override;
 
+    std::vector<AudioDeviceInfo> listOutputDevices();
+    void setOutputDeviceName(const std::string& name) { outputDeviceName_ = name; }
+
 private:
     PcmBackend(const PcmBackend&);
     PcmBackend& operator=(const PcmBackend&);
@@ -67,6 +70,8 @@ private:
     size_t ringWrite_ = 0;
     size_t ringCount_ = 0;
     std::mutex seekMutex_;
+
+    std::string outputDeviceName_;  /* 设置窗选定；空 = 系统默认 */
 };
 
 } /* namespace cx */

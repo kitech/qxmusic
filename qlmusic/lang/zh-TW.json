@@ -77,7 +77,27 @@
     "help": "說明(&H)",
     "aboutqt": "關於 Qt",
     "about_qlmusic": "關於 qlmusic",
-    "audio_backend": "音訊後端"
+    "audio_backend": "音訊後端",
+    "settings": "設定…"
+  },
+  "user": {
+    "not_login": "未登入",
+    "click_to_login": "未登入 · 點擊登入",
+    "logged_in": "已登入"
+  },
+  "settings": {
+    "window_title": "設定",
+    "audio_tab": "音訊",
+    "backend_label": "音訊後端（下次播放生效）",
+    "device_label": "輸出裝置（下次播放生效）",
+    "quality_label": "播放音質",
+    "test_label": "測試",
+    "test_btn": "播放測試音（440Hz 正弦 2 秒）",
+    "test_gen_fail": "測試音產生失敗（無寫入權限？）",
+    "test_playing": "正在播放測試音（",
+    "quality_changed": "音質已切換：",
+    "device_changed": "輸出裝置已選擇：",
+    "next_play": "（下次播放生效）"
   },
   "action": {
     "new": "新增",

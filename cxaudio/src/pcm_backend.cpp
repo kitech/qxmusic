@@ -20,6 +20,30 @@ static bool gLoggedData = false;
 static int gRead0Streak = 0;
 static bool gPullLogged = false;
 
+/* NULL_DEVICE 环境变量 + ALSA→Pulse→默认 后端序（open 与设备枚举共用；
+ * 两处必须同一选择逻辑，避免"枚举列表"与"实际打开"错位）。
+ * 优先 ALSA：实测 PulseAudio 后端 ma_device_start 返回 0 但数据回调
+ * 不运转（sink SUSPENDED、pullAudio 无 take）；均失败回退默认序 */
+static bool initMaContext(ma_context* ctx, ma_context_config* ccfg,
+                          std::string* err) {
+    ma_result cr;
+    if (std::getenv("CXAUDIO_NULL_DEVICE")) {
+        ma_backend backends[1] = { ma_backend_null };
+        cr = ma_context_init(backends, 1, ccfg, ctx);
+    } else {
+        ma_backend backends[2] = { ma_backend_alsa, ma_backend_pulseaudio };
+        cr = ma_context_init(backends, 2, ccfg, ctx);
+        if (cr != MA_SUCCESS)
+            cr = ma_context_init(NULL, 0, ccfg, ctx);
+    }
+    if (cr != MA_SUCCESS) {
+        if (err)
+            *err = std::string("ma_context_init failed: ") + ma_result_description(cr);
+        return false;
+    }
+    return true;
+}
+
 PcmBackend::PcmBackend(DecoderProvider* provider) : provider_(provider) {}
 PcmBackend::~PcmBackend() { teardown(); }
 
@@ -65,26 +89,33 @@ bool PcmBackend::open(const std::string& uri, std::string* err) {
 
     ma_context_config ccfg = ma_context_config_init();
     context_ = new ma_context;
-    ma_result cr;
-    if (std::getenv("CXAUDIO_NULL_DEVICE")) {
-        ma_backend backends[1] = { ma_backend_null };
-        cr = ma_context_init(backends, 1, &ccfg, context_);
-    } else {
-        /* 优先 ALSA：实测 PulseAudio 后端 ma_device_start 返回 0 但
-         * 数据回调不运转（sink SUSPENDED、pullAudio 无 take）；
-         * ALSA 直接经 dmix 与系统声卡对接更可靠。均失败回退默认序 */
-        ma_backend backends[2] = { ma_backend_alsa, ma_backend_pulseaudio };
-        cr = ma_context_init(backends, 2, &ccfg, context_);
-        if (cr != MA_SUCCESS)
-            cr = ma_context_init(NULL, 0, &ccfg, context_);
-    }
-    if (cr != MA_SUCCESS) {
-        if (err) *err = std::string("ma_context_init failed: ") + ma_result_description(cr);
+    if (!initMaContext(context_, &ccfg, err)) {
         delete context_;
         context_ = nullptr;
         delete decoder_;
         decoder_ = nullptr;
         return false;
+    }
+
+    /* 选定输出设备（设置窗记忆；空=系统默认）；名字精确匹配 */
+    ma_device_id preferredDeviceId_;
+    if (!outputDeviceName_.empty()) {
+        ma_device_info* infos = nullptr;
+        ma_uint32 cnt = 0;
+        if (ma_context_get_devices(context_, &infos, &cnt, 0, 0) == MA_SUCCESS) {
+            for (ma_uint32 i = 0; i < cnt; ++i) {
+                if (std::strcmp(infos[i].name, outputDeviceName_.c_str()) == 0) {
+                    preferredDeviceId_ = infos[i].id;
+                    cfg.playback.pDeviceID = &preferredDeviceId_; /* init 期间有效 */
+                    fprintf(stderr, "[cxaudio] device select: %s\n",
+                            outputDeviceName_.c_str());
+                    break;
+                }
+            }
+        }
+        if (!cfg.playback.pDeviceID)
+            fprintf(stderr, "[cxaudio] device not found, fallback default: %s\n",
+                    outputDeviceName_.c_str());
     }
 
     device_ = new ma_device;
@@ -112,6 +143,25 @@ bool PcmBackend::open(const std::string& uri, std::string* err) {
     quit_ = false;
     thread_ = std::thread(&PcmBackend::decodeLoop, this);
     return true;
+}
+
+std::vector<AudioDeviceInfo> PcmBackend::listOutputDevices() {
+    std::vector<AudioDeviceInfo> out;
+    ma_context ctx;
+    ma_context_config ccfg = ma_context_config_init();
+    if (!initMaContext(&ctx, &ccfg, nullptr)) return out;
+    ma_device_info* infos = nullptr;
+    ma_uint32 cnt = 0;
+    if (ma_context_get_devices(&ctx, &infos, &cnt, 0, 0) == MA_SUCCESS) {
+        for (ma_uint32 i = 0; i < cnt; ++i) {
+            AudioDeviceInfo d;
+            d.name = infos[i].name;
+            d.isDefault = (i == 0); /* ma 默认序：首个为系统默认 */
+            out.push_back(d);
+        }
+    }
+    ma_context_uninit(&ctx);
+    return out;
 }
 
 void PcmBackend::teardown() {

@@ -2,6 +2,8 @@
 
 #include "core.h"
 
+#include <vector>
+
 namespace cxaudio {
 
 struct Player::Impl {
@@ -28,6 +30,23 @@ int Player::state() const { return d_->core.state(); }
 
 std::string Player::backendId() const { return d_->core.backendId(); }
 std::string Player::lastError() const { return d_->core.lastError(); }
+
+std::vector<AudioDeviceInfo> Player::listOutputDevices() {
+    std::vector<AudioDeviceInfo> out;
+    std::vector<cx::AudioDeviceInfo> devs = d_->core.listOutputDevices();
+    for (size_t i = 0; i < devs.size(); ++i) {
+        AudioDeviceInfo d;
+        d.name = devs[i].name;
+        d.id = devs[i].id;
+        d.isDefault = devs[i].isDefault;
+        out.push_back(d);
+    }
+    return out;
+}
+
+void Player::setOutputDeviceName(const std::string& name) {
+    d_->core.setOutputDeviceName(name);
+}
 
 void Player::setCallback(Callback cb) {
     if (cb) {

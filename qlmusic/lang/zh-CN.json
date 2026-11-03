@@ -77,7 +77,27 @@
     "help": "帮助(&H)",
     "aboutqt": "关于 Qt",
     "about_qlmusic": "关于 qlmusic",
-    "audio_backend": "音频后端"
+    "audio_backend": "音频后端",
+    "settings": "设置…"
+  },
+  "user": {
+    "not_login": "未登录",
+    "click_to_login": "未登录 · 点击登录",
+    "logged_in": "已登录"
+  },
+  "settings": {
+    "window_title": "设置",
+    "audio_tab": "音频",
+    "backend_label": "音频后端（下次播放生效）",
+    "device_label": "输出设备（下次播放生效）",
+    "quality_label": "播放音质",
+    "test_label": "测试",
+    "test_btn": "播放测试音（440Hz 正弦 2 秒）",
+    "test_gen_fail": "测试音生成失败（无写权限？）",
+    "test_playing": "正在播放测试音（",
+    "quality_changed": "音质已切换：",
+    "device_changed": "输出设备已选择：",
+    "next_play": "（下次播放生效）"
   },
   "action": {
     "new": "新建",

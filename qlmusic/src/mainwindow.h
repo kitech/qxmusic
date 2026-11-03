@@ -6,7 +6,7 @@
 #include "musicmodel.h"
 #include "contentview.h"
 #include "ncm_service.h"
-
+#include "ConfigDialog.h"   /* SettingsChangedMap 类型随 Q_OBJECT 槽声明完整 */
 #include <qmainwindow.h>
 #include <qwidget.h>
 #include <qlabel.h>
@@ -53,6 +53,10 @@ private slots:
     void onAboutApp();
     void onTrackActivated(int playlistId, int trackIndex);
     void onBackendSelected(int index);
+    void openSettings();
+    void onSettingsSaved(const SettingsChangedMap& changed);
+    void onAudioTestPlay();
+    void onUserLoginPlaceholder();
     void onPlayPause();
     void onPrev();
     void onNext();
@@ -140,6 +144,7 @@ private:
     int m_curPlaylistId;
     int m_curTrackIndex;
     int m_backendMenuFirst;
+    int m_ncmQuality;   /* 当前选定播放音质（NCM_QUALITY_*，设置窗改） */
 
     /* NCM 状态（全部只属于 UI 线程；队列工作走 NcmService worker） */
     NcmService* m_ncm;
