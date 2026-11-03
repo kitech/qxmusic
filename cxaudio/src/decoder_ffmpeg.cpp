@@ -83,6 +83,8 @@ public:
 
     const char* name() const override { return "ffmpeg"; }
 
+    std::string lastError() const override { return lastErr_; }
+
 private:
     FfmpegDecoder() {}
     FfmpegDecoder(const FfmpegDecoder&);
@@ -194,6 +196,7 @@ private:
                     fprintf(stderr, "[cxaudio] swr init failure loop risk: decoding will keep "
                                     "consuming stream but produce no frames\n");
                 }
+                lastErr_ = "swr_init failed";
                 return false;
             }
             needSwr_ = false;
@@ -210,6 +213,7 @@ private:
                 gSwrConvertLogged = true;
                 fprintf(stderr, "[cxaudio] swr_convert failed: err=%s\n", errStr(got));
             }
+            lastErr_ = "swr_convert: " + errStr(got);
             stage_.clear();
             return false;
         }
@@ -227,7 +231,10 @@ private:
                 if (ok) return true;
                 continue;
             }
-            if (r != AVERROR(EAGAIN) && r != AVERROR_EOF) return false;
+            if (r != AVERROR(EAGAIN) && r != AVERROR_EOF) {
+                lastErr_ = "receive_frame: " + errStr(r);
+                return false;
+            }
 
             if (draining_) return false;
 
@@ -241,6 +248,7 @@ private:
                             .count(),
                         (int)pr, errStr(pr));
                 if (pr < 0) {
+                    if (pr != AVERROR_EOF) lastErr_ = "read: " + errStr(pr);
                     api_->avcodec_send_packet(codec_, 0);
                     draining_ = true;
                     continue;
@@ -252,6 +260,7 @@ private:
             }
             int pr = api_->av_read_frame(fmt_, pkt_);
             if (pr < 0) {
+                if (pr != AVERROR_EOF) lastErr_ = "read: " + errStr(pr);
                 api_->avcodec_send_packet(codec_, 0);
                 draining_ = true;
                 continue;
@@ -277,6 +286,7 @@ private:
     bool draining_ = false;
     std::vector<int16_t> stage_;
     size_t stagePos_ = 0;
+    std::string lastErr_;
 };
 
 FfmpegApi* sharedApi(std::string* err) {

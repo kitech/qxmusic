@@ -206,6 +206,12 @@ void PcmBackend::decodeLoop() {
             }
         }
         if (got == 0) {
+            std::string de = decoder_->lastError();
+            if (!de.empty()) {
+                fprintf(stderr, "[cxaudio] decode error: %s\n", de.c_str());
+                if (cb_ && cb_->onError) cb_->onError(de);
+                state_ = kStopped;
+            }
             eof_ = true;
             continue;
         }

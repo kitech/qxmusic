@@ -19,6 +19,9 @@ public:
     /* Fill up to `frames` frames; returns frames actually written (0 = EOF). */
     virtual size_t readFrames(int16_t* dst, size_t frames) = 0;
 
+    /* 运行期致命错误描述（空串 = 正常 EOF）；在 readFrames 返回 0 后查询。 */
+    virtual std::string lastError() const { return std::string(); }
+
     /* Best-effort seek; returns true on success. */
     virtual bool seek(int64_t ms) = 0;
 
