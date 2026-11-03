@@ -14,6 +14,8 @@
 
 #if CXAUDIO_FFMPEG_OK
 
+#include <chrono>
+#include <cstdio>
 #include <cstring>
 #include <vector>
 
@@ -22,10 +24,16 @@ namespace {
 
 FfmpegApi* sharedApi(std::string* err = 0);
 
+/* 每实例观测一次（openFile 构造实例时重置；单实例单线程访问） */
+static bool gSwrInitLogged = false;
+static bool gSwrConvertLogged = false;
+static bool gFirstReadLogged = false;
+
 class FfmpegDecoder : public Decoder {
 public:
     static Decoder* openFile(const std::string& path, std::string* err) {
         FfmpegDecoder* d = new FfmpegDecoder();
+        gSwrInitLogged = gSwrConvertLogged = gFirstReadLogged = false;
         if (!d->init(path, err)) {
             delete d;
             return 0;
@@ -124,6 +132,10 @@ private:
             return false;
         }
         api_->avcodec_parameters_to_context(codec_, st->codecpar);
+        /* 官方要求（FFmpeg libavcodec/decode.c）：解码器跳过编码器
+         * 预置首尾 pad 样本时需要 pkt_timebase 才能校正时间戳，
+         * 未设则打 "Could not update timestamps for skipped samples"。 */
+        codec_->pkt_timebase = st->time_base;
         r = api_->avcodec_open2(codec_, dec, 0);
         if (r < 0) {
             if (err) *err = "codec_open2: " + errStr(r);
@@ -171,7 +183,19 @@ private:
     bool convertFrame(const AVFrame* f) {
         if (needSwr_ || !swr_) {
             if (swr_) api_->swr_free(&swr_);
-            if (!initSwr(f)) return false;
+            if (!initSwr(f)) {
+                if (!gSwrInitLogged) {
+                    gSwrInitLogged = true;
+                    fprintf(stderr,
+                            "[cxaudio] swr init failed: in=%dHz fmt=%d layout=%d(channels=%d) "
+                            "out=%dHz fmt=S16\n",
+                            f->sample_rate, (int)f->format,
+                            (int)f->ch_layout.nb_channels, f->nb_samples, outRate_);
+                    fprintf(stderr, "[cxaudio] swr init failure loop risk: decoding will keep "
+                                    "consuming stream but produce no frames\n");
+                }
+                return false;
+            }
             needSwr_ = false;
         }
         int outMax = (int)((int64_t)f->nb_samples * outRate_ / (inRate_ > 0 ? inRate_ : outRate_)) +
@@ -182,6 +206,10 @@ private:
         int got = api_->swr_convert(swr_, &outPtr, outMax, (const uint8_t**)f->data,
                                     f->nb_samples);
         if (got < 0) {
+            if (!gSwrConvertLogged) {
+                gSwrConvertLogged = true;
+                fprintf(stderr, "[cxaudio] swr_convert failed: err=%s\n", errStr(got));
+            }
             stage_.clear();
             return false;
         }
@@ -203,6 +231,25 @@ private:
 
             if (draining_) return false;
 
+            if (!gFirstReadLogged) {
+                gFirstReadLogged = true;
+                auto t0 = std::chrono::steady_clock::now();
+                int pr = api_->av_read_frame(fmt_, pkt_);
+                fprintf(stderr, "[cxaudio] first av_read_frame took %dms err=%d (%s)\n",
+                        (int)std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::steady_clock::now() - t0)
+                            .count(),
+                        (int)pr, errStr(pr));
+                if (pr < 0) {
+                    api_->avcodec_send_packet(codec_, 0);
+                    draining_ = true;
+                    continue;
+                }
+                if (pkt_->stream_index == streamIndex_)
+                    api_->avcodec_send_packet(codec_, pkt_);
+                api_->av_packet_unref(pkt_);
+                continue;
+            }
             int pr = api_->av_read_frame(fmt_, pkt_);
             if (pr < 0) {
                 api_->avcodec_send_packet(codec_, 0);

@@ -49,7 +49,13 @@ QString AudioEngineAdapter::lastError() const
 
 void AudioEngineAdapter::open(const QString& uri)
 {
-    m_player.open(qToUtf8(uri).data());
+    /* Player::open 返回 bool，失败原因在 lastError()。经 EvError 事件
+     * 走既有 onAudioError → 状态栏 + 停止播放态，避免“UI 已播放
+     * 但引擎静默失败”的不可见状态。 */
+    if (!m_player.open(qToUtf8(uri).data())) {
+        QApplication::postEvent(this, new AudioEngineEvent(
+            cxaudio::EvError, 0, 0, qFromUtf8(m_player.lastError())));
+    }
 }
 
 void AudioEngineAdapter::play() { m_player.play(); }

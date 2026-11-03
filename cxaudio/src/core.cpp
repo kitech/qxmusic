@@ -46,6 +46,14 @@ bool Core::open(const std::string& uri) {
         return false;
     }
 
+    /* 远程流（http/https）自动切换：faad 后端（miniaudio/faad2 链路）
+     * 只支持本地文件（ma_decoder_init_file/fopen），须走 ffmpeg ——
+     * FfmpegDecoder 的 avformat_open_input 内建 http/mp3 支持。
+     * 显式选定 ffmpeg/mpv 时不介入。 */
+    if (target == "faad" &&
+        (uri.rfind("http://", 0) == 0 || uri.rfind("https://", 0) == 0))
+        target = "ffmpeg";
+
     backend_.reset();
     resolved_ = target;
 

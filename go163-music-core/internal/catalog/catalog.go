@@ -4,6 +4,7 @@ package catalog
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -469,6 +470,9 @@ func finishSource(songID int64, quality int32, d rawURLData) (SourceResult, erro
 	if isTrial(d) {
 		return out, errs.ErrTrialOnly
 	}
+	// 点播成功的歌曲播放地址落日志（便于运维核对 URL 有效期/防密令牌）
+	log.Printf("[ncm][song] song_id=%d url=%s source=%s quality=%d level=%s",
+		out.SongID, out.URL, out.Source, out.Quality, out.Level)
 	return out, nil
 }
 

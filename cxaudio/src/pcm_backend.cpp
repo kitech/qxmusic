@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -12,6 +13,12 @@ namespace cx {
 
 static const size_t kChunkFrames = 2048;
 static const int kRingSeconds = 8;
+
+/* 观测计数（open() 时重置；decodeLoop/音频回调线程写，无并发打点冲突） */
+static bool gLoggedEmpty = false;
+static bool gLoggedData = false;
+static int gRead0Streak = 0;
+static bool gPullLogged = false;
 
 PcmBackend::PcmBackend(DecoderProvider* provider) : provider_(provider) {}
 PcmBackend::~PcmBackend() { teardown(); }
@@ -29,6 +36,9 @@ void PcmBackend::dataCallback(ma_device* dev, void* out, const void* in,
 
 bool PcmBackend::open(const std::string& uri, std::string* err) {
     teardown();
+
+    gLoggedEmpty = gLoggedData = gPullLogged = false;
+    gRead0Streak = 0;
 
     std::string path = normalizeUri(uri);
     decoder_ = provider_->create(path, err);
@@ -60,7 +70,13 @@ bool PcmBackend::open(const std::string& uri, std::string* err) {
         ma_backend backends[1] = { ma_backend_null };
         cr = ma_context_init(backends, 1, &ccfg, context_);
     } else {
-        cr = ma_context_init(NULL, 0, &ccfg, context_);
+        /* 优先 ALSA：实测 PulseAudio 后端 ma_device_start 返回 0 但
+         * 数据回调不运转（sink SUSPENDED、pullAudio 无 take）；
+         * ALSA 直接经 dmix 与系统声卡对接更可靠。均失败回退默认序 */
+        ma_backend backends[2] = { ma_backend_alsa, ma_backend_pulseaudio };
+        cr = ma_context_init(backends, 2, &ccfg, context_);
+        if (cr != MA_SUCCESS)
+            cr = ma_context_init(NULL, 0, &ccfg, context_);
     }
     if (cr != MA_SUCCESS) {
         if (err) *err = std::string("ma_context_init failed: ") + ma_result_description(cr);
@@ -75,6 +91,8 @@ bool PcmBackend::open(const std::string& uri, std::string* err) {
     ma_result r = ma_device_init(context_, &cfg, device_);
     if (r != MA_SUCCESS) {
         if (err) *err = std::string("ma_device_init failed: ") + ma_result_description(r);
+        fprintf(stderr, "[cxaudio] device init failed: r=%d %s (ctx=%s)\n", (int)r,
+                ma_result_description(r), ma_get_backend_name(context_->backend));
         delete device_;
         device_ = nullptr;
         ma_context_uninit(context_);
@@ -85,7 +103,10 @@ bool PcmBackend::open(const std::string& uri, std::string* err) {
         return false;
     }
     ma_device_set_master_volume(device_, 1.0f);
-    ma_device_start(device_);
+    r = ma_device_start(device_);
+    fprintf(stderr, "[cxaudio] device backend=%s sr=%d ch=%d start=%d (%s)\n",
+            ma_get_backend_name(context_->backend), sampleRate_, channels_,
+            (int)r, ma_result_description(r));
 
     state_ = kStopped;
     quit_ = false;
@@ -164,6 +185,26 @@ void PcmBackend::decodeLoop() {
             if (quit_) break;
             got = decoder_->readFrames(tmp.data(), kChunkFrames);
         }
+        {
+            /* 每实例观测一次 + 累计空读连续计数（displayed at open()） */
+            if (got == 0) {
+                ++gRead0Streak;
+                if (gRead0Streak == 1 || gRead0Streak == 300 /*~1s*/) {
+                    fprintf(stderr, "[cxaudio] decode read-0 streak=%d eof=%d\n",
+                            gRead0Streak, (int)eof_.load());
+                }
+                if (!gLoggedEmpty && !eof_.load()) {
+                    gLoggedEmpty = true;
+                    fprintf(stderr, "[cxaudio] decode first-empty\n");
+                }
+            } else {
+                gRead0Streak = 0;
+                if (!gLoggedData) {
+                    gLoggedData = true;
+                    fprintf(stderr, "[cxaudio] decode flowing: got=%zu chunk frames\n", got);
+                }
+            }
+        }
         if (got == 0) {
             eof_ = true;
             continue;
@@ -175,6 +216,16 @@ void PcmBackend::decodeLoop() {
             ringWrite_ = (ringWrite_ + 1) % ring_.size();
             ++ringCount_;
         }
+        /* 每秒快照一次 ring 水位（与 pullAudio live 行对照） */
+        {
+            static auto lastRing = std::chrono::steady_clock::now();
+            auto now = std::chrono::steady_clock::now();
+            if (now - lastRing > std::chrono::seconds(1)) {
+                lastRing = now;
+                fprintf(stderr, "[cxaudio] decode ring: count=%zu write=%zu got=%zu\n",
+                        ringCount_, ringWrite_, got);
+            }
+        }
     }
 }
 
@@ -183,10 +234,32 @@ size_t PcmBackend::pullAudio(int16_t* out, size_t frames) {
     int st = state_.load();
     if (st != kPlaying) {
         std::memset(out, 0, want * sizeof(int16_t));
+        /* 每秒打一次"非播放态截流"明细：设备回调在跑但被 state 挡住 */
+        {
+            static auto lastBlocked = std::chrono::steady_clock::now();
+            auto now = std::chrono::steady_clock::now();
+            if (now - lastBlocked > std::chrono::seconds(1)) {
+                lastBlocked = now;
+                fprintf(stderr, "[cxaudio] pullAudio blocked: st=%d (not playing) "
+                        "ringCount=%zu framesPlayed=%lld\n",
+                        st, ringCount_, (long long)framesPlayed_.load());
+            }
+        }
         return frames;
     }
     std::lock_guard<std::mutex> lk(ringMutex_);
     size_t take = std::min(want, ringCount_);
+    /* 播放态下每秒打一次明细（增强一次性的 pullAudio flowing） */
+    {
+        static auto lastLive = std::chrono::steady_clock::now();
+        auto now = std::chrono::steady_clock::now();
+        if (now - lastLive > std::chrono::seconds(1)) {
+            lastLive = now;
+            fprintf(stderr, "[cxaudio] pullAudio live: st=%d take=%zu want=%zu "
+                    "ringCount=%zu framesPlayed=%lld\n",
+                    st, take, want, ringCount_, (long long)framesPlayed_.load());
+        }
+    }
     for (size_t i = 0; i < take; ++i) {
         out[i] = ring_[ringRead_];
         ringRead_ = (ringRead_ + 1) % ring_.size();
@@ -195,6 +268,10 @@ size_t PcmBackend::pullAudio(int16_t* out, size_t frames) {
     if (take < want)
         std::memset(out + take, 0, (want - take) * sizeof(int16_t));
     framesPlayed_ += (int64_t)(take / (size_t)channels_);
+    if (take > 0 && !gPullLogged) {
+        gPullLogged = true;
+        fprintf(stderr, "[cxaudio] pullAudio flowing: take=%zu of want=%zu\n", take, want);
+    }
     return frames;
 }
 
