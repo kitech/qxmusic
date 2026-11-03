@@ -11,6 +11,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <unistd.h>
 #include <cstdio>
 #include <cstdlib>
 #ifdef __linux__
@@ -41,9 +42,11 @@ int main(int argc, char* argv[]) {
     mallopt(M_ARENA_MAX, 2);
 #endif
 #if defined(__APPLE__)
-    /* mac 双击 .app 启动的 stdout/stderr 不入终端 —— 落盘供排查
-     * （[cxaudio] 后端探测、core 日志等全部可见） */
-    {
+    /* mac 双击 .app 启动的 stdout/stderr 不入终端。
+     * isatty 分流：Terminal 直跑（stderr 是 TTY）→ 控制台直出；
+     * 双击/open 启动（非 TTY）→ stderr 落盘 ~/Library/Logs/qlmusic.log，
+     * [cxaudio]/[ncm]/ALOG/qDebug 全量可见。 */
+    if (!isatty(fileno(stderr))) {
         const char* home = std::getenv("HOME");
         if (home && *home) {
             char path[512];
