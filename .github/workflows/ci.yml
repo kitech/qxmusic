@@ -1,0 +1,339 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+# Ported from doxhttpd/.github/workflows/ci.yml (same-家族 CI template).
+# Projects built here:
+#   - go163-music-core : Go c-shared core          -> out/libncm.so (amd64 + arm64 cross)
+#   - qlmusic          : Qt3 (linux) / Qt5 (mac) / Qt6 (linux) desktop frontend
+#
+# Notes:
+#   - Qt 3.3.8 is consumed as a precompiled tarball (no cache, re-downloaded
+#     every run, same as doxhttpd).
+#   - hjson-cpp comes from vcpkg with triplets matching the hardcoded paths
+#     in qlmusic.pro (/opt/vcpkg/installed/x64-{linux,osx}-dynamic).
+#   - libncm.so is built once (go163 job) and the Qt3/Qt6 jobs restore it via
+#     download-artifact, since qlmusic.pro only enables NCM when
+#     ../go163-music-core/out/libncm.so exists.
+#   - Ubuntu 22.04 has avcodec 58 (<59), so the qlmusic qmake jobs run on
+#     ubuntu-24.04 (avcodec 60) to keep the ffmpeg backend compiled in.
+
+jobs:
+  build-ncm-go163-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: go163-music-core/go.sum
+      - name: Install cross toolchain
+        run: |
+          sudo apt update
+          sudo apt install -y gcc-aarch64-linux-gnu
+      - name: Build libncm (native amd64)
+        run: cd go163-music-core && bash scripts/build-linux.sh
+      - name: Build libncm (cross arm64)
+        run: cd go163-music-core && bash scripts/build-linux.sh --arch arm64
+      - name: Verify artifacts
+        run: |
+          ls -lhR go163-music-core/out
+          test -s go163-music-core/out/libncm.so
+          test -s go163-music-core/out/linux/arm64/libncm.so
+      - name: Upload libncm as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ncm-go163-linux
+          path: go163-music-core/out
+          retention-days: 30
+
+  build-qlmusic-qt3-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull dependency repos
+        run: bash scripts/pollup_deps.sh
+      # Restore libncm.so built by the go163 job. qlmusic.pro enables
+      # NCM_ENABLE only when go163-music-core/out/libncm.so exists, and the
+      # artifact reproduces the out/ layout (libncm.so + include/).
+      - name: Download libncm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ncm-go163-linux
+          path: go163-music-core/out
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential pkg-config \
+            libcurl4-openssl-dev libfreetype-dev \
+            libx11-dev libxext-dev uuid-dev libxss-dev \
+            libsqlite3-dev \
+            libavformat-dev libavcodec-dev libavutil-dev libswresample-dev
+      - name: Download and extract precompiled Qt3
+        run: |
+          sudo ln -sv /opt /opu
+          curl -sL "https://github.com/qtchina/qt_build_scripts/releases/download/qt4.8/tde-qt338sh-linux-cjkinput-x64.tar.gz" \
+            | sudo tar xzf - -C /opt
+      - name: Install vcpkg and hjson-cpp
+        run: |
+          sudo mkdir -p /opt/vcpkg
+          sudo chown "$(whoami)" /opt/vcpkg
+          git clone --depth 1 https://github.com/Microsoft/vcpkg.git /opt/vcpkg
+          /opt/vcpkg/bootstrap-vcpkg.sh
+          /opt/vcpkg/vcpkg install hjson-cpp --triplet x64-linux-dynamic
+      - name: Build qlmusic with Qt3
+        run: |
+          export PATH=/opt/qt338sh/bin:$PATH
+          export QMAKESPEC=linux-g++
+          cd qlmusic
+          mkdir -p build-qt3 && cd build-qt3
+          /opt/qt338sh/bin/qmake -makefile ../qlmusic.pro
+          make -j$(nproc)
+      - name: Verify build
+        run: |
+          ls -lh qlmusic/build-qt3/qlmusic
+          ldd qlmusic/build-qt3/qlmusic | grep -E 'ncm|hjson' || true
+      - name: Prepare artifact
+        run: |
+          mkdir -p bin
+          cp qlmusic/build-qt3/qlmusic bin/qlmusic
+          chmod +x bin/qlmusic
+      - name: Upload qlmusic binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qlmusic-qt3-linux
+          path: bin/
+          retention-days: 30
+
+  build-qlmusic-qt5-mac:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull dependency repos
+        run: bash scripts/pollup_deps.sh
+      - name: Install Qt5 and dependencies
+        run: |
+          brew install qt@5 freetype ffmpeg pkg-config
+          echo "/usr/local/opt/qt@5/bin" >> $GITHUB_PATH
+      - name: Verify Qt5 installation
+        run: |
+          qmake -v
+          which qmake
+      - name: Install vcpkg and hjson-cpp
+        run: |
+          sudo mkdir -p /opt/vcpkg
+          sudo chown "$(whoami)" /opt/vcpkg
+          git clone --depth 1 https://github.com/Microsoft/vcpkg.git /opt/vcpkg
+          /opt/vcpkg/bootstrap-vcpkg.sh
+          /opt/vcpkg/vcpkg install hjson-cpp --triplet x64-osx-dynamic
+      # No libncm on mac: qlmusic.pro only wires NCM for unix:!macx, so the
+      # frontend degrades gracefully (same behavior as a local mac build).
+      - name: Build qlmusic with Qt5
+        run: |
+          cd qlmusic
+          export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+          qmake qlmusic.pro CONFIG-=app_bundle
+          make -j$(sysctl -n hw.logicalcpu)
+      - name: Verify build
+        run: ls -lh qlmusic/qlmusic
+      - name: Prepare artifact
+        run: |
+          mkdir -p bin
+          cp qlmusic/qlmusic bin/qlmusic
+          chmod +x bin/qlmusic
+      - name: Upload qlmusic binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qlmusic-qt5-macos
+          path: bin/
+          retention-days: 30
+
+  build-qlmusic-qt6-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Pull dependency repos
+        run: bash scripts/pollup_deps.sh
+      - name: Download libncm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ncm-go163-linux
+          path: go163-music-core/out
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install aqtinstall
+        run: pip install aqtinstall==3.3.0
+      - name: Cache Qt
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/aqtinstall
+          key: qt-linux-6.7.3-gcc_64
+      - name: Install Qt 6.7.3
+        run: |
+          aqt install-qt linux desktop 6.7.3 linux_gcc_64 \
+            -m qtshadertools \
+            --outputdir /opt/qt
+          echo "=== Installed Qt directories ==="
+          ls -la /opt/qt/6.7.3/
+          HOST_DIR=$(find /opt/qt/6.7.3 -maxdepth 1 -type d \( -name 'linux*' -o -name 'gcc*' \) | head -1)
+          echo "Detected host Qt dir: $HOST_DIR"
+          # buildqt6.sh hardcodes /opt/qt/6.7.3/gcc_64
+          sudo ln -sfn "$HOST_DIR" /opt/qt/6.7.3/gcc_64
+          echo "QTDIR=$HOST_DIR" >> $GITHUB_ENV
+      - name: Install build dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y build-essential pkg-config \
+            libcurl4-openssl-dev libfreetype-dev \
+            libx11-dev libxext-dev uuid-dev libxss-dev \
+            libsqlite3-dev \
+            libavformat-dev libavcodec-dev libavutil-dev libswresample-dev \
+            libgl-dev libegl-dev libfontconfig-dev libxkbcommon-dev
+      - name: Install vcpkg and hjson-cpp
+        run: |
+          sudo mkdir -p /opt/vcpkg
+          sudo chown "$(whoami)" /opt/vcpkg
+          git clone --depth 1 https://github.com/Microsoft/vcpkg.git /opt/vcpkg
+          /opt/vcpkg/bootstrap-vcpkg.sh
+          /opt/vcpkg/vcpkg install hjson-cpp --triplet x64-linux-dynamic
+      - name: Build qlmusic with Qt6
+        run: |
+          cd qlmusic
+          mkdir -p build-qt6 && cd build-qt6
+          /opt/qt/6.7.3/gcc_64/bin/qmake ../qlmusic.pro
+          sed -i 's/\-O2/\-O1/g' Makefile
+          sed -i 's/\-std=c++11/\-std=c++17/g' Makefile
+          sed -i 's/\-std=gnu++11/\-std=c++17/g' Makefile
+          make -j$(nproc)
+      - name: Verify build
+        run: |
+          ls -lh qlmusic/build-qt6/qlmusic
+          ldd qlmusic/build-qt6/qlmusic | grep -E 'ncm|hjson' || true
+      - name: Prepare artifact
+        run: |
+          mkdir -p bin
+          cp qlmusic/build-qt6/qlmusic bin/qlmusic
+          chmod +x bin/qlmusic
+      - name: Upload qlmusic binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qlmusic-qt6-linux
+          path: bin/
+          retention-days: 30
+
+  package-release-linux:
+    runs-on: ubuntu-22.04
+    needs: [build-ncm-go163-linux, build-qlmusic-qt3-linux]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download libncm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ncm-go163-linux
+          path: release/ncm/
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: qlmusic-qt3-linux
+          path: release/
+      - name: Organize files for packaging
+        run: |
+          mkdir -p release/bin release/lang
+          mv release/qlmusic release/bin/
+          cp release/ncm/libncm.so release/bin/
+          cp -r qlmusic/lang/* release/lang/
+          cat > release/run.sh <<'EOF'
+          #!/bin/sh
+          # Launches qlmusic with the bundled libncm.so visible to the loader.
+          cd "$(dirname "$0")" || exit 1
+          export LD_LIBRARY_PATH="$(pwd)/bin:${LD_LIBRARY_PATH}"
+          exec ./bin/qlmusic "$@"
+          EOF
+          chmod +x release/run.sh
+          ls -lhR release/
+      - name: Create tarball
+        run: |
+          cd release
+          tar czvf ../qlmusic-linux-x86_64-${{ github.ref_name }}.tar.gz bin/ lang/ run.sh
+          cd ..
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qlmusic-linux-release
+          path: qlmusic-linux-x86_64-*.tar.gz
+          retention-days: 90
+
+  package-release-macos:
+    runs-on: ubuntu-22.04
+    needs: [build-qlmusic-qt5-mac]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download frontend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: qlmusic-qt5-macos
+          path: release/
+      - name: Organize files for packaging
+        run: |
+          mkdir -p release/bin release/lang
+          mv release/qlmusic release/bin/
+          cp -r qlmusic/lang/* release/lang/
+          ls -lhR release/
+      - name: Create tarball
+        run: |
+          cd release
+          tar czvf ../qlmusic-macos-x86_64-${{ github.ref_name }}.tar.gz bin/ lang/
+          cd ..
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: qlmusic-macos-release
+          path: qlmusic-macos-x86_64-*.tar.gz
+          retention-days: 90
+
+  upload-release:
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-22.04
+    needs: [package-release-linux, package-release-macos]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Linux release
+        uses: actions/download-artifact@v4
+        with:
+          name: qlmusic-linux-release
+          path: release/
+      - name: Download macOS release
+        uses: actions/download-artifact@v4
+        with:
+          name: qlmusic-macos-release
+          path: release/
+      - name: Prepare files for upload
+        run: |
+          find release/ -name '*.tar.gz' -exec mv {} . \;
+          ls -lh *.tar.gz
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --generate-notes \
+            ${{ contains(github.ref_name, '-') && '--prerelease' || '' }} \
+            qlmusic-*.tar.gz
+      - name: Upload assets to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.ref_name }}" \
+            qlmusic-*.tar.gz --clobber
