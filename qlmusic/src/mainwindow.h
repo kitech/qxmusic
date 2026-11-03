@@ -54,6 +54,7 @@ private slots:
     void onTrackActivated(int playlistId, int trackIndex);
     void onBackendSelected(int index);
     void openSettings();
+    void onOpenCacheDir();
     void onSettingsSaved(const SettingsChangedMap& changed);
     void onAudioTestPlay();
     void onUserLoginPlaceholder();
@@ -115,6 +116,9 @@ private:
     void requestTopPlaylists(const QString& catKey, int offset);
     void showNcmError(int rc, const QString& op);
     void playNcmResolved(const QString& url, const QString& level);
+    /* cache-first：点歌入口零网查缓存（sidecar level 匹配 + size 校验）；
+     * 命中回 file:// 路径并带出 level 串（业界 InnerTune/Spotify 一致模式） */
+    QString findNcmCache(qint64 ncmId, int quality, QString* outLevel);
     void showNcmAuthToast(const QString& op);
     void appendNcmPlaylist(int playlistId /* local */);
 

@@ -28,6 +28,7 @@
 #include "ncm.h"
 #include "cJSON.h"
 #include "limelog.h"
+#include <sys/stat.h>
 #endif
 
 #include <qpixmap.h>
@@ -107,6 +108,18 @@ static int qualityValueForLabel(const QString& label)
         if (label == qFromUtf8(kQualityMap[i].zh)) return kQualityMap[i].value;
     return kQualityMap[2].value; /* 两平台 index 2 均为极高档 */
 }
+
+#ifdef NCM_ENABLE
+/* libncm resolve 返回的 level 串 ↔ 音质量值（netease v1 接口标准串），
+ * sidecar <id>.meta 的 "level" 字段据此比对 */
+static const char* const kLevelStrs[8] = {
+    "standard", "higher", "exhigh", "lossless",
+    "hires", "jyeffect", "sky", "jymaster"
+};
+static const int kLevelVals[8] = {
+    128000, 192000, 320000, 999000, 1000000, 100001, 100002, 100003
+};
+#endif
 
 static QString backendIdForLabel(const QString& label)
 {
@@ -580,6 +593,10 @@ void MainWindow::buildMenus()
     buildBackendMenu(tool);
     addMenuSeparator(tool);
     addMenuItem(tool, this, SLOT(openSettings()), "menu.settings");
+#ifdef NCM_ENABLE
+    addMenuSeparator(tool);
+    addMenuItem(tool, this, SLOT(onOpenCacheDir()), "menu.open_cache");
+#endif
     MenuWidget34* help = static_cast<MenuWidget34*>(addTopMenu("menu.help"));
     addMenuItem(help, qApp, SLOT(aboutQt()), "menu.aboutqt");
     addMenuItem(help, this, SLOT(onAboutApp()), "menu.about_qlmusic");
@@ -849,8 +866,15 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
     sideNav->setCurrentPlaylist(playlistId);
 
 #ifdef NCM_ENABLE
-    /* NCM 远端曲目：先走 resolveSource（worker 线程），回调里再开播 */
+    /* NCM 远端曲目：cache-first（业界标准：本地命中即播，零网络）——
+     * sidecar level 匹配 + size 校验命中则跳过 resolveSource/fetchRemote */
     if (t.ncmId > 0 && m_ncmAvailable) {
+        QString cachedLevel;
+        const QString cached = findNcmCache(t.ncmId, m_ncmQuality, &cachedLevel);
+        if (!cached.isEmpty()) {
+            playNcmResolved(cached, cachedLevel);
+            return;
+        }
         m_ncmSrcPlaylist = playlistId;
         m_ncmSrcTrack = trackIndex;
         SharedStatusBar::instance()->showMessage(_("ncm.loading"), 3000);
@@ -1391,6 +1415,57 @@ void MainWindow::playNcmResolved(const QString& url, const QString& level)
         _("ncm.loaded_quality") + qFromUtf8(" ") + level, 3000);
 }
 
+/* cache-first 命中查询（零网络）：
+ * ~/.cache/qlmusic/ncm/<id>.meta {"level":"...","size":N} + <id>.<ext>
+ * level 串 ↔ 音质量值比对（切音质即 miss → 重下），size 与实体一致才认命中 */
+QString MainWindow::findNcmCache(qint64 ncmId, int quality, QString* outLevel)
+{
+    if (outLevel) *outLevel = QString();
+    const char* home = std::getenv("HOME");
+    if (!home || !*home) return QString();
+    char mpath[1024];
+    snprintf(mpath, sizeof(mpath), "%s/.cache/qlmusic/ncm/%lld.meta",
+             home, (long long)ncmId);
+    FILE* mp = fopen(mpath, "rb");
+    if (!mp) return QString();
+    char buf[256];
+    size_t n = fread(buf, 1, sizeof(buf) - 1, mp);
+    fclose(mp);
+    buf[n] = '\0';
+    cJSON* root = cJSON_Parse(buf);
+    if (!root) return QString();
+    QString level = cJSONStr(root, "level", "");
+    qint64 size = cJSONInt(root, "size", 0);
+    cJSON_Delete(root);
+    int cachedVal = -1;
+    for (int i = 0; i < 8; i++)
+        if (level == qFromUtf8(kLevelStrs[i])) cachedVal = kLevelVals[i];
+    if (cachedVal != quality || size <= 0) return QString();
+    if (outLevel) *outLevel = level;
+    static const char* const exts[4] = { "mp3", "flac", "m4a", "aac" };
+    for (int i = 0; i < 4; ++i) {
+        char fpath[1100];
+        snprintf(fpath, sizeof(fpath), "%s/.cache/qlmusic/ncm/%lld.%s",
+                 home, (long long)ncmId, exts[i]);
+        struct stat st;
+        if (stat(fpath, &st) == 0 && st.st_size > 0 &&
+            (qint64)st.st_size == size)
+            return qFromUtf8(fpath);
+    }
+    return QString();
+}
+
+/* 打开缓存目录：确保目录存在后交系统文件管理器 */
+void MainWindow::onOpenCacheDir()
+{
+    const char* home = std::getenv("HOME");
+    if (!home || !*home) return;
+    char dir[768];
+    snprintf(dir, sizeof(dir), "%s/.cache/qlmusic/ncm", home);
+    mkdir(dir, 0755);
+    qOpenUrl(qFromUtf8("file://") + qFromUtf8(dir));
+}
+
 void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
 {
     if (rc != NCM_OK) {
@@ -1430,7 +1505,7 @@ void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
     if (!direct && (url.startsWith(qFromUtf8("http://")) ||
                     url.startsWith(qFromUtf8("https://")))) {
         SharedStatusBar::instance()->showMessage(_("ncm.caching"), 3000);
-        m_ncm->fetchRemote(t.ncmId, url, level);
+        m_ncm->fetchRemote(t.ncmId, url, level, t.title, t.artist, t.album);
         return;
     }
     playNcmResolved(url, level);

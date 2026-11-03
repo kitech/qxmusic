@@ -108,6 +108,48 @@ cmake --build build-ndk     # → libcxaudio.so
 - `Config` 增默认 `audioengine=auto`；env `QLMUSIC_AUDIO` 覆盖。
 - `lang/{zh-CN,zh-TW,en-US}.json` 增键。
 
+## 5b. NCM 线上播放缓存层（sidecar 主导 · cache-first）
+
+业界模式（网搜核对）：InnerTune/Spotify/Qobuz 一致采用
+**本地命中即播先行**（player 先查 download cache 和 cache，都无才 internet
+拉取），元数据独立记录（Linthra/Spotify SQL：cache metadata 只存非密
+track id、id-derived 文件名、byte size、timestamps；**token URL 不持久、
+fetch 时才生成**）。本项目按 sidecar 路径实施：
+
+### 缓存布局
+```
+~/.cache/qlmusic/ncm/
+  <song_id>.<ext>        实体音频（ext ∈ mp3/flac/m4a/aac）
+  <song_id>.meta         sidecar {"level":"exhigh","size":N}
+  <song_id>.<ext>.part   下载中临时（完成后原子 rename）
+  songs/<净化歌名>.<ext>  软链 → ../<song_id>.<ext>（人名可浏览）
+```
+文件名**不带**任何比特率/音质/tag 后缀（与业界网易云客户端
+`id-比特率-后缀` 命名分流；音质切换由 sidecar 比对判定）。
+
+### 播放路径
+```
+点歌 → MainWindow::findNcmCache (零网络)
+       解析 <id>.meta level ↔ m_ncmQuality 比对 + <id>.<ext> size 校验
+       ├─ 命中 → 直接 playNcmResolved（跳过 resolveSource/fetchRemote，秒开）
+       └─ 未命中/音质不匹配 → resolveSource → onNcmSource → fetchRemote
+```
+
+### worker（fetchRemoteTask）职责收窄：纯下载
+curl → `<id>.<ext>.part` → ID3v2.4 前置（源自带 "ID3" 魔数 → 保留原 tag
+跳写）→ rename → 写 `<id>.meta{level,size}` → ensureTitleSymlink。
+**命中/音质判定逻辑全部上移 UI 层，双层检测不再冗余。**
+
+### ID3 元信息（TIT2/题名, TPE1/歌者, TALB/专辑）
+v2.4 + UTF-8 syncsafe 帧（`makeId3Tag` 手写 ~60 行零依赖）；
+元数据全空 → 无帧 no-op；M4A/FLAC 属另一元数据体系（Phase 2）。
+
+### 其他
+- 软链：inode 比对，同名不同歌尾缀 `_<id>`；失败静默；每次 fetch 刷新指向
+- `<id>.<ext>.part` 半断下载残留下次重下覆盖（原子落位，不污染缓存）
+- 工作菜单 `menu.open_cache`：mkdir 确保目录 → `qOpenUrl(file://…ncm)`
+- 旧无 sidecar 的 `<id>.<ext>` 文件不迁移；首次播放重下一次即入新体系
+
 ## 6. 验证
 - 桌面 `buildqt3/4/6.sh` 串行（大 timeout）；`tools/audio_smoke -b <id> <uri...>` 无 GUI 逐后端；`xvfb-run` GUI；mp3/flac/ogg/wav/m4a/aac 素材。
 - Android（有条件时）：NDK 三 ABI 出 `libcxaudio.so`。

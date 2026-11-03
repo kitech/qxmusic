@@ -10,8 +10,11 @@
 
 #include <curl/curl.h>
 #include <sys/stat.h>
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#include <cstring>
 
 #include "limelog.h"
 
@@ -23,12 +26,146 @@ size_t curlWriteCb(char* ptr, size_t sz, size_t nm, void* ud)
     return fwrite(ptr, sz, nm, fp);
 }
 
-/* 远程 URL 落盘 ~/.cache/qlmusic/ncm/<song_id>.<ext>：
- *  - 同名非空缓存命中直接复用（重复播放零再下载）
- *  - curl 拉取（worker 线程串行，无并发）
- *  - 成功回 {"song_id":N,"path":"file://...","level":...}：
- *    无 ffmpeg/mpv dylib 的环境经此走本地解码链播
- *    （mp3=miniaudio 内置、m4a/aac=faad2 内嵌），mac 等零依赖可用 */
+/* 缓存目录布局（业界 cache-first + sidecar 模式）：
+ *  <song_id>.<ext>       实体音频（ext ∈ mp3/flac/m4a/aac）
+ *  <song_id>.meta        sidecar {"level":"exhigh","size":N}（零网判命中据此）
+ *  <song_id>.<ext>.part  下载中临时，完成后原子落位
+ *  songs/<净化歌名>.<ext> 软链 → ../<song_id>.<ext>（人名可浏览）
+ * 文件名不带比特率/音质后缀（切音质由 sidecar 比对判定） */
+
+/* 软链文件名净化：非法/控制字符 → '_'；空名 fallback song_<id>；截 90 字符 */
+static std::string sanitizeName(const std::string& raw, long long id)
+{
+    std::string s;
+    s.reserve(raw.size());
+    for (size_t i = 0; i < raw.size(); ++i) {
+        unsigned char c = (unsigned char)raw[i];
+        bool bad = (c > 0 && c < 0x20) || c == 0x7f ||
+                   strchr("/\\:*?\"<>|", c) != 0;
+        s.push_back(bad ? '_' : (char)c);
+    }
+    size_t b = s.find_first_not_of(" \t");
+    size_t e = s.find_last_not_of(" \t");
+    s = (b == std::string::npos) ? std::string() : s.substr(b, e - b + 1);
+    if (s.empty()) {
+        char f[64];
+        snprintf(f, sizeof(f), "song_%lld", id);
+        s = f;
+    }
+    if (s.size() > 90) s = s.substr(0, 90);
+    return s;
+}
+
+/* ID3v2.4 writer：10 字节 tag 头 + TIT2/TPE1/TALB 文本帧（UTF-8，syncsafe）。
+ * 元数据全空 → 空串（调用方 no-op） */
+static std::string makeId3Tag(const std::string& title, const std::string& artist,
+                              const std::string& album)
+{
+    static const char* ids[3] = { "TIT2", "TPE1", "TALB" };
+    const std::string* vals[3] = { &title, &artist, &album };
+    std::string body, out;
+    char fr[10];
+    unsigned cnt = 0;
+    for (int i = 0; i < 3; ++i) {
+        const std::string& v = *vals[i];
+        if (v.empty()) continue;
+        unsigned fsize = (unsigned)(v.size() + 1); /* 内容 = encoding byte + utf8 */
+        memcpy(fr, ids[i], 4);
+        fr[4] = 0;
+        fr[5] = (char)((fsize >> 21) & 0x7f);
+        fr[6] = (char)((fsize >> 14) & 0x7f);
+        fr[7] = (char)((fsize >> 7) & 0x7f);
+        fr[8] = (char)(fsize & 0x7f);
+        fr[9] = 0;                                 /* flags */
+        body.append(fr, 10);
+        body.push_back((char)0x03);                /* encoding: UTF-8 */
+        body.append(v);
+        ++cnt;
+    }
+    if (cnt == 0) return std::string();
+    unsigned tagSize = (unsigned)body.size();      /* 不含 10 字节头 */
+    char hdr[10];
+    memcpy(hdr, "ID3", 3);
+    hdr[3] = 4; hdr[4] = 0;                        /* ver 2.4 rev 0 */
+    hdr[5] = 0;                                    /* flags: 无 */
+    hdr[6] = (char)((tagSize >> 21) & 0x7f);
+    hdr[7] = (char)((tagSize >> 14) & 0x7f);
+    hdr[8] = (char)((tagSize >> 7) & 0x7f);
+    hdr[9] = (char)(tagSize & 0x7f);
+    out.append(hdr, 10);
+    out.append(body);
+    return out;
+}
+
+/* 两段式原子落位：<final> = tag 头 + <part> 原字节，写入后调用方 remove(part)。
+ * 源自带 "ID3" 魔数（或非 mp3）→ 原样拷贝不写 tag；失败删 <final> 返回 false */
+static bool writeWithId3(const char* part, const char* finalPath,
+                         const std::string& title, const std::string& artist,
+                         const std::string& album, bool isMp3)
+{
+    std::string tag;
+    if (isMp3) {
+        FILE* rp0 = fopen(part, "rb");
+        if (rp0) {
+            char magic[3];
+            if (fread(magic, 1, 3, rp0) == 3 && memcmp(magic, "ID3", 3) == 0)
+                ALOG_INFO(qFromUtf8("NCM fetch keep source ID3 tag"));
+            else
+                tag = makeId3Tag(title, artist, album);
+            fclose(rp0);
+        }
+    }
+    FILE* rp = fopen(part, "rb");
+    if (!rp) return false;
+    FILE* wp = fopen(finalPath, "wb");
+    if (!wp) { fclose(rp); return false; }
+    bool ok = true;
+    if (!tag.empty() && fwrite(tag.data(), 1, tag.size(), wp) != tag.size()) ok = false;
+    char buf[65536];
+    size_t n;
+    while (ok && (n = fread(buf, 1, sizeof(buf), rp)) > 0)
+        if (fwrite(buf, 1, n, wp) != n) ok = false;
+    fclose(rp);
+    if (fclose(wp) != 0) ok = false;
+    if (!ok) remove(finalPath);
+    return ok;
+}
+
+/* 歌名软链 songs/<名>.<ext> → ../<id>.<ext>（best-effort，失败静默）：
+ * 链已存在且指向不同实体（同名不同歌）→ 尾缀 _<id>；每次刷新到最新实体 */
+static void ensureTitleSymlink(const char* dir, long long id,
+                               const std::string& title, const std::string& ext,
+                               const char* file)
+{
+    std::string songs = std::string(dir) + "/songs";
+    mkdir(songs.c_str(), 0755);
+    std::string name = sanitizeName(title, id);
+    std::string target = std::string("../") + (strrchr(file, '/') + 1);
+    std::string linkPath = songs + "/" + name + "." + ext;
+    struct stat lst, fst;
+    if (lstat(linkPath.c_str(), &lst) == 0 && stat(linkPath.c_str(), &fst) == 0) {
+        struct stat me;
+        if (stat(file, &me) == 0 &&
+            (me.st_dev != fst.st_dev || me.st_ino != fst.st_ino))
+            linkPath = songs + "/" + name + "_" + std::to_string(id) + "." + ext;
+    }
+    unlink(linkPath.c_str());                      /* 存在则刷新指向 */
+    if (symlink(target.c_str(), linkPath.c_str()) != 0) return;
+    ALOG_INFO(qFromUtf8("NCM fetch symlink %1").arg(qFromUtf8(linkPath.c_str())));
+}
+
+/* sidecar：<id>.meta {"level":"...","size":N} —— UI cache-first 零网判命中依据 */
+static void writeSidecar(const char* dir, long long id, const std::string& level,
+                         long long size)
+{
+    if (level.empty()) return;
+    char p[800];
+    snprintf(p, sizeof(p), "%s/%lld.meta", dir, id);
+    FILE* fp = fopen(p, "wb");
+    if (!fp) return;
+    fprintf(fp, "{\"level\":\"%s\",\"size\":%lld}", level.c_str(), size);
+    fclose(fp);
+}
 } /* namespace */
 
 /* worker 线程：串出队列、阻塞调 ncm_*、postEvent 回投。
@@ -225,21 +362,14 @@ int fetchRemoteTask(const NcmTask& t, std::string& json)
     char file[1280];
     snprintf(file, sizeof(file), "%s/%lld.%s", dir,
              (long long)t.id, ext.c_str());
+    char part[1300];
+    snprintf(part, sizeof(part), "%s.part", file);
 
-    struct stat st;
-    if (stat(file, &st) == 0 && st.st_size > 0) {
-        char js[1400];
-        snprintf(js, sizeof(js), "{\"song_id\":%lld,\"path\":\"file://%s\",\"level\":\"%s\"}",
-                 (long long)t.id, file, t.extra.c_str());
-        ALOG_INFO(qFromUtf8("NCM fetch cache hit %1").arg(qFromUtf8(file)));
-        json = js;
-        return NCM_OK;
-    }
-
-    FILE* fp = fopen(file, "wb");
+    /* 命中/音质判定已上移 UI 层（cache-first，sidecar 比对）；worker 纯下载 */
+    FILE* fp = fopen(part, "wb");
     if (!fp) return NCM_ERR_INTERNAL;
     CURL* h = curl_easy_init();
-    if (!h) { fclose(fp); remove(file); return NCM_ERR_INTERNAL; }
+    if (!h) { fclose(fp); remove(part); return NCM_ERR_INTERNAL; }
     curl_easy_setopt(h, CURLOPT_URL, t.url.c_str());
     curl_easy_setopt(h, CURLOPT_WRITEFUNCTION, curlWriteCb);
     curl_easy_setopt(h, CURLOPT_WRITEDATA, fp);
@@ -251,21 +381,34 @@ int fetchRemoteTask(const NcmTask& t, std::string& json)
     long nbyte = ftell(fp);
     fclose(fp);
     if (cr != CURLE_OK || nbyte <= 0) {
-        remove(file);
+        remove(part);
         ALOG_WARN(qFromUtf8("NCM fetch failed rc=%1 byte=%2")
                       .arg((int)cr).arg((int)nbyte));
         return NCM_ERR_NETWORK;
     }
+
+    struct stat st2;
+    long long fsize = (stat(part, &st2) == 0) ? (long long)st2.st_size : nbyte;
+    if (!writeWithId3(part, file, t.title, t.artist, t.album, ext == "mp3")) {
+        remove(part);
+        ALOG_WARN(qFromUtf8("NCM fetch finalize failed"));
+        return NCM_ERR_INTERNAL;
+    }
+    remove(part);
+    writeSidecar(dir, t.id, t.extra, fsize);
+    ensureTitleSymlink(dir, t.id, t.title, ext, file);
+
     char js[1400];
     snprintf(js, sizeof(js), "{\"song_id\":%lld,\"path\":\"file://%s\",\"level\":\"%s\"}",
              (long long)t.id, file, t.extra.c_str());
     ALOG_INFO(qFromUtf8("NCM fetch ok %1 byte=%2")
-                  .arg(qFromUtf8(file)).arg((int)nbyte));
+                  .arg(qFromUtf8(file)).arg((int)fsize));
     json = js;
     return NCM_OK;
 }
 
-void NcmService::fetchRemote(qint64 songId, const QString& url, const QString& level)
+void NcmService::fetchRemote(qint64 songId, const QString& url, const QString& level,
+                             const QString& title, const QString& artist, const QString& album)
 {
     if (!m_worker) return;
     NcmTask t;
@@ -275,9 +418,15 @@ void NcmService::fetchRemote(qint64 songId, const QString& url, const QString& l
 #ifdef QT3_BUILD
     t.url = url.utf8();
     t.extra = level.utf8();
+    t.title = title.utf8();
+    t.artist = artist.utf8();
+    t.album = album.utf8();
 #else
     t.url = url.toUtf8().constData();
     t.extra = level.toUtf8().constData();
+    t.title = title.toUtf8().constData();
+    t.artist = artist.toUtf8().constData();
+    t.album = album.toUtf8().constData();
 #endif
     m_worker->push(t);
 }

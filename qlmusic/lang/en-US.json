@@ -79,7 +79,8 @@
     "aboutqt": "About Qt",
     "about_qlmusic": "About qlmusic",
     "audio_backend": "Audio Backend",
-    "settings": "Settings…"
+    "settings": "Settings…",
+    "open_cache": "Open cache folder…"
   },
   "user": {
     "not_login": "Not logged in",

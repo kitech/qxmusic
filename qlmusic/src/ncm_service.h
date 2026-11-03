@@ -65,6 +65,9 @@ struct NcmTask {
     int quality;
     std::string url;   /* NcmTaskFetch：远程 URL */
     std::string extra; /* NcmTaskFetch：level 展示字段（透传 UI 状态栏） */
+    std::string title;   /* NcmTaskFetch：Track.title → ID3 TIT2 + 歌名软链 */
+    std::string artist;  /* NcmTaskFetch：Track.artist → ID3 TPE1 */
+    std::string album;   /* NcmTaskFetch：Track.album → ID3 TALB */
     NcmTask() : kind(0), sel(0), limit(50), offset(0), id(0), localId(-1), quality(320000) {}
 };
 
@@ -87,9 +90,10 @@ public:
     void loadPlaylistDetail(qint64 ncmId);
     void loadPlaylistTracks(qint64 ncmId, int localId);
     void resolveSource(qint64 songId, int quality);
-    /* 远程 URL → ~/.cache/qlmusic/ncm/<song_id>.<ext>（worker 线程 curl 拉取，
-     * 结果经 fetched 信号回投；成功 json 带 file:// 本地路径） */
-    void fetchRemote(qint64 songId, const QString& url, const QString& level);
+    /* 纯下载：curl → .part → ID3v2.4 前置 → rename → <id>.meta sidecar
+     * → 歌名软链。命中/音质判定全在 UI 层（cache-first），worker 不检测 */
+    void fetchRemote(qint64 songId, const QString& url, const QString& level,
+                     const QString& title, const QString& artist, const QString& album);
     void loadSongDetail(const QString& ids);
 
     /* MainWindow::customEvent 转发进来 */
