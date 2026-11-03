@@ -44,6 +44,15 @@ unix:!macx:exists($$PWD/../go163-music-core/out/libncm.so) {
     DEFINES += NCM_ENABLE
 }
 
+macx:exists($$PWD/../go163-music-core/out/libncm.dylib) {
+    message("NCM: link go163-music-core (darwin dylib)")
+    INCLUDEPATH += $$PWD/../go163-music-core/out/include
+    LIBS += -L$$PWD/../go163-music-core/out -lncm \
+            -Wl,-rpath,$$PWD/../go163-music-core/out \
+            -Wl,-rpath,@executable_path/../Frameworks
+    DEFINES += NCM_ENABLE
+}
+
 include(../qlcomp/qlite.pri)
 include($$PWD/audio.pri)
 INCLUDEPATH += ../qlcomp

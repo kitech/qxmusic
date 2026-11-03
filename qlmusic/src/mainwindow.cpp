@@ -69,6 +69,7 @@ static const struct {
     const char* zh;
     int value;
 } kQualityMap[] = {
+#ifdef NCM_ENABLE
     { "标准（128k）",      NCM_QUALITY_STANDARD },
     { "较高（192k）",      NCM_QUALITY_HIGHER   },
     { "极高（320k）",      NCM_QUALITY_EXHIGH   },
@@ -77,6 +78,12 @@ static const struct {
     { "高清环绕声（VIP）", NCM_QUALITY_JYEFFECT },
     { "沉浸环绕（VIP）",   NCM_QUALITY_SKY      },
     { "超清母带（VIP）",   NCM_QUALITY_JYMASTER },
+#else /* !NCM_ENABLE（macOS 等）：libncm 不可用（stub 端），仅免费 3 档；
+         值为 include/ncm.h ABI 枚举的字面量镜像，随 ABI 变化需同步 */
+    { "标准（128k）",      128000 },
+    { "较高（192k）",      192000 },
+    { "极高（320k）",      320000 },
+#endif
 };
 static const int kQualityCount = (int)(sizeof(kQualityMap) / sizeof(kQualityMap[0]));
 
@@ -98,7 +105,7 @@ static int qualityValueForLabel(const QString& label)
 {
     for (int i = 0; i < kQualityCount; i++)
         if (label == qFromUtf8(kQualityMap[i].zh)) return kQualityMap[i].value;
-    return NCM_QUALITY_EXHIGH;
+    return kQualityMap[2].value; /* 两平台 index 2 均为极高档 */
 }
 
 static QString backendIdForLabel(const QString& label)
@@ -209,7 +216,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_curPlaylistId(0)
     , m_curTrackIndex(-1)
     , m_backendMenuFirst(0)
-    , m_ncmQuality(NCM_QUALITY_EXHIGH)
+    , m_ncmQuality(kQualityMap[2].value)
     , m_ncm(0)
     , m_ncmAvailable(false)
     , m_ncmBusy(false)

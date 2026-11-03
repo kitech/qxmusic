@@ -211,7 +211,8 @@ private:
         if (got < 0) {
             if (!gSwrConvertLogged) {
                 gSwrConvertLogged = true;
-                fprintf(stderr, "[cxaudio] swr_convert failed: err=%s\n", errStr(got));
+                fprintf(stderr, "[cxaudio] swr_convert failed: err=%s\n",
+                        errStr(got).c_str());
             }
             lastErr_ = "swr_convert: " + errStr(got);
             stage_.clear();
@@ -246,7 +247,7 @@ private:
                         (int)std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now() - t0)
                             .count(),
-                        (int)pr, errStr(pr));
+                        (int)pr, errStr(pr).c_str());
                 if (pr < 0) {
                     if (pr != AVERROR_EOF) lastErr_ = "read: " + errStr(pr);
                     api_->avcodec_send_packet(codec_, 0);

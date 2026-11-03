@@ -13,6 +13,11 @@ make
 
 # package
 mkdir -p qlmusic.app/Contents/Resources/lang
+# bundle self-contained NCM dylib（存在才拷；无则与旧行为一致）
+if [ -f ../go163-music-core/out/libncm.dylib ]; then
+    mkdir -p qlmusic.app/Contents/Frameworks
+    cp -f ../go163-music-core/out/libncm.dylib qlmusic.app/Contents/Frameworks/
+fi
 QT_TRANS=$("$QMAKE" -query QT_INSTALL_TRANSLATIONS)
 cp -f "$QT_TRANS/qt_zh_CN.qm" "$QT_TRANS/qt_zh_TW.qm" qlmusic.app/Contents/Resources/ 2>/dev/null || true
 cp -f lang/*.json qlmusic.app/Contents/Resources/lang/ 2>/dev/null || true

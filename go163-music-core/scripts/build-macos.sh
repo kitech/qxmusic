@@ -72,7 +72,7 @@ if [[ "$(uname -s)" != "Darwin" && -z "${SDKROOT:-}" ]]; then
 fi
 
 MINFLAG="-mmacosx-version-min=$DEPLOY_TARGET"
-EXTRA_CFLAGS="$(arch_cflags)-fPIC $MINFLAG"
+EXTRA_CFLAGS="$(arch_cflags)-fPIC $MINFLAG -DNCM_GO_CGO"
 EXTRA_LDFLAGS="$MINFLAG"
 if [[ -n "${SDKROOT:-}" ]]; then
   [[ -d "$SDKROOT" ]] || die "SDKROOT 不存在: $SDKROOT"
@@ -96,7 +96,7 @@ env CGO_ENABLED=1 \
     GOARCH="$GOARCH" \
     CC="$CC" \
     CGO_CFLAGS="${CGO_CFLAGS:-} ${EXTRA_CFLAGS}" \
-    CGO_LDFLAGS="${CGO_LDFLAGS:-} ${EXTRA_LDFLAGS}" \
+    CGO_LDFLAGS="${CGO_LDFLAGS:-} ${EXTRA_LDFLAGS} -Wl,-install_name,@rpath/libncm.dylib" \
     go build \
       -buildmode=c-shared \
       -trimpath \

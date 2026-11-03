@@ -11,6 +11,9 @@
 #  include <dlfcn.h>
 #  include <sys/stat.h>
 #  include <unistd.h>
+#  if defined(__APPLE__)
+#    include <mach-o/dyld.h> /* _NSGetExecutablePath (libSystem, 无需额外 framework) */
+#  endif
 #endif
 
 namespace cx {
@@ -121,7 +124,6 @@ std::vector<std::string> librarySearchDirs(const std::string& envVar) {
     {
         char buf[4096];
         uint32_t sz = sizeof(buf);
-        extern int _NSGetExecutablePath(char*, uint32_t*);
         if (_NSGetExecutablePath(buf, &sz) == 0) {
             std::string exe(buf);
             size_t p = exe.find_last_of('/');
