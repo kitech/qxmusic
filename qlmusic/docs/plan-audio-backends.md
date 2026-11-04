@@ -168,6 +168,20 @@ M4A/FLAC 属另一元数据体系（Phase 2，fetch 时 log skip）。
 - 工作菜单 `menu.open_cache`：mkdir 确保目录 → `qOpenUrl(file://…ncm)`
 - 旧无 sidecar 的 `<id>.<ext>` 文件不迁移；首次播放重下一次即入新体系
 
+### 5c. 播放条 repeat 与失败连播开关
+业界核对（Spotify/YTM/Apple 三态一致；mpv 默认失败跳下；foobar foo_skip 止损惯例）：
+- 播放条两侧对称小图标：左 = 失败跳过开关（圆勾），右 = repeat（off ⟳ / all 双弧 / one 中央 1）
+- repeat 三态存 `player.repeat`（默认 off）；autoskip 存 `player.autoskip`（默认开，NCM 灰歌场景）
+- 自然播完：one→重播当前；all→环回首；off→停。手动 next：始终环绕（Spotify 式）
+- 播放失败（errorOccurred）：autoskip 开→状态栏提示 + advanceNext（优先级高于 repeat one，
+  不复播同一首防死循环）；连续 99 首失败（kErrSkipStopAt）→停播+StatusError 提示；
+  成功播放（onAudioState Playing）清零计数。autoskip 关→原“停播+错误提示”
+- Tool 菜单 `menu.autoskip` check 项与播放条图标双入口同步（updateBackendChecks 范式）
+- 两图标动态 tooltip：qt3 走 `QToolTip` 子类 maybeTip（区段级现读文案）；qt5 走
+  `event(QEvent::ToolTip)` + `QToolTip::showText`；命中计算唯一点 `tipForPos/tipRectFor`
+- 灰歌真治本：resolve（onNcmSource rc≠0/url 空）与下载（onNcmFetched 三失败）三阶段
+  统一走 `skipOnError(why)`（带控制台 trace 日志；只此一处止损/提示/advanceNext 真源）
+
 ## 6. 验证
 - 桌面 `buildqt3/4/6.sh` 串行（大 timeout）；`tools/audio_smoke -b <id> <uri...>` 无 GUI 逐后端；`xvfb-run` GUI；mp3/flac/ogg/wav/m4a/aac 素材。
 - Android（有条件时）：NDK 三 ABI 出 `libcxaudio.so`。

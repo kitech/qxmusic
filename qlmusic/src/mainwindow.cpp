@@ -447,6 +447,19 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onNext()));
         QObject::connect(playerBar, SIGNAL(seekRequested(int)),
                          this, SLOT(onSeek(int)));
+        QObject::connect(playerBar, SIGNAL(repeatClicked()),
+                         this, SLOT(onRepeatClicked()));
+        QObject::connect(playerBar, SIGNAL(autoSkipClicked()),
+                         this, SLOT(onAutoSkipClicked()));
+        /* 播放条行为持久化：repeat 默认 off；autoskip 默认开（业界/NCM 系惯例） */
+        m_repeatMode = Config::value("player.repeat").toInt();
+        QString skipCfg = Config::value("player.autoskip");
+        m_autoSkip = (skipCfg.isEmpty()) ? true
+                     : (skipCfg == qFromUtf8("1") || skipCfg == qFromUtf8("true"));
+        m_errSkipRun = 0;
+        m_autoSkipMenuIndex = -1;
+        playerBar->setRepeatMode(m_repeatMode);
+        playerBar->setAutoSkip(m_autoSkip);
     }
 
     framelessHelper = new FramelessHelper(this);
@@ -592,6 +605,12 @@ void MainWindow::buildMenus()
     addMenuSeparator(tool);
     buildBackendMenu(tool);
     addMenuSeparator(tool);
+    addMenuItem(tool, this, SLOT(onAutoSkipClicked()), "menu.autoskip");
+    m_autoSkipMenuIndex = (int)menuItemRefs.size() - 1;
+#ifndef QT3_BUILD
+    if (!menuItemRefs.empty() && menuItemRefs.back().action)
+        static_cast<QAction*>(menuItemRefs.back().action)->setCheckable(true);
+#endif
     addMenuItem(tool, this, SLOT(openSettings()), "menu.settings");
 #ifdef NCM_ENABLE
     addMenuSeparator(tool);
@@ -677,6 +696,7 @@ void MainWindow::buildBackendMenu(void* toolMenu)
 #endif
     }
     updateBackendChecks();
+    updateAutoSkipCheck();
 }
 
 void MainWindow::buildTray()
@@ -928,6 +948,18 @@ void MainWindow::updateBackendChecks()
     }
 }
 
+void MainWindow::updateAutoSkipCheck()
+{
+    int idx = m_autoSkipMenuIndex;
+    if (idx < 0 || idx >= (int)menuItemRefs.size()) return;
+    const MenuItemRef& ref = menuItemRefs[idx];
+#ifdef QT3_BUILD
+    static_cast<QPopupMenu*>(ref.owner)->setItemChecked(ref.id, m_autoSkip);
+#else
+    if (ref.action) static_cast<QAction*>(ref.action)->setChecked(m_autoSkip);
+#endif
+}
+
 void MainWindow::openSettings()
 {
     /* 双入口（Tool 菜单后端子菜单 ↔ 设置窗）共享真源：
@@ -1058,10 +1090,66 @@ void MainWindow::onPrev()
 
 void MainWindow::onNext()
 {
+    advanceNext(false);
+}
+
+/* fromAuto=false 手动 next（尾部环绕，Spotify 惯例）；
+ * fromAuto=true 自然/失败推进（仅 repeat all 环绕，off 到尾停） */
+void MainWindow::advanceNext(bool fromAuto)
+{
     const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
-    if (!pl) return;
-    if (m_curTrackIndex + 1 < (int)pl->tracks.size())
-        playTrack(m_curPlaylistId, m_curTrackIndex + 1);
+    if (!pl || pl->tracks.empty()) {
+        if (!fromAuto) playerBar->setPlaying(false);
+        return;
+    }
+    int n = (int)pl->tracks.size();
+    bool wrap = fromAuto ? (m_repeatMode == 1) : true;
+    int nx = m_curTrackIndex + 1;
+    if (nx >= n) {
+        if (!wrap) {
+            if (fromAuto) playerBar->setPlaying(false);
+            return;
+        }
+        nx = 0;
+    }
+    playTrack(m_curPlaylistId, nx);
+}
+
+/* autoskip 开时唯一入口：连续失败计数、止损（kErrSkipStopAt）、
+ * 状态栏提示、advanceNext 继续；why 带出失败原因供控制台 trace。
+ * resolve/下载/decode 三阶段失败统一走此（灰歌/取链失败不经过 errorOccurred）。
+ * 返回 true=已跳播下一首；false=已止损停播 */
+bool MainWindow::skipOnError(const QString& why)
+{
+    if (++m_errSkipRun >= kErrSkipStopAt) {
+        m_errSkipRun = 0;
+        ALOG_ERROR(qFromUtf8("Playback skip stop: run=%1 stop, why=%2")
+                       .arg(kErrSkipStopAt).arg(why));
+        playerBar->setPlaying(false);
+        SharedStatusBar::instance()->showMessageTyped(
+            _("player.error_skip_stop").arg(kErrSkipStopAt), StatusError, 5000);
+        return false;
+    }
+    ALOG_WARN(qFromUtf8("Playback skip-on-error: run=%1 -> advance, why=%2")
+                  .arg(m_errSkipRun).arg(why));
+    SharedStatusBar::instance()->showMessage(_("player.error_skip"), 4000);
+    advanceNext(true);
+    return true;
+}
+
+void MainWindow::onRepeatClicked()
+{
+    m_repeatMode = (m_repeatMode + 1) % 3;
+    playerBar->setRepeatMode(m_repeatMode);
+    Config::setValue("player.repeat", QString::number(m_repeatMode));
+}
+
+void MainWindow::onAutoSkipClicked()
+{
+    m_autoSkip = !m_autoSkip;
+    playerBar->setAutoSkip(m_autoSkip);
+    Config::setValue("player.autoskip", m_autoSkip ? qFromUtf8("1") : qFromUtf8("0"));
+    updateAutoSkipCheck();
 }
 
 void MainWindow::onSeek(int ms)
@@ -1082,15 +1170,25 @@ void MainWindow::onAudioDuration(int ms)
 void MainWindow::onAudioState(int state)
 {
     playerBar->setPlaying(state == cxaudio::Playing);
+    if (state == cxaudio::Playing) m_errSkipRun = 0;
 }
 
 void MainWindow::onAudioFinished()
 {
-    onNext();
+    if (m_repeatMode == 2 && m_curTrackIndex >= 0) {
+        playTrack(m_curPlaylistId, m_curTrackIndex);   /* 单曲重复 */
+        return;
+    }
+    advanceNext(true);
 }
 
 void MainWindow::onAudioError(const QString& msg)
 {
+    if (m_autoSkip) {
+        ALOG_WARN(msg);
+        skipOnError(msg);
+        return;
+    }
     playerBar->setPlaying(false);
     SharedStatusBar::instance()->showMessage(
         _("player.error") + qFromUtf8(": ") + msg, 5000);
@@ -1482,6 +1580,8 @@ void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
                     break;
                 }
         }
+        ALOG_WARN(qFromUtf8("NCM source fail rc=%1").arg(rc));
+        if (m_autoSkip && skipOnError(_("ncm.playing"))) return;
         showNcmError(rc, _("ncm.playing"));
         return;
     }
@@ -1502,6 +1602,8 @@ void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
     if (url.isEmpty()) {
         (*pl).tracks[m_ncmSrcTrack].url = QString();
         (*pl).tracks[m_ncmSrcTrack].playable = false;   /* 灰歌实锤 */
+        ALOG_WARN(qFromUtf8("NCM source url empty (gray song)"));
+        if (m_autoSkip && skipOnError(_("ncm.playing"))) return;
         showNcmError(NCM_ERR_NO_RESOURCE, _("ncm.playing"));
         return;
     }
@@ -1528,11 +1630,15 @@ void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
 void MainWindow::onNcmFetched(int rc, const QString& json, qint64 /*songId*/)
 {
     if (rc != NCM_OK) {
+        ALOG_WARN(qFromUtf8("NCM fetch fail rc=%1 -> skip?").arg(rc));
+        if (m_autoSkip && skipOnError(_("ncm.caching"))) return;
         showNcmError(rc, _("ncm.caching"));
         return;
     }
     cJSON* root = cJSON_Parse(cjsonUtf8(json));
     if (!root) {
+        ALOG_WARN(qFromUtf8("NCM fetch parse fail -> skip?"));
+        if (m_autoSkip && skipOnError(_("ncm.caching"))) return;
         showNcmError(NCM_ERR_UPSTREAM, _("ncm.caching"));
         return;
     }
@@ -1540,6 +1646,8 @@ void MainWindow::onNcmFetched(int rc, const QString& json, qint64 /*songId*/)
     QString level = cJSONStr(root, "level", "");
     cJSON_Delete(root);
     if (path.isEmpty()) {
+        ALOG_WARN(qFromUtf8("NCM fetch path empty -> skip?"));
+        if (m_autoSkip && skipOnError(_("ncm.caching"))) return;
         showNcmError(NCM_ERR_UPSTREAM, _("ncm.caching"));
         return;
     }

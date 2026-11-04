@@ -45,6 +45,13 @@
     "pause": "Pause",
     "next": "Next",
     "no_media": "No local audio file for this track",
+    "error_skip": "Playback failed, skipped to next track",
+    "error_skip_stop": "%1 consecutive failures, continuous playback stopped",
+    "tip_repeat_off": "Repeat: Off (click: repeat all)",
+    "tip_repeat_all": "Repeat: All (click: repeat one)",
+    "tip_repeat_one": "Repeat: One (click: off)",
+    "tip_autoskip_on": "Auto-skip on failure: On (click to off)",
+    "tip_autoskip_off": "Auto-skip on failure: Off (click to on)",
     "error": "Playback error"
   },
   "queue": {
@@ -80,6 +87,7 @@
     "about_qlmusic": "About qlmusic",
     "audio_backend": "Audio Backend",
     "settings": "Settings…",
+    "autoskip": "Auto-skip on playback error",
     "open_cache": "Open cache folder…"
   },
   "user": {

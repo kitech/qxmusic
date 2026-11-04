@@ -61,6 +61,8 @@ private slots:
     void onPlayPause();
     void onPrev();
     void onNext();
+    void onRepeatClicked();
+    void onAutoSkipClicked();
     void onSeek(int ms);
     void onAudioPosition(int ms);
     void onAudioDuration(int ms);
@@ -119,6 +121,9 @@ private:
     /* cache-first：点歌入口零网查缓存（sidecar level 匹配 + size 校验）；
      * 命中回 file:// 路径并带出 level 串（业界 InnerTune/Spotify 一致模式） */
     QString findNcmCache(qint64 ncmId, int quality, QString* outLevel);
+    void advanceNext(bool fromAuto);   /* fromAuto=false 手动 next 环绕；true 自然/失败推进 */
+    bool skipOnError(const QString& why);  /* autoskip 核心：止损+提示+advanceNext；true=已跳播 */
+    void updateAutoSkipCheck();        /* Tool 菜单 check 反向同步（updateBackendChecks 范式） */
     void showNcmAuthToast(const QString& op);
     void appendNcmPlaylist(int playlistId /* local */);
 
@@ -164,6 +169,12 @@ private:
     bool m_ncmHasMore;
     qint64 m_ncmSrcPlaylist;    /* 等待 resolve 的本地歌单 */
     int m_ncmSrcTrack;
+    /* 播放条行为（Config 持久：player.repeat / player.autoskip） */
+    int m_repeatMode;           /* 0=off 1=all 2=one */
+    bool m_autoSkip;            /* 播放失败自动跳下一首（默认开） */
+    int m_errSkipRun;           /* 连续失败计数，成功播放清零 */
+    int m_autoSkipMenuIndex;    /* Tool 菜单 check 项（updateBackendChecks 范式） */
+    enum { kErrSkipStopAt = 99 };   /* 连续失败止损阈值（foo_skip 惯例量级） */
     qint64 m_ncmLastToastMs;    /* auth toast 节流 */
 
     // 演示用状态栏控件（演示菜单可反复增删）

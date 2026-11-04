@@ -45,6 +45,13 @@
     "pause": "暫停",
     "next": "下一首",
     "no_media": "此曲目尚無本機音訊檔案",
+    "error_skip": "播放失敗，已自動播放下一首",
+    "error_skip_stop": "連續 %1 首播放失敗，已停止連播",
+    "tip_repeat_off": "重複模式：關閉（點擊循環清單）",
+    "tip_repeat_all": "重複模式：清單循環（點擊單曲重複）",
+    "tip_repeat_one": "重複模式：單曲重複（點擊關閉）",
+    "tip_autoskip_on": "失敗自動跳過：已開啟（點擊關閉）",
+    "tip_autoskip_off": "失敗自動跳過：已關閉（點擊開啟）",
     "error": "播放錯誤"
   },
   "queue": {
@@ -80,6 +87,7 @@
     "about_qlmusic": "關於 qlmusic",
     "audio_backend": "音訊後端",
     "settings": "設定…",
+    "autoskip": "播放失敗時自動跳過",
     "open_cache": "開啟快取目錄…"
   },
   "user": {
