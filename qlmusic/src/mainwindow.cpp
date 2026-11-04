@@ -38,6 +38,7 @@
 #include <qmessagebox.h>
 #include <qlineedit.h>
 #include <qsplitter.h>
+#include <qfile.h>
 
 #include <cstdlib>
 #include <cmath>
@@ -428,6 +429,8 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onNcmFetched(int, const QString&, qint64)));
         QObject::connect(m_ncm, SIGNAL(downloadProgress(qint64, int)),
                          this, SLOT(onNcmDownloadProgress(qint64, int)));
+        QObject::connect(m_ncm, SIGNAL(lyricLoaded(qint64, const QString&)),
+                         this, SLOT(onNcmLyric(qint64, const QString&)));
         QObject::connect(m_ncm, SIGNAL(authRequired(const QString&)),
                          this, SLOT(onNcmAuthRequired(const QString&)));
         /* 启动即拉分类（侧栏），随后自动进入"推荐=热门歌单"视图，
@@ -911,6 +914,7 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
     m_curPlaylistId = playlistId;
     m_curTrackIndex = trackIndex;
     playerBar->setTrack(t);
+    loadLyricsForTrack(t);               /* 本地 .lrc 同步读；无则 NCM 异步兜底 */
     queuePanel->setCurrentTrack(t);
     queuePanel->setQueue(pl->tracks, trackIndex);
     sideNav->setCurrentPlaylist(playlistId);
@@ -1247,6 +1251,7 @@ void MainWindow::onSeek(int ms)
 void MainWindow::onAudioPosition(int ms)
 {
     playerBar->setProgress(ms);
+    playerBar->setLyricsPosition(ms);
 }
 
 void MainWindow::onAudioDuration(int ms)
@@ -1389,6 +1394,64 @@ static bool cJSONBool(cJSON* obj, const char* key, bool def)
     if (n->type == cJSON_False) return false;
     if (n->type == cJSON_Number) return n->valueint != 0;
     return def;
+}
+
+/* ───── 歌词注入（本地 .lrc 优先 + NCM 兜底；playbar 右侧三行滚动窗） ───── */
+
+static qint64 lyricPathTag(const QString& s)
+{
+    qint64 h = 0;
+    for (int i = 0; i < (int)s.length(); ++i) h = h * 31 + s[i].unicode();
+    return h;
+}
+
+void MainWindow::loadLyricsForTrack(const Track& t)
+{
+    playerBar->clearLyrics();
+    QString path = t.url;
+    if (path.startsWith(qFromUtf8("file://"))) path = path.mid(7);
+    if (!path.isEmpty()) {
+#ifdef QT3_BUILD
+        int dot = path.findRev('.');
+#else
+        int dot = path.lastIndexOf('.');
+#endif
+        QString lrcPath = (dot > 0 ? path.left(dot) : path) + qFromUtf8(".lrc");
+        QFile f(lrcPath);
+#ifdef QT3_BUILD
+        if (f.open(IO_ReadOnly)) {
+#else
+        if (f.open(QIODevice::ReadOnly)) {
+#endif
+            QByteArray data = f.readAll();
+            playerBar->setLyricsText(lyricPathTag(lrcPath),
+#ifdef QT3_BUILD
+                                     QString::fromUtf8(data.data(), (int)data.size()));
+#else
+                                     QString::fromUtf8(data.constData(), (int)data.size()));
+#endif
+            return;
+        }
+    }
+#ifdef NCM_ENABLE
+    if (t.ncmId > 0 && m_ncm) m_ncm->loadLyric(t.ncmId);
+#endif
+}
+
+/* NCM 歌词落地：{"lrc":{"lyric":"[..]..."}} 标准结构；空/晚到全忽略。
+ * go 侧 ncm_lyric 尚为 stub（NotImplemented）——go 实装后自动生效 */
+void MainWindow::onNcmLyric(qint64 songId, const QString& json)
+{
+    if (songId <= 0 || json.isEmpty()) return;
+    const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
+    if (!pl || m_curTrackIndex < 0 || m_curTrackIndex >= (int)pl->tracks.size()) return;
+    if (pl->tracks[m_curTrackIndex].ncmId != songId) return;   /* 晚到防错挂 */
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) return;
+    cJSON* lrc = cJSON_GetObjectItem(root, "lrc");
+    QString text = lrc ? cJSONStr(lrc, "lyric", QString()) : QString();
+    cJSON_Delete(root);
+    if (!text.isEmpty()) playerBar->setLyricsText(songId, text);
 }
 
 static QStringList cJSONStrArray(cJSON* arr)

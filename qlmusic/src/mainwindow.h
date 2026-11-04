@@ -88,6 +88,7 @@ private slots:
     void onNcmPlaylistTracks(int rc, const QString& json, int localId);
     void onNcmSource(int rc, const QString& json, qint64 songId);
     void onNcmFetched(int rc, const QString& json, qint64 songId);
+    void onNcmLyric(qint64 songId, const QString& json);
     void onNcmAuthRequired(const QString& op);
 
 private:
@@ -120,6 +121,7 @@ private:
     void ensureEngine();
     void playTrack(int playlistId, int trackIndex);
     void updateBackendChecks();
+    void loadLyricsForTrack(const Track& t);   /* 本地 .lrc 优先 + NCM 兜底注入 */
 
     /* NCM 视图流转（UI 线程，禁止直接调 ncm_* 阻塞调用） */
     void requestTopPlaylists(const QString& catKey, int offset);

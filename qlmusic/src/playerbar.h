@@ -6,6 +6,8 @@
 #include <qwidget.h>
 #include <qpixmap.h>
 
+class LyricsStrip;
+
 class PlayerBar : public QWidget {
     Q_OBJECT
 public:
@@ -26,6 +28,10 @@ public:
     void retranslateUi();
     void toggleVolumePopup();
     void onPopupVolume(int v);      /* 自绘 panel 值回调 → volumeChanged 信号（无 moc 桥） */
+    /* 三行滚动歌词（playbar 右侧；本地 .lrc 优先 + NCM 兜底，见 plan-20261104-playbar-lyrics） */
+    void setLyricsText(qint64 songTag, const QString& lrcText);
+    void setLyricsPosition(int ms); /* positionChanged 驱动；内部二分、行变才重绘 */
+    void clearLyrics();
 
 signals:
     void playStateChanged(bool playing);
@@ -97,7 +103,7 @@ private:
     void* m_volumePopup;            /* VolumePopupFrame*（cpp 内定义，WType_Popup） */
     void* m_volumeSlider;           /* VolumePanelSlider*（cpp 内定义，自绘滑条） */
     void* m_muteCheck;              /* QCheckBox*（弹出条右侧静音 checkbox，防误触） */
-    void* m_lyrics;                 /* LyricsStrip*（cpp 内定义，三行滚动歌词空组件占位） */
+    LyricsStrip* m_lyrics;          /* 三行滚动歌词（cpp 内定义完整类） */
 };
 
 #endif // PLAYERBAR_H

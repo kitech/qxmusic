@@ -11,6 +11,7 @@
 #include <qcheckbox.h>
 #include <qapplication.h>
 #include <qtimer.h>
+#include <algorithm>
 #ifdef QT3_BUILD
 #include <qpointarray.h>
 #include <qtooltip.h>
@@ -18,11 +19,214 @@
 #include <QToolTip>
 #endif
 
-/* 三行滚动歌词区空占位组件（用户拍板：PlayBar 内合计约 300px 最右留空间，
- * 歌词滚屏后续实装——现阶段纯空白 QWidget 占位，零绘制零交互） */
+/* ASCII 数字判定（qt3 QChar 无 isDigit，用 unicode 域判零依赖） */
+static bool lrcIsDigit(const QChar& c)
+{
+    return c.unicode() >= '0' && c.unicode() <= '9';
+}
+
+/* qt3/qt4 QString 查找/裁剪 compat（qt3: find/findRev/stripWhiteSpace） */
+static int qstrFind(const QString& s, QChar c, int from = 0)
+{
+#ifdef QT3_BUILD
+    return s.find(c, from);
+#else
+    return s.indexOf(c, from);
+#endif
+}
+
+static int qstrFindRev(const QString& s, QChar c)
+{
+#ifdef QT3_BUILD
+    return s.findRev(c);
+#else
+    return s.lastIndexOf(c);
+#endif
+}
+
+static QString qstrTrim(const QString& s)
+{
+#ifdef QT3_BUILD
+    return s.stripWhiteSpace();
+#else
+    return s.trimmed();
+#endif
+}
+
+struct LrcLine {
+    int timeMs;
+    QString text;
+};
+
+/* 排序比较（函数指针形态，规避老编译器 lambda 兼容风险） */
+static bool lrcLineLess(const LrcLine& a, const LrcLine& b)
+{
+    return a.timeMs < b.timeMs;
+}
+
+/* 时间标签 inner（"mm:ss.xx"/"mm:ss"/"mm:ss.xxx"）→ ms；非时间标签返回 -1 */
+static int lrcTimeTagMs(const QString& inner)
+{
+    int colon = qstrFind(inner, ':');
+    if (colon < 1 || colon != qstrFindRev(inner, ':')) return -1;
+    for (int i = 0; i < colon; ++i)
+        if (!lrcIsDigit(inner[i])) return -1;
+    int dot = qstrFind(inner, '.', colon);
+    int secLen = (dot < 0 ? (int)inner.length() : dot) - colon - 1;
+    if (secLen < 0) return -1;
+    for (int i = colon + 1; i < colon + 1 + secLen; ++i)
+        if (!lrcIsDigit(inner[i])) return -1;
+    long mins = 0;
+    for (int i = 0; i < colon; ++i) mins = mins * 10 + inner[i].unicode() - '0';
+    long secs = 0;
+    for (int i = colon + 1; i < colon + 1 + secLen; ++i) secs = secs * 10 + inner[i].unicode() - '0';
+    int fracMs = 0;
+    if (dot >= 0) {
+        /* 1-3 位小数补零右对齐（.4 == .400 == 0.4s） */
+        int mul = 100;
+        for (int i = dot + 1; i < (int)inner.length(); ++i) {
+            if (!lrcIsDigit(inner[i])) return -1;
+            if (i - dot > 3) break;                     /* 最多取 3 位 */
+            fracMs += (inner[i].unicode() - '0') * mul;
+            mul /= 10;
+        }
+    }
+    return (int)((mins * 60 + secs) * 1000 + fracMs);
+}
+
+/* LRC 解析（网搜核对集：同行多时间戳/[offset:] 全局偏移/CRLF 兼容/
+ * 空文本时间行保留（间奏清屏）/纯文本不同步降级）。
+ * offset 正 = 歌词提前（时间戳减 offset） */
+static void parseLrc(const QString& raw, std::vector<LrcLine>& out,
+                     int& offsetMs, bool& synced, QString& plain)
+{
+    out.clear();
+    offsetMs = 0;
+    synced = false;
+    plain = QString();
+    /* 手动按 \n 切行（规避 QStringList::split 的 qt3/qt4 签名差异） */
+    int len = (int)raw.length();
+    int pos = 0;
+    while (pos <= len) {
+        int nl = qstrFind(raw, QChar('\n'), pos);
+        if (nl < 0) nl = len;
+        QString l = qstrTrim(raw.mid(pos, nl - pos));
+        pos = nl + 1;
+        if (l.isEmpty()) continue;
+        if (l.startsWith(QString::fromUtf8("[offset:")) && l.endsWith(QString::fromUtf8("]"))) {
+            offsetMs = qstrTrim(l.mid(8, l.length() - 9)).toInt();
+            continue;
+        }
+        std::vector<int> times;
+        while (l.startsWith(QString::fromUtf8("["))) {
+            int close = qstrFind(l, ']');
+            if (close < 0) break;
+            int t = lrcTimeTagMs(l.mid(1, close - 1));
+            if (t < 0) break;               /* [ti:] 等元数据标签 → 无时间不参与 */
+            times.push_back(t);
+            l = l.mid(close + 1);
+        }
+        if (times.empty()) {
+            if (plain.isEmpty()) plain = l;  /* 纯文本降级素材 */
+            continue;
+        }
+        synced = true;
+        QString text = qstrTrim(l);
+        for (size_t k = 0; k < times.size(); ++k) {
+            LrcLine li;
+            li.timeMs = times[k] - offsetMs;
+            if (li.timeMs < 0) li.timeMs = 0;
+            li.text = text;
+            out.push_back(li);
+        }
+    }
+    std::sort(out.begin(), out.end(), lrcLineLess);
+}
+
+/* 三行滚动歌词窗（网搜核对标准形态：prev 灰 / 当前行 accent+bold / next 灰；
+ * tick 由 positionChanged 驱动，行变才 update()；零交互零滚动条） */
 class LyricsStrip : public QWidget {
 public:
-    explicit LyricsStrip(QWidget* parent) : QWidget(parent) {}
+    explicit LyricsStrip(QWidget* parent)
+        : QWidget(parent), m_active(-1), m_songTag(0), m_offsetMs(0), m_synced(false) {}
+
+    void setLyrics(qint64 songTag, const QString& lrcText)
+    {
+        m_songTag = songTag;
+        parseLrc(lrcText, m_lines, m_offsetMs, m_synced, m_plain);
+        m_active = -1;
+        update();
+    }
+
+    void clearLyrics()
+    {
+        m_lines.clear();
+        m_plain = QString();
+        m_active = -1;
+        m_songTag = 0;
+        m_synced = false;
+        update();
+    }
+
+    void setPositionMs(int ms)
+    {
+        if (!m_synced || m_lines.empty()) return;
+        /* 二分：最后一个 start <= ms（seek 后即从 position 重算，防漂移） */
+        int lo = 0, hi = (int)m_lines.size() - 1, res = -1;
+        while (lo <= hi) {
+            int mid = (lo + hi) / 2;
+            if (m_lines[mid].timeMs <= ms) { res = mid; lo = mid + 1; }
+            else hi = mid - 1;
+        }
+        if (res != m_active) {
+            m_active = res;
+            update();
+        }
+    }
+
+protected:
+    void paintEvent(QPaintEvent*)
+    {
+        const StyleParams::Palette& pal = muiPalette();
+        QPainter p(this);
+        p.fillRect(rect(), pal.baseBg);
+        int rowH = height() / 3;
+        if (rowH < 1) return;
+        if (m_synced && !m_lines.empty()) {
+            QFont f = font();
+            QFont bf = font();
+            bf.setBold(true);
+            int rows[3];
+            rows[0] = m_active - 1; rows[1] = m_active; rows[2] = m_active + 1;
+            if (m_active < 0) { rows[0] = -1; rows[1] = -1; rows[2] = 0; }
+            for (int k = 0; k < 3; ++k) {
+                int idx = rows[k];
+                if (idx < 0 || idx >= (int)m_lines.size()) continue;
+                if (m_lines[idx].text.isEmpty()) continue;   /* 间奏行清屏 */
+                bool act = (k == 1 && m_active >= 0);
+                p.setFont(act ? bf : f);
+                p.setPen(act ? pal.accent : pal.textMuted);
+                p.drawText(QRect(8, k * rowH, width() - 16, rowH),
+                           Qt::AlignVCenter | Qt::AlignLeft, m_lines[idx].text);
+            }
+        } else if (!m_plain.isEmpty()) {
+            p.setFont(font());
+            p.setPen(pal.textMuted);
+            p.drawText(rect(), Qt::AlignCenter, m_plain);   /* 纯文本降级（不可同步） */
+        } else {
+            p.setFont(font());
+            p.setPen(pal.textMuted);
+            p.drawText(rect(), Qt::AlignCenter, QString::fromUtf8("暂无歌词"));
+        }
+    }
+
+private:
+    std::vector<LrcLine> m_lines;
+    QString m_plain;
+    int m_active;
+    qint64 m_songTag;
+    int m_offsetMs;
+    bool m_synced;
 };
 
 #ifdef QT3_BUILD
@@ -208,14 +412,14 @@ PlayerBar::PlayerBar(QWidget* parent)
 #else
     m_tip = 0;
 #endif
-    m_lyrics = new LyricsStrip(this);       /* 三行滚动歌词空占位（后续实装） */
-    ((QWidget*)m_lyrics)->setGeometry(lyricsRect());
+    m_lyrics = new LyricsStrip(this);
+    m_lyrics->setGeometry(lyricsRect());
 }
 
 void PlayerBar::resizeEvent(QResizeEvent* e)
 {
     QWidget::resizeEvent(e);
-    if (m_lyrics) ((QWidget*)m_lyrics)->setGeometry(lyricsRect());
+    if (m_lyrics) m_lyrics->setGeometry(lyricsRect());
 }
 
 PlayerBar::~PlayerBar()
@@ -817,4 +1021,20 @@ void PlayerBar::onMuteToggled(bool on)
     } else {
         emit volumeChanged(m_lastVolume > 0 ? m_lastVolume : 50);
     }
+}
+
+/* ===== 三行滚动歌词转发（ lyricsRect 右侧区；主注入点 mainwindow） ===== */
+void PlayerBar::setLyricsText(qint64 songTag, const QString& lrcText)
+{
+    if (m_lyrics) m_lyrics->setLyrics(songTag, lrcText);
+}
+
+void PlayerBar::setLyricsPosition(int ms)
+{
+    if (m_lyrics) m_lyrics->setPositionMs(ms);
+}
+
+void PlayerBar::clearLyrics()
+{
+    if (m_lyrics) m_lyrics->clearLyrics();
 }
