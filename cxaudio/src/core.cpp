@@ -89,9 +89,9 @@ bool Core::open(const std::string& uri) {
     for (int i = start; i < end; ++i) {
         const std::string id = kOrder[i];
         if (id == "faad")
-            backend_.reset(new PcmBackend(faadProvider()));
+            backend_.reset(new PcmBackend(faadProvider(), "faad"));
         else if (id == "ffmpeg")
-            backend_.reset(new PcmBackend(ffmpegProvider()));
+            backend_.reset(new PcmBackend(ffmpegProvider(), "ffmpeg"));
         else
             backend_.reset(createMpvBackend());
 

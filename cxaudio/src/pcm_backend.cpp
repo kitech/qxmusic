@@ -45,7 +45,8 @@ static bool initMaContext(ma_context* ctx, ma_context_config* ccfg,
     return true;
 }
 
-PcmBackend::PcmBackend(DecoderProvider* provider) : provider_(provider) {}
+PcmBackend::PcmBackend(DecoderProvider* provider, const std::string& providerTag)
+    : provider_(provider), m_providerTag(providerTag) {}
 PcmBackend::~PcmBackend() { teardown(); }
 
 const char* PcmBackend::id() const { return provider_->id(); }
@@ -134,9 +135,9 @@ bool PcmBackend::open(const std::string& uri, std::string* err) {
     }
     ma_device_set_master_volume(device_, 1.0f);
     r = ma_device_start(device_);
-    CXA_LOG("device backend=%s sr=%d ch=%d start=%d (%s)",
-            ma_get_backend_name(context_->backend), sampleRate_, channels_,
-            (int)r, ma_result_description(r));
+    CXA_LOG("device backend=%s provider=%s sr=%d ch=%d start=%d (%s)",
+            ma_get_backend_name(context_->backend), m_providerTag.c_str(),
+            sampleRate_, channels_, (int)r, ma_result_description(r));
 
     state_ = kStopped;
     quit_ = false;

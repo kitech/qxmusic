@@ -287,6 +287,7 @@ void ContentView::paintEvent(QPaintEvent*)
     /* ── 标题区 ── */
     if (m_mode == TracksMode) {
         QString title = m_pl ? m_pl->name : QString();
+        if (m_pl) title += QString::fromUtf8(" %1 首").arg((int)m_pl->tracks.size());
         p.setFont(titleFont);
         p.setPen(pal.textPrimary);
         p.drawText(QRect(20, 4, width() - 40, 30), Qt::AlignVCenter | Qt::AlignLeft, title);
@@ -299,10 +300,13 @@ void ContentView::paintEvent(QPaintEvent*)
         p.setFont(small);
         p.drawText(pa, Qt::AlignCenter, m_playAll);
     } else {
-        /* List/Grid 模式：标题 + 返回按钮 */
+        /* List/Grid 模式：标题 + 返回按钮（列表模式带条目计数） */
+        QString title = m_listTitle;
+        if (m_mode == PlaylistListMode)
+            title += QString::fromUtf8(" %1 个歌单").arg((int)m_cards.size());
         p.setFont(titleFont);
         p.setPen(pal.textPrimary);
-        p.drawText(QRect(20, 4, width() - 200, 30), Qt::AlignVCenter | Qt::AlignLeft, m_listTitle);
+        p.drawText(QRect(20, 4, width() - 200, 30), Qt::AlignVCenter | Qt::AlignLeft, title);
 
         QRect br = backRect();
         p.setPen(Qt::NoPen);

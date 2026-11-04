@@ -9,6 +9,8 @@
 
 class SearchLineEdit;
 class UserInfoPanel;
+class QComboBox;
+class QLabel;
 
 class SideNav : public QWidget {
     Q_OBJECT
@@ -28,6 +30,9 @@ public:
 
 public slots:
     void onNavScroll(int v);
+
+private slots:
+    void onSiteChanged(const QString& site);
 
 signals:
     void playlistSelected(int playlistId);
@@ -57,6 +62,7 @@ private:
         int id;
         QString text;
         QString cat;
+        int count;      /* 右端灰字计数；<0 不绘制 */
         int y;
         int h;
     };
@@ -68,6 +74,8 @@ private:
 
     SearchLineEdit* m_search;
     UserInfoPanel* m_user;
+    QLabel* m_siteLabel;    /* 音乐站点（写死中文；Phase 2 接站点切换） */
+    QComboBox* m_site;
     LimeScrollBar* m_scrollBar;
     int m_scroll;
     int m_contentH;

@@ -1714,6 +1714,9 @@ void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
         m_dlSongId = t.ncmId;
         if (playerBar) playerBar->setDownloadState(t.ncmId, -1);
         m_ncm->fetchRemote(t.ncmId, url, level, t.title, t.artist, t.album);
+        /* 开始下载托盘气泡（Qt4 原生 / Qt3 自绘，见 systemtrayicon-showmessage 文档） */
+        sticonShowStatusMessage(QString::fromUtf8("开始下载: %1").arg(t.title),
+                                SticonInfo, 3000);
         return;
     }
     playNcmResolved(url, level);

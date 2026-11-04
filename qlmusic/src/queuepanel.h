@@ -3,7 +3,10 @@
 
 #include "compat34.h"
 #include "musicmodel.h"
+#include "LimeScrollBar.h"
 #include <qwidget.h>
+
+class LimeScrollBar;
 
 class QueuePanel : public QWidget {
     Q_OBJECT
@@ -15,12 +18,24 @@ public:
 
 protected:
     void paintEvent(QPaintEvent* e);
+    void wheelEvent(QWheelEvent* e);
+    void resizeEvent(QResizeEvent* e);
+
+private:
+    void updateScrollBar();
+
+private slots:
+    void onScroll(int v);
 
 private:
     Track m_current;
     bool m_hasCurrent;
     std::vector<Track> m_queue;
     int m_currentIdx;
+    LimeScrollBar* m_scrollBar;
+    int m_scrollY;
+    int m_scrollDelta;
+    int m_listTop;      /* 曲目列表区顶部（paint 时按封面实高刷新） */
     QString m_title;
 };
 

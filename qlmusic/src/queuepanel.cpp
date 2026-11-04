@@ -2,6 +2,7 @@
 #include "musicstyle.h"
 #include "translator.h"
 #include "identicon.h"
+#include "limelog.h"
 
 #include <qglobal.h>
 #include <qpainter.h>
@@ -9,10 +10,14 @@
 #include <qfontmetrics.h>
 
 QueuePanel::QueuePanel(QWidget* parent)
-    : QWidget(parent), m_hasCurrent(false), m_currentIdx(-1)
+    : QWidget(parent), m_hasCurrent(false), m_currentIdx(-1),
+      m_scrollBar(0), m_scrollY(0), m_scrollDelta(0), m_listTop(46)
 {
     setMinimumWidth(200);
     setMaximumWidth(320);
+    m_scrollBar = new LimeScrollBar(Qt::Vertical, this);
+    m_scrollBar->hide();
+    connect(m_scrollBar, SIGNAL(valueChanged(int)), this, SLOT(onScroll(int)));
     retranslateUi();
 }
 
@@ -26,6 +31,7 @@ void QueuePanel::setCurrentTrack(const Track& t)
 {
     m_current = t;
     m_hasCurrent = true;
+    updateScrollBar();
     update();
 }
 
@@ -33,7 +39,54 @@ void QueuePanel::setQueue(const std::vector<Track>& queue, int startIndex)
 {
     m_queue = queue;
     m_currentIdx = startIndex;
+    m_scrollY = 0;
+    updateScrollBar();
     update();
+}
+
+void QueuePanel::updateScrollBar()
+{
+    if (!m_scrollBar) return;
+    int max = qMax(0, (int)m_queue.size() * 44 - qMax(0, height() - m_listTop));
+    if (m_scrollY > max) m_scrollY = max;
+    if (m_scrollY < 0) m_scrollY = 0;
+    m_scrollBar->setRange(0, max);
+    m_scrollBar->setPageStep(qMax(1, height() - m_listTop));
+    if (max > 0) {
+        m_scrollBar->blockSignals(true);
+        m_scrollBar->setValue(m_scrollY);
+        m_scrollBar->blockSignals(false);
+        m_scrollBar->show();
+    } else {
+        m_scrollBar->hide();
+    }
+}
+
+void QueuePanel::onScroll(int v)
+{
+    m_scrollY = v;
+    update();
+}
+
+void QueuePanel::wheelEvent(QWheelEvent* e)
+{
+    m_scrollDelta += qWheelDeltaY(e);
+    int steps = m_scrollDelta / 120;
+    if (steps == 0) return;
+    m_scrollDelta -= steps * 120;
+    int newY = m_scrollY - steps * (44 * 3);
+    int max = qMax(0, (int)m_queue.size() * 44 - qMax(0, height() - m_listTop));
+    m_scrollY = qBound(0, newY, max);
+    updateScrollBar();
+    update();
+}
+
+void QueuePanel::resizeEvent(QResizeEvent* e)
+{
+    QWidget::resizeEvent(e);
+    if (m_scrollBar)
+        m_scrollBar->setGeometry(width() - 12, m_listTop, 12, qMax(0, height() - m_listTop));
+    updateScrollBar();
 }
 
 void QueuePanel::paintEvent(QPaintEvent*)
@@ -73,25 +126,33 @@ void QueuePanel::paintEvent(QPaintEvent*)
 
     p.setFont(small);
     p.setPen(pal.textMuted);
-    p.drawText(QRect(16, y, width() - 32, 20), Qt::AlignVCenter | Qt::AlignLeft, m_title);
+    p.drawText(QRect(16, y, width() - 32, 20), Qt::AlignVCenter | Qt::AlignLeft,
+               m_title + QString(" (%1)").arg((int)m_queue.size()));
     y += 24;
 
+    /* 列表区顶部固定，曲目区进入滚动域（对齐 ContentView 滚动模式） */
+    m_listTop = y;
     p.setClipRect(0, y, width(), height() - y);
     for (size_t i = 0; i < m_queue.size(); ++i) {
-        if (y > height()) break;
+        int ry = y + (int)i * 44 - m_scrollY;
+        if (ry + 44 <= y) continue;            /* 滚出上方 */
+        if (ry > height()) break;              /* 滚出下方 */
         const Track& t = m_queue[i];
         bool selected = ((int)i == m_currentIdx);
         if (selected)
-            p.fillRect(QRect(8, y, width() - 16, 40), pal.activeBg);
+            p.fillRect(QRect(8, ry, width() - 16, 40), pal.activeBg);
         p.setFont(small);
         p.setPen(selected ? pal.accent : pal.textMuted);
-        p.drawText(QRect(16, y, 22, 40), Qt::AlignVCenter | Qt::AlignLeft, QString::number((int)i + 1));
+        p.drawText(QRect(16, ry, 22, 40), Qt::AlignVCenter | Qt::AlignLeft, QString::number((int)i + 1));
         p.setFont(selected ? bold : font());
         p.setPen(selected ? pal.accent : pal.textPrimary);
-        p.drawText(QRect(40, y + 3, width() - 56, 20), Qt::AlignVCenter | Qt::AlignLeft, t.title);
+        p.drawText(QRect(40, ry + 3, width() - 56, 20), Qt::AlignVCenter | Qt::AlignLeft, t.title);
         p.setFont(small);
         p.setPen(pal.textMuted);
-        p.drawText(QRect(40, y + 21, width() - 56, 18), Qt::AlignVCenter | Qt::AlignLeft, t.artist);
-        y += 44;
+        p.drawText(QRect(40, ry + 21, width() - 56, 18), Qt::AlignVCenter | Qt::AlignLeft, t.artist);
     }
+    /* 滚动条几何随列表区实高（封面高度动态，paint 内同步最准） */
+    if (m_scrollBar)
+        m_scrollBar->setGeometry(width() - 12, y, 12, qMax(0, height() - y));
+    updateScrollBar();
 }

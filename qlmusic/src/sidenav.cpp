@@ -3,7 +3,10 @@
 #include "searchline.h"
 #include "userinfopanel.h"
 #include "translator.h"
+#include "limelog.h"
 
+#include <qlabel.h>
+#include <qcombobox.h>
 #include <qglobal.h>
 #include <qpainter.h>
 #include <qevent.h>
@@ -12,6 +15,7 @@
 namespace {
 const int kTop = 8;
 const int kUserH = 60;   /* 用户信息块（两行：昵称 + 副信息），搜索框上方 */
+const int kSiteH = 24;   /* 音乐站点行（label + combo），搜索框上方 */
 const int kSearchH = 28;
 const int kItemH = 30;
 const int kGroupH = 26;
@@ -20,7 +24,8 @@ const char* kHotViewKey = "__hot__";
 }
 
 SideNav::SideNav(QWidget* parent)
-    : QWidget(parent), m_search(0), m_user(0), m_scrollBar(0), m_scroll(0),
+    : QWidget(parent), m_search(0), m_user(0), m_siteLabel(0), m_site(0),
+      m_scrollBar(0), m_scroll(0),
       m_contentH(0), m_current(-1), m_hover(-1)
 {
     setMouseTracking(true);
@@ -29,10 +34,29 @@ SideNav::SideNav(QWidget* parent)
     m_user = new UserInfoPanel(this);
     connect(m_user, SIGNAL(loginRequested()), this, SIGNAL(loginRequested()));
     m_search = new SearchLineEdit(this);
+    m_siteLabel = new QLabel(QString::fromUtf8("音乐站点"), this);
+    m_site = new QComboBox(this);
+    static const char* kSites[] = {"163音乐", "qq音乐", "百度音乐", "酷狗音乐",
+                                   "酷我音乐", "bili音乐", "youtube音乐"};
+    for (size_t i = 0; i < sizeof(kSites) / sizeof(kSites[0]); ++i) {
+#ifdef QT3_BUILD
+        m_site->insertItem(QString::fromUtf8(kSites[i]));
+#else
+        m_site->addItem(QString::fromUtf8(kSites[i]));
+#endif
+    }
+    connect(m_site, SIGNAL(currentIndexChanged(const QString&)),
+            this, SLOT(onSiteChanged(const QString&)));
     m_scrollBar = new LimeScrollBar(Qt::Vertical, this);
     m_scrollBar->hide();
     connect(m_scrollBar, SIGNAL(valueChanged(int)), this, SLOT(onNavScroll(int)));
     retranslateUi();
+}
+
+/* 站点切换暂不处理（拍板：仅 UI 占位），打日志定位 */
+void SideNav::onSiteChanged(const QString& site)
+{
+    ALOG_INFO(QString::fromUtf8("SideNav site=%1 (switch pending)").arg(site));
 }
 
 void SideNav::setUserLoggedIn(const QString& name, const QString& avatarSeed)
@@ -90,9 +114,10 @@ void SideNav::relayout()
 {
     m_items.clear();
     m_contentH = 0;
-    int y = kTop + kUserH + kSearchH + 8;
+    int y = kTop + kUserH + kSiteH + kSearchH + 8;
 
     NavItem it;
+    it.count = -1;
     it.kind = NavHotPlaylists; it.id = -1; it.text = m_navRecommend; it.cat = QString();
     it.y = y; it.h = kItemH; y += kItemH;
     m_items.push_back(it);
@@ -106,6 +131,7 @@ void SideNav::relayout()
     if (!m_hotCats.isEmpty() || !m_catGroups.isEmpty()) {
         y += 8;
         it.kind = NavHeader; it.id = 0; it.text = m_groupCategories; it.cat = QString();
+        it.count = (int)m_hotCats.size();
         it.y = y; it.h = kGroupH; y += kGroupH;
         m_items.push_back(it);
 
@@ -127,6 +153,7 @@ void SideNav::relayout()
             bool hasItems = (cnt > 0);
             if (hasItems) {
                 it.kind = NavHeader; it.id = 0; it.text = m_catGroups[g]; it.cat = QString();
+                it.count = cnt;
                 it.y = y; it.h = kGroupH; y += kGroupH;
                 m_items.push_back(it);
             }
@@ -144,22 +171,26 @@ void SideNav::relayout()
 
     y += 6;
     it.kind = NavHeader; it.id = 0; it.text = m_groupCreated; it.cat = QString();
+    it.count = (int)((m_lib.size() + 1) / 2);
     it.y = y; it.h = kGroupH; y += kGroupH;
     m_items.push_back(it);
     for (size_t i = 0; i < m_lib.size(); ++i) {
         if (i % 2 != 0) continue;
         it.kind = NavPlaylist; it.id = m_lib[i].id; it.text = m_lib[i].name; it.cat = QString();
+        it.count = m_lib[i].trackCount > 0 ? m_lib[i].trackCount : (int)m_lib[i].tracks.size();
         it.y = y; it.h = kItemH; y += kItemH;
         m_items.push_back(it);
     }
 
     y += 6;
     it.kind = NavHeader; it.id = 0; it.text = m_groupCollected; it.cat = QString();
+    it.count = (int)(m_lib.size() / 2);
     it.y = y; it.h = kGroupH; y += kGroupH;
     m_items.push_back(it);
     for (size_t i = 0; i < m_lib.size(); ++i) {
         if (i % 2 == 0) continue;
         it.kind = NavPlaylist; it.id = m_lib[i].id; it.text = m_lib[i].name; it.cat = QString();
+        it.count = m_lib[i].trackCount > 0 ? m_lib[i].trackCount : (int)m_lib[i].tracks.size();
         it.y = y; it.h = kItemH; y += kItemH;
         m_items.push_back(it);
     }
@@ -214,8 +245,12 @@ void SideNav::resizeEvent(QResizeEvent* e)
     QWidget::resizeEvent(e);
     if (m_user)
         m_user->setGeometry(10, kTop, width() - 20, kUserH);
+    if (m_siteLabel)
+        m_siteLabel->setGeometry(10, kTop + kUserH + 4, 60, kSiteH);
+    if (m_site)
+        m_site->setGeometry(74, kTop + kUserH + 4, width() - 84, kSiteH);
     if (m_search)
-        m_search->setGeometry(10, kTop + kUserH + 4, width() - 20, kSearchH);
+        m_search->setGeometry(10, kTop + kUserH + kSiteH + 4, width() - 20, kSearchH);
     applyScrollBar();
     update();
 }
@@ -249,8 +284,8 @@ void SideNav::paintEvent(QPaintEvent*)
     QPainter p(this);
     p.fillRect(rect(), pal.baseBg);
 
-    p.setClipRect(QRect(0, kTop + kUserH + kSearchH + 4, width(),
-                        height() - kTop - kUserH - kSearchH - 4));
+    p.setClipRect(QRect(0, kTop + kUserH + kSiteH + kSearchH + 4, width(),
+                        height() - kTop - kUserH - kSiteH - kSearchH - 4));
 
     QFont normal = font();
     QFont bold = font();
@@ -266,6 +301,9 @@ void SideNav::paintEvent(QPaintEvent*)
             p.setFont(small);
             p.setPen(pal.textMuted);
             p.drawText(QRect(18, r.y(), width() - 24, r.height()), Qt::AlignVCenter | Qt::AlignLeft, it.text);
+            if (it.count >= 0)
+                p.drawText(QRect(width() - 46, r.y(), 36, r.height()),
+                           Qt::AlignVCenter | Qt::AlignRight, QString::number(it.count));
             continue;
         }
         bool selected = false;
@@ -285,6 +323,12 @@ void SideNav::paintEvent(QPaintEvent*)
         p.setFont(selected ? bold : normal);
         p.setPen(selected ? pal.accent : pal.textPrimary);
         p.drawText(QRect(20, r.y(), width() - 28, r.height()), Qt::AlignVCenter | Qt::AlignLeft, it.text);
+        if (it.count >= 0) {
+            p.setFont(small);
+            p.setPen(pal.textMuted);
+            p.drawText(QRect(width() - 46, r.y(), 36, r.height()),
+                       Qt::AlignVCenter | Qt::AlignRight, QString::number(it.count));
+        }
     }
 }
 

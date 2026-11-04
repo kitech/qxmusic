@@ -19,7 +19,8 @@ namespace cx {
 /* Shared backend for A (ffmpeg) and B (faad): decode thread -> ring -> ma_device. */
 class PcmBackend : public IBackend {
 public:
-    explicit PcmBackend(DecoderProvider* provider);
+    explicit PcmBackend(DecoderProvider* provider,
+                        const std::string& providerTag = std::string());
     ~PcmBackend() override;
 
     const char* id() const override;
@@ -72,6 +73,7 @@ private:
     std::mutex seekMutex_;
 
     std::string outputDeviceName_;  /* 设置窗选定；空 = 系统默认 */
+    std::string m_providerTag;      /* 设置中的解码后端 id（faad/ffmpeg），日志用 */
 };
 
 } /* namespace cx */
