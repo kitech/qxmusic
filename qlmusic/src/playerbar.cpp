@@ -590,10 +590,11 @@ void PlayerBar::nudgeAutoSkipTip()
 
 int PlayerBar::lyricLeft() const
 {
-    /* 歌词区左缘下界 cx+190：progress 终点 cx+130 + 右时间文本槽 cx+134..cx+178
-     * 全让位；>=1024 窗时达到 300px 设计宽 */
+    /* 歌词区左缘下界 cx+170：顶行中央群右缘 pie cx+151 + 19px 间距
+     * （progress 缩短 20% 至 208、喇叭/pie 左移贴 repeat 后中央链收窄，
+     * 歌词区左移填补右侧空间）；>=1024 窗时达到 330px 设计宽 */
     int cx = width() / 2;
-    return qMax(cx + 190, width() - 312);
+    return qMax(cx + 170, width() - 352);
 }
 
 QRect PlayerBar::lyricsRect() const
@@ -605,45 +606,47 @@ QRect PlayerBar::lyricsRect() const
 
 QRect PlayerBar::volumeRect() const
 {
-    /* 喇叭：歌词区左邻横排（不占最右——用户拍板：歌词区才在最右），
-     * 屏蔽时间文本（y19..39 vs 时间 y50..70 分行无撞） */
-    return QRect(lyricLeft() - 24, 19, 20, 20);
+    /* 喇叭：repeat 右邻 8px（用户拍板：音量左移靠近循环设定按钮）；
+     * 中央群整体左移 30 回正视觉重心（群含喇叭/pie 后原重心偏右） */
+    int cx = width() / 2;
+    return QRect(cx + 43, 19, 20, 20);
 }
 
 QRect PlayerBar::downloadRect() const
 {
-    /* 下载 pie：喇叭左侧 8px 间距同排 */
-    return QRect(lyricLeft() - 52, 19, 20, 20);
+    /* 下载 pie：喇叭右邻 8px（跟随喇叭左移，顶行图标连排） */
+    int cx = width() / 2;
+    return QRect(cx + 71, 19, 20, 20);
 }
 
 QRect PlayerBar::playRect() const
 {
     int cx = width() / 2;
-    return QRect(cx - 15, 14, 30, 30);
+    return QRect(cx - 75, 14, 30, 30);
 }
 
 QRect PlayerBar::prevRect() const
 {
     int cx = width() / 2;
-    return QRect(cx - 60, 19, 20, 20);
+    return QRect(cx - 120, 19, 20, 20);
 }
 
 QRect PlayerBar::nextRect() const
 {
     int cx = width() / 2;
-    return QRect(cx + 40, 19, 20, 20);
+    return QRect(cx - 20, 19, 20, 20);
 }
 
 QRect PlayerBar::repeatRect() const
 {
     int cx = width() / 2;
-    return QRect(cx + 75, 19, 20, 20);      /* next 右邻 */
+    return QRect(cx + 15, 19, 20, 20);      /* next 右邻 */
 }
 
 QRect PlayerBar::autoSkipRect() const
 {
     int cx = width() / 2;
-    return QRect(cx - 95, 19, 20, 20);      /* prev 左邻，Spotify 式两侧对称 */
+    return QRect(cx - 155, 19, 20, 20);     /* prev 左邻；中央两行整体左移 30（累计） */
 }
 
 QRect PlayerBar::tipRectFor(const QPoint& p) const
@@ -691,7 +694,8 @@ bool PlayerBar::event(QEvent* e)
 QRect PlayerBar::progressRect() const
 {
     int cx = width() / 2;
-    return QRect(cx - 130, 58, 260, 6);
+    /* 缩短 20%：260 → 208；随中央两行整体左移 30（累计），释放右侧给歌词区 */
+    return QRect(cx - 134, 58, 208, 6);
 }
 
 void PlayerBar::setProgressFromX(int x)
