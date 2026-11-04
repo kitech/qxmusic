@@ -89,6 +89,14 @@ type CheckMusicResult struct {
 	Code     string `json:"reason"`
 }
 
+// LyricResult 歌词结果。形状对齐 qlmusic C++ 侧 onNcmLyric 的解析
+// （cJSON root→"lrc"→"lyric"），仅保留原文 LRC；tlyric/yrc 等暂不透传。
+type LyricResult struct {
+	Lrc struct {
+		Lyric string `json:"lyric"`
+	} `json:"lrc"`
+}
+
 /* ---------------- 网易云原始响应的解析视图 ---------------- */
 
 type rawSong struct {
@@ -409,6 +417,31 @@ func CheckMusic(songID int64, br int32) (CheckMusicResult, error) {
 		res.Code = strconv.FormatFloat(data[0].Code, 'f', -1, 64)
 		res.Playable = data[0].Code == 200 && data[0].URL != ""
 	}
+	return res, nil
+}
+
+// Lyric 拉取歌曲歌词（LRC 原文，含 [mm:ss.xx] 时间轴；空串 = 无词，UI 落空态）。
+// 网搜核对（pkg.go.dev netease-music v1.6 + go-musicfox FetchLyric 参考）：
+// LyricService{ID}.Lyric() 返回 (code, body)，body 为 NCM 原始 JSON，
+// 歌词原文在 lrc.lyric。
+func Lyric(songID int64) (LyricResult, error) {
+	if songID <= 0 {
+		return LyricResult{}, errs.ErrInvalidArg
+	}
+	code, body := (&nmsvc.LyricService{ID: strconv.FormatInt(songID, 10)}).Lyric()
+	if err := opStatus("song_lyric", "/api/song/lyric", code, len(body)); err != nil {
+		return LyricResult{}, err
+	}
+	var env struct {
+		Lrc struct {
+			Lyric string `json:"lyric"`
+		} `json:"lrc"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return LyricResult{}, fmt.Errorf("%w: song/lyric 解析失败: %v", errs.ErrBadResponse, err)
+	}
+	res := LyricResult{}
+	res.Lrc.Lyric = env.Lrc.Lyric
 	return res, nil
 }
 

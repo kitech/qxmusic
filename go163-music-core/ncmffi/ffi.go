@@ -686,7 +686,11 @@ func ncm_lyric(h *C.ncm_client, songID C.int64_t, out **C.char) C.int32_t {
 			}
 			return C.int32_t(errs.InvalidArg)
 		}
-		return stub(out)
+		res, err := catalog.Lyric(int64(songID))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
 	})
 }
 
