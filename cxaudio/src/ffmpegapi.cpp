@@ -1,5 +1,6 @@
 #include "ffmpegapi.h"
 #include "dynload.h"
+#include "cxaudio_log.h"
 
 #include <algorithm>
 #include <cctype>
@@ -106,8 +107,8 @@ bool loadFfmpegApi(FfmpegApi* api, std::string* err) {
     }
     if (fmtPath.empty()) {
         if (err) *err = "libavformat not found";
-        fprintf(stderr, "[cxaudio] ffmpeg load failed: libavformat not found "
-                        "(major=%d)\n", (int)kMajor);
+        CXA_LOG("ffmpeg load failed: libavformat not found "
+                "(major=%d)", (int)kMajor);
         return false;
     }
 
@@ -131,7 +132,7 @@ bool loadFfmpegApi(FfmpegApi* api, std::string* err) {
     }
     if (libs.empty()) {
         if (err) *err = "failed to open libav* libraries";
-        fprintf(stderr, "[cxaudio] ffmpeg load failed: %s\n", err ? err->c_str() : "?");
+        CXA_LOG("ffmpeg load failed: %s", err ? err->c_str() : "?");
         return false;
     }
 

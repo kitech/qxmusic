@@ -1,6 +1,7 @@
 #include "core.h"
 #include "pcm_backend.h"
 #include "pcm_decoder.h"
+#include "cxaudio_log.h"
 
 #include <algorithm>
 #include <cctype>
@@ -96,7 +97,7 @@ bool Core::open(const std::string& uri) {
 
         if (!backend_) {
             lastErr = "backend not compiled: " + id;
-            fprintf(stderr, "[cxaudio] backend try=%s fail err=%s\n", id.c_str(), lastErr.c_str());
+            CXA_LOG("backend try=%s fail err=%s", id.c_str(), lastErr.c_str());
             continue;
         }
         backend_->setCallbacks(&cbs_);
@@ -106,11 +107,11 @@ bool Core::open(const std::string& uri) {
         std::string err;
         if (backend_->available(&err) && backend_->open(uri, &err)) {
             resolved_ = id;
-            fprintf(stderr, "[cxaudio] backend try=%s ok\n", id.c_str());
+            CXA_LOG("backend try=%s ok", id.c_str());
             return true;
         }
         lastErr = err;
-        fprintf(stderr, "[cxaudio] backend try=%s fail err=%s\n", id.c_str(), err.c_str());
+        CXA_LOG("backend try=%s fail err=%s", id.c_str(), err.c_str());
         backend_.reset();
     }
 

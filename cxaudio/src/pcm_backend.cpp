@@ -1,5 +1,6 @@
 #include "pcm_backend.h"
 #include "audioutil.h"
+#include "cxaudio_log.h"
 
 #include <miniaudio.h>
 
@@ -107,22 +108,20 @@ bool PcmBackend::open(const std::string& uri, std::string* err) {
                 if (std::strcmp(infos[i].name, outputDeviceName_.c_str()) == 0) {
                     preferredDeviceId_ = infos[i].id;
                     cfg.playback.pDeviceID = &preferredDeviceId_; /* init 期间有效 */
-                    fprintf(stderr, "[cxaudio] device select: %s\n",
-                            outputDeviceName_.c_str());
+                    CXA_LOG("device select: %s", outputDeviceName_.c_str());
                     break;
                 }
             }
         }
         if (!cfg.playback.pDeviceID)
-            fprintf(stderr, "[cxaudio] device not found, fallback default: %s\n",
-                    outputDeviceName_.c_str());
+            CXA_LOG("device not found, fallback default: %s", outputDeviceName_.c_str());
     }
 
     device_ = new ma_device;
     ma_result r = ma_device_init(context_, &cfg, device_);
     if (r != MA_SUCCESS) {
         if (err) *err = std::string("ma_device_init failed: ") + ma_result_description(r);
-        fprintf(stderr, "[cxaudio] device init failed: r=%d %s (ctx=%s)\n", (int)r,
+        CXA_LOG("device init failed: r=%d %s (ctx=%s)", (int)r,
                 ma_result_description(r), ma_get_backend_name(context_->backend));
         delete device_;
         device_ = nullptr;
@@ -135,7 +134,7 @@ bool PcmBackend::open(const std::string& uri, std::string* err) {
     }
     ma_device_set_master_volume(device_, 1.0f);
     r = ma_device_start(device_);
-    fprintf(stderr, "[cxaudio] device backend=%s sr=%d ch=%d start=%d (%s)\n",
+    CXA_LOG("device backend=%s sr=%d ch=%d start=%d (%s)",
             ma_get_backend_name(context_->backend), sampleRate_, channels_,
             (int)r, ma_result_description(r));
 
@@ -240,25 +239,25 @@ void PcmBackend::decodeLoop() {
             if (got == 0) {
                 ++gRead0Streak;
                 if (gRead0Streak == 1 || gRead0Streak == 300 /*~1s*/) {
-                    fprintf(stderr, "[cxaudio] decode read-0 streak=%d eof=%d\n",
+                    CXA_LOG("decode read-0 streak=%d eof=%d",
                             gRead0Streak, (int)eof_.load());
                 }
                 if (!gLoggedEmpty && !eof_.load()) {
                     gLoggedEmpty = true;
-                    fprintf(stderr, "[cxaudio] decode first-empty\n");
+                    CXA_LOG("decode first-empty");
                 }
             } else {
                 gRead0Streak = 0;
                 if (!gLoggedData) {
                     gLoggedData = true;
-                    fprintf(stderr, "[cxaudio] decode flowing: got=%zu chunk frames\n", got);
+                    CXA_LOG("decode flowing: got=%zu chunk frames", got);
                 }
             }
         }
         if (got == 0) {
             std::string de = decoder_->lastError();
             if (!de.empty()) {
-                fprintf(stderr, "[cxaudio] decode error: %s\n", de.c_str());
+                CXA_LOG("decode error: %s", de.c_str());
                 if (cb_ && cb_->onError) cb_->onError(de);
                 state_ = kStopped;
             }
@@ -278,7 +277,7 @@ void PcmBackend::decodeLoop() {
             auto now = std::chrono::steady_clock::now();
             if (now - lastRing > std::chrono::seconds(1)) {
                 lastRing = now;
-                fprintf(stderr, "[cxaudio] decode ring: count=%zu write=%zu got=%zu\n",
+                CXA_LOG("decode ring: count=%zu write=%zu got=%zu",
                         ringCount_, ringWrite_, got);
             }
         }
@@ -296,8 +295,8 @@ size_t PcmBackend::pullAudio(int16_t* out, size_t frames) {
             auto now = std::chrono::steady_clock::now();
             if (now - lastBlocked > std::chrono::seconds(1)) {
                 lastBlocked = now;
-                fprintf(stderr, "[cxaudio] pullAudio blocked: st=%d (not playing) "
-                        "ringCount=%zu framesPlayed=%lld\n",
+                CXA_LOG("pullAudio blocked: st=%d (not playing) "
+                        "ringCount=%zu framesPlayed=%lld",
                         st, ringCount_, (long long)framesPlayed_.load());
             }
         }
@@ -311,8 +310,8 @@ size_t PcmBackend::pullAudio(int16_t* out, size_t frames) {
         auto now = std::chrono::steady_clock::now();
         if (now - lastLive > std::chrono::seconds(1)) {
             lastLive = now;
-            fprintf(stderr, "[cxaudio] pullAudio live: st=%d take=%zu want=%zu "
-                    "ringCount=%zu framesPlayed=%lld\n",
+            CXA_LOG("pullAudio live: st=%d take=%zu want=%zu "
+                    "ringCount=%zu framesPlayed=%lld",
                     st, take, want, ringCount_, (long long)framesPlayed_.load());
         }
     }
@@ -326,7 +325,7 @@ size_t PcmBackend::pullAudio(int16_t* out, size_t frames) {
     framesPlayed_ += (int64_t)(take / (size_t)channels_);
     if (take > 0 && !gPullLogged) {
         gPullLogged = true;
-        fprintf(stderr, "[cxaudio] pullAudio flowing: take=%zu of want=%zu\n", take, want);
+        CXA_LOG("pullAudio flowing: take=%zu of want=%zu", take, want);
     }
     return frames;
 }

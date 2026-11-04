@@ -1,5 +1,6 @@
 #include "core.h"
 #include "mpvapi.h"
+#include "cxaudio_log.h"
 
 #include <mpv/client.h>
 
@@ -93,7 +94,7 @@ public:
     std::vector<AudioDeviceInfo> listOutputDevices() override {
         /* mpv 自管 audio-out；设备枚举/选定暂不支持，返回空表（Phase 2 可经
          * mpv audio-device 属性再补）。打一次提示便于前台定位 */
-        fprintf(stderr, "[cxaudio] mpv backend: output device list not supported\n");
+        CXA_LOG("mpv backend: output device list not supported");
         return std::vector<AudioDeviceInfo>();
     }
 

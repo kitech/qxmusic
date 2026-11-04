@@ -1,5 +1,6 @@
 #include "pcm_decoder.h"
 #include "audioutil.h"
+#include "cxaudio_log.h"
 
 #if defined(__has_include)
 #  if __has_include(<libavformat/avformat.h>) && __has_include(<libavcodec/avcodec.h>) && \
@@ -188,13 +189,12 @@ private:
             if (!initSwr(f)) {
                 if (!gSwrInitLogged) {
                     gSwrInitLogged = true;
-                    fprintf(stderr,
-                            "[cxaudio] swr init failed: in=%dHz fmt=%d layout=%d(channels=%d) "
-                            "out=%dHz fmt=S16\n",
+                    CXA_LOG("swr init failed: in=%dHz fmt=%d layout=%d(channels=%d) "
+                            "out=%dHz fmt=S16",
                             f->sample_rate, (int)f->format,
                             (int)f->ch_layout.nb_channels, f->nb_samples, outRate_);
-                    fprintf(stderr, "[cxaudio] swr init failure loop risk: decoding will keep "
-                                    "consuming stream but produce no frames\n");
+                    CXA_LOG("swr init failure loop risk: decoding will keep "
+                            "consuming stream but produce no frames");
                 }
                 lastErr_ = "swr_init failed";
                 return false;
@@ -211,8 +211,7 @@ private:
         if (got < 0) {
             if (!gSwrConvertLogged) {
                 gSwrConvertLogged = true;
-                fprintf(stderr, "[cxaudio] swr_convert failed: err=%s\n",
-                        errStr(got).c_str());
+                CXA_LOG("swr_convert failed: err=%s", errStr(got).c_str());
             }
             lastErr_ = "swr_convert: " + errStr(got);
             stage_.clear();
@@ -243,7 +242,7 @@ private:
                 gFirstReadLogged = true;
                 auto t0 = std::chrono::steady_clock::now();
                 int pr = api_->av_read_frame(fmt_, pkt_);
-                fprintf(stderr, "[cxaudio] first av_read_frame took %dms err=%d (%s)\n",
+                CXA_LOG("first av_read_frame took %dms err=%d (%s)",
                         (int)std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now() - t0)
                             .count(),
