@@ -182,6 +182,35 @@ M4A/FLAC 属另一元数据体系（Phase 2，fetch 时 log skip）。
 - 灰歌真治本：resolve（onNcmSource rc≠0/url 空）与下载（onNcmFetched 三失败）三阶段
   统一走 `skipOnError(why)`（带控制台 trace 日志；只此一处止损/提示/advanceNext 真源）
 
+### 5d. 播放条音量 / NCM 下载指示 / 空格暂停（本轮六项新需求）
+
+**音量控制（icon+弹出滑条拍板）**
+- 布局：图标行 y19..39 追加 `volume(cx-125..-105)` 与 `download(cx+105..+125)`；时间文本在 progress 两侧（cx±134 外侧，y50..70）不相撞。
+- 交互（Apple Music Win 式）：
+  - 喇叭点击 → `WType_Popup`(qt3)/`Qt::Popup`(qt5) QFrame + QSlider(水平 0-100) 点外自动关；
+  - 播放条 wheel = ±5（VLC/Spotify desktop 惯例，compat34 `qWheelDeltaY` shim）；
+  - 拖到 0 = 静音（喇叭画红斜杠 `volume_off` 态，Material 图标对惯例）；无独立 mute flag。
+- 接线：`slider valueChanged → volumeChanged(int) → MainWindow.onVolumeChanged → audioEngine.setVolume（AudioEngineAdapter.cpp:94 软件音量）+ Config"player.volume"（缺省 100）→ bar.setVolume 回环（blockSignals 防弹回）`；engine 就绪序：ctor 读 Config，`ensureEngine()` 末补 `setVolume(m_volume)`。
+- 联带修复：全局空格 eventFilter 对外来顶层窗口（popup 滑条）豁免，防在滑条内按空格误触播放暂停。
+
+**NCM 下载 pie 指示器（Material Design 圆环）**
+- 状态单图标：进度扇形 0-100 / 未定旋转短弧（-1，无 Content-Length）/ 失败红斜杠（-2，1.2s 后隐）/ 完成 100→1.2s 隐。
+- 数据链：`fetchRemoteTask`（ncm_service.cpp）加 `CURLOPT_PROGRESSFUNCTION`（老 API，任意 curl 版本）→ `dlProgressCb`（节流 200ms 或 pct 变化）→ `postProgress(songId,pct)`（复用 `NcmResultEvent` kind=2 + `QApplication::postEvent` worker→主线程管道）→ `downloadProgress(qint64,int)` 信号 → `MainWindow.onNcmDownloadProgress`（只跟当前曲 `m_dlSongId`）→ `playerBar.setDownloadState`。
+- 收尾：`onNcmFetched` rc==OK→pie 100 隐；rc!=OK→红斜杠（只有当前曲）。fetchRemote 调用处（resolve 后缓存 miss 路径）启动指示。
+
+**空格暂停（全局 + 输入豁免拍板）**
+- 实现于 `MainWindow.eventFilter`（`qApp->installEventFilter`，app 级；Qt3 无 QShortcut）：
+  - `Key_Space` 无修饰键 → `onPlayPause()`（`audioEngine->toggle()`）；
+  - 豁免：focusWidget 为 QLineEdit/QTextEdit/QComboBox/QSpinBox（输入控件）；
+  - 豁免：focusWidget 顶层窗口非主窗（音量 popup 等 popup 窗）。
+- 主窗 eventFilter 透传链：其余事件 `QMainWindow::eventFilter` 原路返回。
+
+**B1/B2-B3 修复记录**
+- B1（菜单 check 首启不亮）：`buildMenus()` 在 ctor :268，早于 :450-465 playerBar 段的 `m_autoSkip` 初始化 → `buildBackendMenu` 尾 `updateAutoSkipCheck()` 读未初始化内存。修：ctor 初始化列表前置 `m_repeatMode(0)/m_autoSkip(true)/m_autoSkipMenuIndex(-1)`（Config 真值在 playerBar 段覆盖）。
+- B2/B3（点击切不动/零反馈）：shot2 已证 click→toggle→Config 落盘链通；根因是 Qt3 hover tooltip popup 偶发吞点击 + 点击后无可视变化。修：`onAutoSkipClicked` 末尾 `playerBar->nudgeAutoSkipTip()`（qt3 经 `PlayerBarToolTip::showTip` 公共转发 protected `QToolTip::tip`；qt5 `QToolTip::showText`）+ SharedStatusBar 文案双通道（带 icon 版本 SharedStatusBar::showMessage 无 3 参重载，故仅 msg+timeout）。
+
+**lang 键**（player 对象）：`tip_volume`、`tip_muted`、`dl_downloading`、`dl_busy`、`dl_failed`（zh-CN/en-US/zh-TW 三份）。
+
 ## 6. 验证
 - 桌面 `buildqt3/4/6.sh` 串行（大 timeout）；`tools/audio_smoke -b <id> <uri...>` 无 GUI 逐后端；`xvfb-run` GUI；mp3/flac/ogg/wav/m4a/aac 素材。
 - Android（有条件时）：NDK 三 ABI 出 `libcxaudio.so`。

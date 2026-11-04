@@ -7,6 +7,7 @@
 #include <qstring.h>
 
 #include <deque>
+#include <ctime>
 
 #include <curl/curl.h>
 #include <sys/stat.h>
@@ -359,6 +360,18 @@ void NcmService::postAuthRequired(const std::string& op)
     QApplication::postEvent(this, ev);
 }
 
+/* 下载进度投递：复用 postResult 的 worker→主线程事件管道（kind=2）。
+ * 节流由 dlProgressCb 侧保证（200ms 或 pct 变化才投递） */
+void NcmService::postProgress(qint64 songId, int pct)
+{
+    NcmResultEvent* ev = new NcmResultEvent();
+    ev->kind = 2;
+    ev->op = "download_progress";
+    ev->rc = pct;
+    ev->id = songId;
+    QApplication::postEvent(this, ev);
+}
+
 void NcmService::loadCategories()
 {
     NcmTask t;
@@ -413,7 +426,42 @@ void NcmService::resolveSource(qint64 songId, int quality)
     m_worker->push(t);
 }
 
-int fetchRemoteTask(const NcmTask& t, std::string& json)
+/* 下载进度 curl 回调（老 API CURLOPT_PROGRESSFUNCTION，任意 curl 版本可用；
+ * Content-Length 有→dltotal>0→pct，无→pct=-1 未定态转圈。
+ * 节流 200ms 或 pct 变化才投递，经 postProgress 走 worker→主线程事件管道） */
+typedef struct {
+    NcmService* svc;
+    qint64 songId;
+    long lastMs;
+    int lastPct;
+} DlCtx;
+
+long nowMs()
+{
+    struct timespec ts;
+#ifdef CLOCK_MONOTONIC
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+#else
+    clock_gettime(CLOCK_REALTIME, &ts);
+#endif
+    return (long)(ts.tv_sec * 1000) + (long)(ts.tv_nsec / 1000000);
+}
+
+int dlProgressCb(void* cd, double dltotal, double dlnow, double, double)
+{
+    DlCtx* c = (DlCtx*)cd;
+    int pct = (dltotal > 0) ? (int)((dlnow * 100.0) / dltotal) : -1;
+    if (pct > 100) pct = 100;
+    long now = nowMs();
+    if (now - c->lastMs >= 200 || pct != c->lastPct) {
+        c->lastMs = now;
+        c->lastPct = pct;
+        c->svc->postProgress(c->songId, pct);
+    }
+    return 0;
+}
+
+int fetchRemoteTask(const NcmTask& t, NcmService* svc, std::string& json)
 {
     const char* home = std::getenv("HOME");
     if (!home || !*home) return NCM_ERR_INTERNAL;
@@ -445,9 +493,13 @@ int fetchRemoteTask(const NcmTask& t, std::string& json)
     if (!fp) return NCM_ERR_INTERNAL;
     CURL* h = curl_easy_init();
     if (!h) { fclose(fp); remove(part); return NCM_ERR_INTERNAL; }
+    DlCtx ctx = { svc, t.id, 0, -1 };
     curl_easy_setopt(h, CURLOPT_URL, t.url.c_str());
     curl_easy_setopt(h, CURLOPT_WRITEFUNCTION, curlWriteCb);
     curl_easy_setopt(h, CURLOPT_WRITEDATA, fp);
+    curl_easy_setopt(h, CURLOPT_PROGRESSFUNCTION, dlProgressCb);
+    curl_easy_setopt(h, CURLOPT_PROGRESSDATA, &ctx);
+    curl_easy_setopt(h, CURLOPT_NOPROGRESS, 0L);
     curl_easy_setopt(h, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(h, CURLOPT_CONNECTTIMEOUT, 10L);
     curl_easy_setopt(h, CURLOPT_NOSIGNAL, 1L);
@@ -488,6 +540,7 @@ int fetchRemoteTask(const NcmTask& t, std::string& json)
              (long long)t.id, file, t.extra.c_str());
     ALOG_INFO(qFromUtf8("NCM fetch ok %1 byte=%2")
                   .arg(qFromUtf8(file)).arg((int)fsize));
+    if (svc) svc->postProgress(t.id, 100);   /* 尾拍满格（立即由 UI 侧收尾隐藏） */
     json = js;
     return NCM_OK;
 }
@@ -585,7 +638,7 @@ void NcmService::execTask(const NcmTask& t)
     }
     case NcmTaskFetch: {
         /* 下载不依赖 ncm client（fetchRemoteTask 内自管 curl） */
-        rc = fetchRemoteTask(t, json);
+        rc = fetchRemoteTask(t, this, json);
         break;
     }
     default:
@@ -624,6 +677,10 @@ void NcmService::handleResult(NcmResultEvent* e)
                   .arg(qFromUtf8(e->op)).arg(e->rc).arg((int)e->json.size()));
     if (e->kind == 1) {
         emit authRequired(qFromUtf8(e->op));
+        return;
+    }
+    if (e->kind == 2) {   /* 下载进度（val 经 rc 传递；id=songId） */
+        emit downloadProgress(e->id, e->rc);
         return;
     }
     QString json = qFromUtf8(e->json);

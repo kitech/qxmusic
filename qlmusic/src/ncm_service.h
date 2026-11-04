@@ -112,14 +112,19 @@ signals:
     void fetched(int rc, const QString& json, qint64 songId);
     void songDetailLoaded(int rc, const QString& json, int sel);
     void authRequired(const QString& op);
+    /* 下载进度（worker curl 回调节流 200ms 投递；pct 0-100） */
+    void downloadProgress(qint64 songId, int pct);
 
 private:
     void execTask(const NcmTask& t);
     void postResult(int kind, const std::string& op, int rc, int sel, qint64 id,
                     const std::string& json);
     void postAuthRequired(const std::string& op);
+    void postProgress(qint64 songId, int pct);
 
     friend class NcmWorker;
+    friend int dlProgressCb(void*, double, double, double, double);
+    friend int fetchRemoteTask(const struct NcmTask& t, NcmService* svc, std::string& json);
     ncm_client* m_client;
     NcmWorker* m_worker;
     int m_seq;

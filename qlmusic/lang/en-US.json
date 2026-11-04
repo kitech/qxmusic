@@ -52,6 +52,11 @@
     "tip_repeat_one": "Repeat: One (click: off)",
     "tip_autoskip_on": "Auto-skip on failure: On (click to off)",
     "tip_autoskip_off": "Auto-skip on failure: Off (click to on)",
+    "tip_volume": "Volume %1%",
+    "tip_muted": "Muted (drag slider or scroll wheel)",
+    "dl_downloading": "Downloading %1%",
+    "dl_busy": "Downloading…",
+    "dl_failed": "Download failed",
     "error": "Playback error"
   },
   "queue": {

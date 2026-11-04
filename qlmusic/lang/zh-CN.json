@@ -52,6 +52,11 @@
     "tip_repeat_one": "重复模式：单曲重复（点击关闭）",
     "tip_autoskip_on": "失败自动跳过：已开启（点击关闭）",
     "tip_autoskip_off": "失败自动跳过：已关闭（点击开启）",
+    "tip_volume": "音量 %1%",
+    "tip_muted": "已静音（拖动滑条调整或滚动滚轮）",
+    "dl_downloading": "下载中 %1%",
+    "dl_busy": "下载中…",
+    "dl_failed": "下载失败",
     "error": "播放错误"
   },
   "queue": {

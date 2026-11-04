@@ -33,6 +33,7 @@
 
 #include <qpixmap.h>
 #include <qevent.h>
+#include <qapplication.h>
 #include <qtimer.h>
 #include <qmessagebox.h>
 #include <qlineedit.h>
@@ -250,6 +251,16 @@ MainWindow::MainWindow(QWidget* parent)
     , m_styleMenu(0)
     , m_darkMenu(0)
     , forceQuit(false)
+    /* B1: 行为态必须先于 buildMenus()（ctor 内早段）有确定默认，否则
+       buildBackendMenu 尾 updateAutoSkipCheck() 读未初始化内存、菜单 check 首启不亮；
+       Config 真值在 playerBar 段再覆盖 */
+    , m_repeatMode(0)
+    , m_autoSkip(true)
+    , m_autoSkipMenuIndex(-1)
+    , m_errSkipRun(0)
+    , m_volume(100)
+    , m_dlSongId(0)
+    , m_dlPct(-1)
 {
     // 初始化本地存储（对照 qldox mainwindow.cpp:513-521）
     QString dataDir = qGetHomePath() + "/.cache/qlmusic";
@@ -281,6 +292,8 @@ MainWindow::MainWindow(QWidget* parent)
     // 启动事件轮询引擎（对照 qldox mainwindow.cpp:630-631）
     EventPoller::start();
     Api::setEventTarget(this);
+    /* 空格=全局播放/暂停（app 级拦截；输入控件/外来顶窗豁免，见 eventFilter） */
+    qApp->installEventFilter(this);
 }
 
 MainWindow::~MainWindow() {
@@ -412,6 +425,8 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onNcmSource(int, const QString&, qint64)));
         QObject::connect(m_ncm, SIGNAL(fetched(int, const QString&, qint64)),
                          this, SLOT(onNcmFetched(int, const QString&, qint64)));
+        QObject::connect(m_ncm, SIGNAL(downloadProgress(qint64, int)),
+                         this, SLOT(onNcmDownloadProgress(qint64, int)));
         QObject::connect(m_ncm, SIGNAL(authRequired(const QString&)),
                          this, SLOT(onNcmAuthRequired(const QString&)));
         /* 启动即拉分类（侧栏），随后自动进入"推荐=热门歌单"视图，
@@ -451,6 +466,8 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onRepeatClicked()));
         QObject::connect(playerBar, SIGNAL(autoSkipClicked()),
                          this, SLOT(onAutoSkipClicked()));
+        QObject::connect(playerBar, SIGNAL(volumeChanged(int)),
+                         this, SLOT(onVolumeChanged(int)));
         /* 播放条行为持久化：repeat 默认 off；autoskip 默认开（业界/NCM 系惯例） */
         m_repeatMode = Config::value("player.repeat").toInt();
         QString skipCfg = Config::value("player.autoskip");
@@ -458,6 +475,10 @@ void MainWindow::buildCentralWidget()
                      : (skipCfg == qFromUtf8("1") || skipCfg == qFromUtf8("true"));
         m_errSkipRun = 0;
         m_autoSkipMenuIndex = -1;
+        /* 音量建档（player.volume 缺省 100；bar 只展示，engine 就绪后 ensureEngine 再 apply） */
+        m_volume = Config::value("player.volume").toInt();
+        if (m_volume <= 0 || m_volume > 100) m_volume = 100;
+        playerBar->setVolume(m_volume);
         playerBar->setRepeatMode(m_repeatMode);
         playerBar->setAutoSkip(m_autoSkip);
     }
@@ -869,6 +890,8 @@ void MainWindow::ensureEngine()
     QString dev = s.valueStr("audio/device", "");
     if (!dev.isEmpty() && dev != qFromUtf8(kDefaultDeviceLabel))
         audioEngine->setOutputDevice(dev);
+    /* 存量音量 apply（ctor 早于 engine 建，只能在此补挂；0-100 软件音量） */
+    audioEngine->setVolume(m_volume);
 }
 
 void MainWindow::playTrack(int playlistId, int trackIndex)
@@ -1150,6 +1173,56 @@ void MainWindow::onAutoSkipClicked()
     playerBar->setAutoSkip(m_autoSkip);
     Config::setValue("player.autoskip", m_autoSkip ? qFromUtf8("1") : qFromUtf8("0"));
     updateAutoSkipCheck();
+    /* B2/B3 点击即时反馈：改为弹 tooltip + 状态栏双通道
+     * （Qt3 tooltip popup 偶发吞点击，零反馈最误导，显式补可见性） */
+    playerBar->nudgeAutoSkipTip();
+    SharedStatusBar::instance()->showMessage(m_autoSkip ? _("player.tip_autoskip_on")
+                                                       : _("player.tip_autoskip_off"),
+                                             2500);
+}
+
+/* 音量（playerbar 喇叭 popup 滑条 / wheel/ctl+f）：持久化 + 软件音量 apply */
+void MainWindow::onVolumeChanged(int v)
+{
+    if (v < 0) v = 0;
+    if (v > 100) v = 100;
+    m_volume = v;
+    if (audioEngine) audioEngine->setVolume(v);
+    Config::setValue("player.volume", QString::number(v));
+    playerBar->setVolume(v);   /* 回环同步（setVolume 内 blockSignals 防弹回） */
+    ALOG_INFO(qFromUtf8("volume=%1").arg(v));
+}
+
+/* NCM 下载进度（worker 线程 postProgress 节流 200ms→主线程→pie 圆环） */
+void MainWindow::onNcmDownloadProgress(qint64 songId, int pct)
+{
+    if (songId != m_dlSongId) return;   /* 只跟当前曲 */
+    if (playerBar) playerBar->setDownloadState(songId, pct);
+}
+
+/* 空格=全局播放/暂停（Qt3 无 QShortcut，走 app 级 eventFilter；
+ * 输入控件聚焦与外来顶层窗口（音量滑条 popup 等）豁免，避免误触） */
+bool MainWindow::eventFilter(QObject* obj, QEvent* ev)
+{
+    if (ev->type() == QEvent::KeyPress) {
+        QKeyEvent* ke = static_cast<QKeyEvent*>(ev);
+#ifdef QT3_BUILD
+        int mods = (int)ke->state();      /* qt3: ButtonState 位集合 */
+#else
+        int mods = (int)ke->modifiers();
+#endif
+        if (ke->key() == Qt::Key_Space && mods == 0) {   /* 无修饰键 */
+            QWidget* fw = qApp->focusWidget();
+            if (fw && (fw->inherits("QLineEdit") || fw->inherits("QTextEdit") ||
+                       fw->inherits("QComboBox") || fw->inherits("QSpinBox")))
+                return QMainWindow::eventFilter(obj, ev);
+            if (fw && fw->topLevelWidget() != this)
+                return QMainWindow::eventFilter(obj, ev);
+            onPlayPause();
+            return true;
+        }
+    }
+    return QMainWindow::eventFilter(obj, ev);
 }
 
 void MainWindow::onSeek(int ms)
@@ -1621,14 +1694,24 @@ void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
     if (!direct && (url.startsWith(qFromUtf8("http://")) ||
                     url.startsWith(qFromUtf8("https://")))) {
         SharedStatusBar::instance()->showMessage(_("ncm.caching"), 3000);
+        /* 下载指示：跟踪当前曲 fetchRemote（worker 节流 progress→主线程） */
+        m_dlSongId = t.ncmId;
+        if (playerBar) playerBar->setDownloadState(t.ncmId, -1);
         m_ncm->fetchRemote(t.ncmId, url, level, t.title, t.artist, t.album);
         return;
     }
     playNcmResolved(url, level);
 }
 
-void MainWindow::onNcmFetched(int rc, const QString& json, qint64 /*songId*/)
+void MainWindow::onNcmFetched(int rc, const QString& json, qint64 songId)
 {
+    /* 下载指示收尾：完成清 pie / 失败红叉片刻 */
+    if (songId == m_dlSongId && playerBar) {
+        playerBar->setDownloadState(songId, rc == NCM_OK ? 100 : -2);
+        if (rc != NCM_OK) {
+            SharedStatusBar::instance()->showMessage(_("player.dl_failed"), 3000);
+        }
+    }
     if (rc != NCM_OK) {
         ALOG_WARN(qFromUtf8("NCM fetch fail rc=%1 -> skip?").arg(rc));
         if (m_autoSkip && skipOnError(_("ncm.caching"))) return;

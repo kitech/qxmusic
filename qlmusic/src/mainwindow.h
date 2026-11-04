@@ -31,6 +31,8 @@ public:
 
 protected:
     virtual void closeEvent(QCloseEvent* event);
+    /* 空格=全局播放/暂停（app 级 eventFilter；输入控件/外来顶窗豁免） */
+    bool eventFilter(QObject* obj, QEvent* ev);
     virtual void customEvent(CustomEventBase* event);
 
 private slots:
@@ -64,6 +66,9 @@ private slots:
     void onRepeatClicked();
     void onAutoSkipClicked();
     void onSeek(int ms);
+    /* 音量（播放条喇叭 + popup 滑条 + wheel） */
+    void onVolumeChanged(int v);
+    void onNcmDownloadProgress(qint64 songId, int pct);
     void onAudioPosition(int ms);
     void onAudioDuration(int ms);
     void onAudioState(int state);
@@ -175,6 +180,10 @@ private:
     int m_errSkipRun;           /* 连续失败计数，成功播放清零 */
     int m_autoSkipMenuIndex;    /* Tool 菜单 check 项（updateBackendChecks 范式） */
     enum { kErrSkipStopAt = 99 };   /* 连续失败止损阈值（foo_skip 惯例量级） */
+    /* 音量 + NCM 下载指示（播放条） */
+    int m_volume;               /* 0-100，Config player.volume 缺省 100 */
+    qint64 m_dlSongId;          /* 当前跟踪下载的 songId，>0 显示 pie */
+    int m_dlPct;                /* 0-100；-1=未定（无 Content-Length）；-2=失败（由 bar 存） */
     qint64 m_ncmLastToastMs;    /* auth toast 节流 */
 
     // 演示用状态栏控件（演示菜单可反复增删）
