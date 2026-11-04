@@ -8,7 +8,8 @@
 #include <qevent.h>
 #include <qfontmetrics.h>
 #include <qframe.h>
-#include <qslider.h>
+#include <qcheckbox.h>
+#include <qapplication.h>
 #include <qtimer.h>
 #ifdef QT3_BUILD
 #include <qpointarray.h>
@@ -16,6 +17,13 @@
 #else
 #include <QToolTip>
 #endif
+
+/* 三行滚动歌词区空占位组件（用户拍板：PlayBar 内合计约 300px 最右留空间，
+ * 歌词滚屏后续实装——现阶段纯空白 QWidget 占位，零绘制零交互） */
+class LyricsStrip : public QWidget {
+public:
+    explicit LyricsStrip(QWidget* parent) : QWidget(parent) {}
+};
 
 #ifdef QT3_BUILD
 /* Qt3 区段级动态 tooltip：maybeTip 虚口，每次命中现读 PlayerBar 公开
@@ -43,6 +51,115 @@ typedef QPointArray MuiPolygon;
 #else
 typedef QPolygon MuiPolygon;
 #endif
+
+/* 自绘弹层滑条（零 QSlider）：bar 进度条同款已验证鼠标链——click-jump+拖动
+ * 全自定义，无 Qt3 QSlider pageStep 怪癖；值变化走 m_bar->onPopupVolume(v)
+ * （无 Q_OBJECT，零 moc 开销）。click-jump clamp 2..100：点击不直接落 0 误静音，
+ * 静音走弹层右侧专用 checkbox（用户拍板：Apple Music Win 同款） */
+class VolumePanelSlider : public QWidget {
+public:
+    VolumePanelSlider(PlayerBar* bar, QWidget* parent)
+        : QWidget(parent)
+        , m_bar(bar)
+        , m_v(100)
+        , m_drag(false)
+        , m_hover(false)
+    {
+        setFixedSize(126, 26);
+        setMouseTracking(true);
+    }
+public:
+    void setValue(int v) { if (v != m_v) { m_v = v; update(); } }
+    int getValue() const { return m_v; }
+    void endDrag() { if (m_drag) { m_drag = false; update(); } }
+
+protected:
+    void paintEvent(QPaintEvent*)
+    {
+        const StyleParams::Palette& pal = muiPalette();
+        QPainter p(this);
+        QRect tr(0, 10, width(), 6);
+        p.setPen(Qt::NoPen);
+        p.setBrush(pal.border);
+        muiDrawRoundRect(p, tr, 3, 3);
+        int vw = tr.width() * m_v / 100;
+        if (vw > 0) {
+            p.setBrush(pal.accent);
+            muiDrawRoundRect(p, QRect(tr.x(), tr.y(), vw, tr.height()), 3, 3);
+        }
+        int hx = tr.x() + vw - 6;
+        QColor hc = (m_drag || m_hover) ? pal.accent : pal.textPrimary;
+        p.setPen(QPen(pal.border, 1));
+        p.setBrush(hc);
+        p.drawEllipse(hx, tr.y() + tr.height() / 2 - 6, 12, 12);
+    }
+    void mousePressEvent(QMouseEvent* e)
+    {
+        if (e->button() != Qt::LeftButton) { e->ignore(); return; }
+        m_drag = true;
+        jumpTo(e->pos().x());
+    }
+    void mouseMoveEvent(QMouseEvent* e) { if (m_drag) jumpTo(e->pos().x()); }
+    void mouseReleaseEvent(QMouseEvent*) { if (m_drag) { m_drag = false; update(); } }
+    void enterEvent(QEvent*) { m_hover = true; update(); }
+    void leaveEvent(QEvent*) { m_hover = false; update(); }
+
+private:
+    void jumpTo(int x)
+    {
+        int v = qBound(0, x, width() - 1) * 100 / (width() - 1);
+        if (v < 2) v = 2;            /* click-jump 不过 0（防误静音；拖动亦守底） */
+        if (v == m_v) return;
+        m_v = v;
+        update();
+        m_bar->onPopupVolume(v);
+    }
+    PlayerBar* m_bar;
+    int m_v;
+    bool m_drag;
+    bool m_hover;
+};
+
+/* 弹层容器（Qt3 WType_Popup / Qt4 Qt::Popup）：原生"点外自动关"是框架内置
+ * 管线（combobox/QMenu 同款），不做任何自添转发/close 补丁；
+ * 仅保留官方 popup-example 的 closeEvent fake release 收尾（close 时才跑） */
+class VolumePopupFrame : public QFrame {
+public:
+    VolumePopupFrame(PlayerBar* bar)
+#ifdef QT3_BUILD
+        : QFrame(bar, 0, Qt::WType_Popup)
+#else
+        : QFrame(bar, Qt::Popup)
+#endif
+        , m_bar(bar)
+        , m_panel(0)
+    {
+        setFrameStyle(QFrame::WinPanel | QFrame::Raised);
+    }
+    void setPanel(VolumePanelSlider* s) { m_panel = s; }
+
+protected:
+    void closeEvent(QCloseEvent* e)
+    {
+        e->accept();
+        if (m_panel) m_panel->endDrag();   /* 关弹层解除 drag 残留（防刷屏） */
+        /* popup-example.html 3.3.8 原版做法：popup 可能收到 mouse release 而非
+         * popupParent——递假 release 归还 parent（button=LeftButton/state=NoButton） */
+        QMouseEvent me(QEvent::MouseButtonRelease, QPoint(0, 0), QPoint(0, 0),
+#ifdef QT3_BUILD
+                       QMouseEvent::LeftButton, QMouseEvent::NoButton);
+#else
+                       Qt::LeftButton, Qt::NoButton, Qt::NoModifier);
+#endif
+        QApplication::sendEvent(m_bar, &me);
+    }
+
+private:
+    PlayerBar* m_bar;
+    VolumePanelSlider* m_panel;
+};
+
+
 
 namespace {
 QString fmtMs(int ms)
@@ -76,11 +193,12 @@ void drawTriangle(QPainter& p, const QRect& r, bool left, const QColor& c)
 PlayerBar::PlayerBar(QWidget* parent)
     : QWidget(parent), m_hasTrack(false), m_playing(false),
       m_progressMs(0), m_durationMs(0), m_repeatMode(0), m_autoSkip(true),
-      m_volume(100),
+      m_volume(100), m_lastVolume(100),
       m_tip(0),
       m_hover(HitNone), m_dragging(false),
       m_dlSongId(0), m_dlPct(-1), m_spinTick(0),
-      m_spinTimer(0), m_volumePopup(0), m_volumeSlider(0)
+      m_spinTimer(0), m_volumePopup(0), m_volumeSlider(0), m_muteCheck(0),
+      m_lyrics(0)
 {
     setMouseTracking(true);
     setFixedHeight(80);
@@ -90,6 +208,14 @@ PlayerBar::PlayerBar(QWidget* parent)
 #else
     m_tip = 0;
 #endif
+    m_lyrics = new LyricsStrip(this);       /* 三行滚动歌词空占位（后续实装） */
+    ((QWidget*)m_lyrics)->setGeometry(lyricsRect());
+}
+
+void PlayerBar::resizeEvent(QResizeEvent* e)
+{
+    QWidget::resizeEvent(e);
+    if (m_lyrics) ((QWidget*)m_lyrics)->setGeometry(lyricsRect());
 }
 
 PlayerBar::~PlayerBar()
@@ -99,6 +225,8 @@ PlayerBar::~PlayerBar()
 #endif
     delete (QTimer*)m_spinTimer;
     if (m_volumePopup) { delete (QFrame*)m_volumePopup; m_volumePopup = 0; }
+    m_volumeSlider = 0;
+    m_muteCheck = 0;   /* checkbox 是 popup 子 widget，随父析构；指针同步置零防悬垂 */
 }
 
 void PlayerBar::retranslateUi()
@@ -114,6 +242,8 @@ void PlayerBar::setTrack(const Track& t)
     m_hasTrack = true;
     m_progressMs = 0;
     m_durationMs = t.durationMs;
+    /* identicon 生成一次缓存：避免拖动音量/进度等高频重绘每帧重生成 */
+    m_coverPixmap = generateIdenticon(m_track.coverSeed, 52);
     update();
 }
 
@@ -162,17 +292,22 @@ void PlayerBar::setVolume(int v)
 {
     if (v < 0) v = 0;
     if (v > 100) v = 100;
+    if (v > 0) m_lastVolume = v;
     if (m_volume == v) return;
     m_volume = v;
-    if (m_volumeSlider) {   /* popup 已建：同步滑条位置（blockSymbols 由调用方负责） */
-        ((QSlider*)m_volumeSlider)->blockSignals(true);
-        ((QSlider*)m_volumeSlider)->setValue(v);
-        ((QSlider*)m_volumeSlider)->blockSignals(false);
+    if (m_volumeSlider) {
+        /* popup 已建：同步自绘滑条值 + mute checkbox 选中态（blockSignals 防回环） */
+        ((VolumePanelSlider*)m_volumeSlider)->setValue(v);
+        if (m_muteCheck) {
+            QCheckBox* c = (QCheckBox*)m_muteCheck;
+            c->blockSignals(true);
+            c->setChecked(v == 0);
+            c->blockSignals(false);
+        }
     }
-    if (m_volume == 0 && m_volumePopup && ((QWidget*)m_volumePopup)->isVisible()) {
-        /* 拖到 0 即静音：popup 保留（滑条可拖回出声） */
-    }
-    update();
+    /* 局部刷新（右侧 icon 段），拖动流畅 */
+    update(QRect(volumeRect().left(), volumeRect().top() - 2,
+                 width() - volumeRect().left(), 28));
 }
 
 void PlayerBar::setDownloadState(qint64 songId, int pct)
@@ -249,16 +384,32 @@ void PlayerBar::nudgeAutoSkipTip()
     feedbackTip(autoSkipRect(), m_tipAutoSkip);
 }
 
+int PlayerBar::lyricLeft() const
+{
+    /* 歌词区左缘下界 cx+190：progress 终点 cx+130 + 右时间文本槽 cx+134..cx+178
+     * 全让位；>=1024 窗时达到 300px 设计宽 */
+    int cx = width() / 2;
+    return qMax(cx + 190, width() - 312);
+}
+
+QRect PlayerBar::lyricsRect() const
+{
+    /* 三行滚动歌词区贴最右（12px 右缘留白）；窄窗动态缩宽让位中央链 */
+    int l = lyricLeft();
+    return QRect(l, 10, width() - 12 - l, 60);
+}
+
 QRect PlayerBar::volumeRect() const
 {
-    int cx = width() / 2;
-    return QRect(cx - 125, 19, 20, 20);
+    /* 喇叭：歌词区左邻横排（不占最右——用户拍板：歌词区才在最右），
+     * 屏蔽时间文本（y19..39 vs 时间 y50..70 分行无撞） */
+    return QRect(lyricLeft() - 24, 19, 20, 20);
 }
 
 QRect PlayerBar::downloadRect() const
 {
-    int cx = width() / 2;
-    return QRect(cx + 105, 19, 20, 20);
+    /* 下载 pie：喇叭左侧 8px 间距同排 */
+    return QRect(lyricLeft() - 52, 19, 20, 20);
 }
 
 QRect PlayerBar::playRect() const
@@ -559,7 +710,7 @@ void PlayerBar::mousePressEvent(QMouseEvent* e)
     } else if (autoSkipRect().contains(e->pos())) {
         emit autoSkipClicked();
     } else if (volumeRect().contains(e->pos())) {
-        toggleVolumePopup();
+        toggleVolumePopup();   /* 用户拍板：popup 弹滑条（非常驻） */
     } else if (progressRect().contains(e->pos())) {
         m_dragging = true;
         setProgressFromX(e->pos().x());
@@ -614,9 +765,11 @@ void PlayerBar::wheelEvent(QWheelEvent* e)
     e->accept();
 }
 
-/* 音量弹滑条（Apple Music Win 式：喇叭点击/拖动出水平滑条，点外自动关）。
- * 接线：slider valueChanged -> volumeChanged(int) -> MainWindow.onVolumeChanged
- * -> audioEngine.setVolume + Config；MainWindow 再回 setVolume 同步本 bar */
+/* 音量弹出滑条（用户拍板：popup，非常驻；icon 置右）。
+ * 弹层 = 自绘 VolumePanelSlider（bar 进度条同款鼠标链，零 QSlider 怪癖，
+ * click-jump clamp 2..100 防误静音）+ 右侧静音 checkbox（用户拍板：静音
+ * 独立控件，Apple Music Win 同款）。容器 VolumePopupFrame 承接 Qt3
+ * popup-example 官方 fake release 范式（关弹层归还被抢的 release） */
 void PlayerBar::toggleVolumePopup()
 {
     if (m_volumePopup) {
@@ -624,32 +777,44 @@ void PlayerBar::toggleVolumePopup()
         if (pw->isVisible()) { pw->close(); return; }
     }
     if (!m_volumePopup) {
-#ifdef QT3_BUILD
-        QFrame* f = new QFrame(this, 0, Qt::WType_Popup);
-#else
-        QFrame* f = new QFrame(this, Qt::Popup);
-#endif
-        f->setFrameStyle(QFrame::Panel | QFrame::Raised);
-        QSlider* s;
-#ifdef QT3_BUILD
-        s = new QSlider(0, 100, 5, m_volume, Qt::Horizontal, f, "volumeSlider");
-#else
-        s = new QSlider(Qt::Horizontal, f);
-        s->setRange(0, 100);
-        s->setPageStep(5);
-#endif
-        s->resize(140, 24);
-        s->move(6, 8);
-        QObject::connect(s, SIGNAL(valueChanged(int)), this, SIGNAL(volumeChanged(int)));
+        /* 首建原子建齐：容器+自绘滑条+静音 checkbox（右侧独立控件防误触） */
+        VolumePopupFrame* f = new VolumePopupFrame(this);
+        VolumePanelSlider* s = new VolumePanelSlider(this, f);
+        f->setPanel(s);
+        s->move(8, 9);
+        QCheckBox* c = new QCheckBox(_("player.mute"), f);
+        c->move(142, 13);
+        QObject::connect(c, SIGNAL(toggled(bool)), this, SLOT(onMuteToggled(bool)));
+        f->resize(246, 42);   /* 140 滑条区 + 静音 checkbox */
         m_volumePopup = f;
         m_volumeSlider = s;
+        m_muteCheck = c;
     }
-    QSlider* s = (QSlider*)m_volumeSlider;
-    s->blockSignals(true);
+    VolumePanelSlider* s = (VolumePanelSlider*)m_volumeSlider;
     s->setValue(m_volume);
-    s->blockSignals(false);
+    QCheckBox* c = (QCheckBox*)m_muteCheck;
+    c->blockSignals(true);
+    c->setChecked(m_volume == 0);
+    c->blockSignals(false);
     QWidget* f = (QWidget*)m_volumePopup;
-    f->move(mapToGlobal(QPoint(volumeRect().left() - 10, volumeRect().bottom() + 4)));
-    f->resize(152, 40);
+    /* icon 右对齐：popup 右边贴 icon 右缘向左展开，不越窗 */
+    /* 弹层贴喇叭左下（喇叭已在歌词区左邻；向左展开不越右缘） */
+    f->move(mapToGlobal(QPoint(volumeRect().left() - 220, volumeRect().bottom() + 4)));
+    f->resize(246, 42);
     f->show();
+}
+
+/* 自绘 panel 值回调（无 Q_OBJECT 桥）：转原生 Qt 信号，防控拖动延迟走 debounce */
+void PlayerBar::onPopupVolume(int v) { emit volumeChanged(v); }
+
+/* 静音 checkbox（用户拍板：静音独立控件防拖动/点击误触）：
+ * on = 音量 0（记录静音前值）；off = 回静音前值（无记忆时 50） */
+void PlayerBar::onMuteToggled(bool on)
+{
+    if (on) {
+        if (m_volume > 0) m_lastVolume = m_volume;
+        emit volumeChanged(0);
+    } else {
+        emit volumeChanged(m_lastVolume > 0 ? m_lastVolume : 50);
+    }
 }

@@ -22,6 +22,7 @@ class QueuePanel;
 class PlayerBar;
 class AudioEngineAdapter;
 class QSplitter;
+class QTimer;
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -66,8 +67,9 @@ private slots:
     void onRepeatClicked();
     void onAutoSkipClicked();
     void onSeek(int ms);
-    /* 音量（播放条喇叭 + popup 滑条 + wheel） */
+    /* 音量（播放条喇叭 + popup 滑条 + wheel；apply/save 双 debounce） */
     void onVolumeChanged(int v);
+    void onVolSaveTimeout();      /* 500ms Config 写盘 debounce（全文 hjson 重写卡顿根修；日志随写盘拍） */
     void onNcmDownloadProgress(qint64 songId, int pct);
     void onAudioPosition(int ms);
     void onAudioDuration(int ms);
@@ -184,6 +186,7 @@ private:
     int m_volume;               /* 0-100，Config player.volume 缺省 100 */
     qint64 m_dlSongId;          /* 当前跟踪下载的 songId，>0 显示 pie */
     int m_dlPct;                /* 0-100；-1=未定（无 Content-Length）；-2=失败（由 bar 存） */
+    QTimer* m_volSaveTimer;     /* 500ms Config 写盘 debounce（全文 hjson 重写卡顿根修；日志随写盘拍） */
     qint64 m_ncmLastToastMs;    /* auth toast 节流 */
 
     // 演示用状态栏控件（演示菜单可反复增删）

@@ -4,8 +4,7 @@
 #include "compat34.h"
 #include "musicmodel.h"
 #include <qwidget.h>
-
-class QSlider;
+#include <qpixmap.h>
 
 class PlayerBar : public QWidget {
     Q_OBJECT
@@ -25,6 +24,8 @@ public:
     QString tipForPos(const QPoint& p) const;   /* tooltip 命中计算唯一点 */
     QRect tipRectFor(const QPoint& p) const;
     void retranslateUi();
+    void toggleVolumePopup();
+    void onPopupVolume(int v);      /* 自绘 panel 值回调 → volumeChanged 信号（无 moc 桥） */
 
 signals:
     void playStateChanged(bool playing);
@@ -38,6 +39,7 @@ signals:
 
 protected:
     void paintEvent(QPaintEvent* e);
+    void resizeEvent(QResizeEvent* e);   /* LyricsStrip 子组件几何同步 */
     bool event(QEvent* e);          /* qt5 QEvent::ToolTip 派发（qt3 走 maybeTip 子类） */
     void mousePressEvent(QMouseEvent* e);
     void mouseMoveEvent(QMouseEvent* e);
@@ -54,10 +56,11 @@ private:
     QRect nextRect() const;
     QRect repeatRect() const;       /* 单曲重复/列表循环 按钮 */
     QRect autoSkipRect() const;     /* 播放失败自动跳过 开关 */
-    QRect volumeRect() const;       /* 喇叭（点击弹滑条） */
-    QRect downloadRect() const;     /* NCM 下载进度 pie 圆环 */
+    QRect volumeRect() const;       /* 喇叭（歌词区左邻；点击弹滑条） */
+    QRect downloadRect() const;     /* NCM 下载进度 pie 圆环（喇叭左侧） */
+    QRect lyricsRect() const;       /* 右侧三行滚动歌词区（空组件占位；最右） */
+    int lyricLeft() const;          /* 歌词区左缘（动态缩宽保护 progress/时间） */
     QRect progressRect() const;
-    void toggleVolumePopup();
     void feedbackTip(const QRect& r, const QString& text);   /* 点击即时重弹（qt3/qt5 双路径） */
     void startSpinIfIndeterminate();
     void stopSpin();
@@ -66,6 +69,7 @@ private:
 private slots:
     void onDlHide();
     void onSpinTick();
+    void onMuteToggled(bool on);    /* 静音 checkbox：on=音量0；off=回静音前值 */
 
 private:
     Track m_track;
@@ -76,19 +80,24 @@ private:
     int m_repeatMode;
     bool m_autoSkip;
     int m_volume;                   /* 0-100；0=静音态 */
+    int m_lastVolume;               /* 静音记忆（wheel/滑条拖回声位） */
     QString m_tipRepeat;
     QString m_tipAutoSkip;
     void*   m_tip;                  /* qt3 专用：maybeTip 子类实例（cpp 内定义） */
     Hit m_hover;
     bool m_dragging;
 
+    QPixmap m_coverPixmap;          /* identicon 缓存（拖动高频重绘不再每帧生成） */
+
     /* NCM 下载指示（Material pie 圆环：一图标表达状态+进度） */
     qint64 m_dlSongId;              /* >0 才显示 */
     int m_dlPct;                    /* 0-100；-1=未定（无 Content-Length 旋转）；-2=失败红斜杠 */
     int m_spinTick;                 /* 未定态旋转角（m_spinTimer 驱动） */
     void* m_spinTimer;              /* QTimer*（cpp 内定义，规避头文件依赖） */
-    void* m_volumePopup;            /* qt3 WType_Popup / qt5 Qt::Popup（cpp 内定义） */
-    void* m_volumeSlider;           /* QSlider*（cpp 内定义） */
+    void* m_volumePopup;            /* VolumePopupFrame*（cpp 内定义，WType_Popup） */
+    void* m_volumeSlider;           /* VolumePanelSlider*（cpp 内定义，自绘滑条） */
+    void* m_muteCheck;              /* QCheckBox*（弹出条右侧静音 checkbox，防误触） */
+    void* m_lyrics;                 /* LyricsStrip*（cpp 内定义，三行滚动歌词空组件占位） */
 };
 
 #endif // PLAYERBAR_H

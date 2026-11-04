@@ -261,6 +261,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_volume(100)
     , m_dlSongId(0)
     , m_dlPct(-1)
+    , m_volSaveTimer(0)
 {
     // 初始化本地存储（对照 qldox mainwindow.cpp:513-521）
     QString dataDir = qGetHomePath() + "/.cache/qlmusic";
@@ -468,6 +469,12 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onAutoSkipClicked()));
         QObject::connect(playerBar, SIGNAL(volumeChanged(int)),
                          this, SLOT(onVolumeChanged(int)));
+        /* 拖动流畅根修（网搜+源码双坐实）：Config::setValue 是 hjsonLoad+
+         * hjsonSave 全文写盘 IO（config.cpp:73），拖动每 tick 同步两次磁盘 IO
+         * 卡 UI —— engine/config 双 debounce（cxaudio setVolume 自身廉价） */
+        m_volSaveTimer = new QTimer(this);
+        QObject::connect(m_volSaveTimer, SIGNAL(timeout()),
+                         this, SLOT(onVolSaveTimeout()));
         /* 播放条行为持久化：repeat 默认 off；autoskip 默认开（业界/NCM 系惯例） */
         m_repeatMode = Config::value("player.repeat").toInt();
         QString skipCfg = Config::value("player.autoskip");
@@ -1181,16 +1188,23 @@ void MainWindow::onAutoSkipClicked()
                                              2500);
 }
 
-/* 音量（playerbar 喇叭 popup 滑条 / wheel/ctl+f）：持久化 + 软件音量 apply */
+/* 音量（playerbar 喇叭 popup 滑条 / wheel/ctl+f）：实时调音 + 写盘 debounce */
 void MainWindow::onVolumeChanged(int v)
 {
     if (v < 0) v = 0;
     if (v > 100) v = 100;
     m_volume = v;
-    if (audioEngine) audioEngine->setVolume(v);
-    Config::setValue("player.volume", QString::number(v));
-    playerBar->setVolume(v);   /* 回环同步（setVolume 内 blockSignals 防弹回） */
-    ALOG_INFO(qFromUtf8("volume=%1").arg(v));
+    if (audioEngine) audioEngine->setVolume(v);   /* 实时调音（cxaudio setter µs 级零卡顿） */
+    playerBar->setVolume(v);   /* 视觉即时（bar/喇叭/弹层同步） */
+    m_volSaveTimer->start(500);    /* 写盘 debounce：停止变化 500ms 落盘一次 */
+}
+
+/* Config 写盘 debounce（拖完 500ms 落盘一次，拖动零磁盘 IO 不卡 UI） */
+void MainWindow::onVolSaveTimeout()
+{
+    Config::setValue("player.volume", QString::number(m_volume));
+    ALOG_INFO(qFromUtf8("volume=%1 (saved)").arg(m_volume));
+    m_volSaveTimer->stop();   /* 单拍收束：Qt3 QTimer 无 setSingleShot，fire 后显式 stop */
 }
 
 /* NCM 下载进度（worker 线程 postProgress 节流 200ms→主线程→pie 圆环） */
@@ -1242,8 +1256,10 @@ void MainWindow::onAudioDuration(int ms)
 
 void MainWindow::onAudioState(int state)
 {
-    playerBar->setPlaying(state == cxaudio::Playing);
-    if (state == cxaudio::Playing) m_errSkipRun = 0;
+    /* 调试日志保留：空格/play 触发与 engine 状态对应关系
+     * （cxaudio State：0=Stopped 1=Playing 2=Paused 3=Buffering 4=Error） */
+    ALOG_INFO(qFromUtf8("audioState=%1").arg(state));
+    if (playerBar) playerBar->setPlaying(state == 1);
 }
 
 void MainWindow::onAudioFinished()

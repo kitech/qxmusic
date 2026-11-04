@@ -184,13 +184,18 @@ M4A/FLAC 属另一元数据体系（Phase 2，fetch 时 log skip）。
 
 ### 5d. 播放条音量 / NCM 下载指示 / 空格暂停（本轮六项新需求）
 
-**音量控制（icon+弹出滑条拍板）**
-- 布局：图标行 y19..39 追加 `volume(cx-125..-105)` 与 `download(cx+105..+125)`；时间文本在 progress 两侧（cx±134 外侧，y50..70）不相撞。
-- 交互（Apple Music Win 式）：
-  - 喇叭点击 → `WType_Popup`(qt3)/`Qt::Popup`(qt5) QFrame + QSlider(水平 0-100) 点外自动关；
+**音量/布局终版（popup+自绘 panel+静音 checkbox+实时调音；右区歌词域）**
+- 布局（拍板：控制按钮不占最右，歌词区才占最右）：
+  - 中央：prev/play/next（cx∓40/cx）、autoSkip(cx-95)/repeat(cx+75) icon 行 y19..39；progress cx±130 y58..64；时间文本 progress 两外侧槽（cx-174/cx-134、cx+134/cx+178，y50..70）；
+  - **pie + 喇叭横排于歌词区左邻**（pie `lyricLeft-52`、speaker `lyricLeft-24`，y19..39，与时间文本分行无撞）；
+  - **三行滚动歌词区贴最右**（`lyricLeft= qMax(cx+190, W-312)`，y10..70 全高；`>=1024px` 窗达 300px 设计宽，窄窗动态缩宽让中央链；`LyricsStrip` 空占位子组件，resizeEvent 同步几何，暂零绘制）。
+- 音量交互（Apple Music Win 式 + 静音独立控件拍板）：
+  - 喇叭点击 → `WType_Popup`(qt3)/`Qt::Popup`(qt4) 弹层（VolumePopupFrame）+ **自绘 VolumePanelSlider**（零 QSlider——Qt3 QSlider 点击默认 pageStep 步进不跳值怪癖 + 弹层 X11 grab 吞释放，bar 内进度条同款已验证鼠标链替代）；panel click-jump clamp 2..100 防点击直接落 0 误静音；
+  - **静音 checkbox 在弹层右侧**（QCheckBox "player.mute"；on=音量 0 记忆静音前值，off=回静音前值/50；setVolume 回环 blockSignals 同步）；
   - 播放条 wheel = ±5（VLC/Spotify desktop 惯例，compat34 `qWheelDeltaY` shim）；
-  - 拖到 0 = 静音（喇叭画红斜杠 `volume_off` 态，Material 图标对惯例）；无独立 mute flag。
-- 接线：`slider valueChanged → volumeChanged(int) → MainWindow.onVolumeChanged → audioEngine.setVolume（AudioEngineAdapter.cpp:94 软件音量）+ Config"player.volume"（缺省 100）→ bar.setVolume 回环（blockSignals 防弹回）`；engine 就绪序：ctor 读 Config，`ensureEngine()` 末补 `setVolume(m_volume)`。
+  - 音量 0 = 喇叭画红斜杠 `volume_off` 态（Material 图标对惯例）。
+- **关弹层 fake release + drag 兜底（Qt3 popup-example.html 官方范式）**：WType_Popup 的 X11 grab 把 move/release 派发给弹层容器 → VolumePopupFrame 三事件（press/move/release）转发 panel（幂等兜底）+ `closeEvent` 先 `panel->endDrag()` 再递假 `MouseButtonRelease(NoButton)` 给 bar——**m_drag 永真会造成悬停划过持续 volumeChanged 刷屏（已实测）**。
+- 接线：`panel 自算值 → PlayerBar.onPopupVolume → volumeChanged(int) → MainWindow.onVolumeChanged → audioEngine.setVolume（cxaudio setter µs 级实证零卡顿，实时调音）→ 视觉即时 bar.setVolume；Config 写盘 debounce 500ms（onVolSaveTimeout：setValue+一条日志——日志随写盘拍，拖动不刷屏）；**Config::setValue 为 hjsonLoad+hjsonSave 全文写盘 IO（config.cpp:73），每 tick 双磁盘同步 IO 卡 UI 是初代"响应不流畅"根因。
 - 联带修复：全局空格 eventFilter 对外来顶层窗口（popup 滑条）豁免，防在滑条内按空格误触播放暂停。
 
 **NCM 下载 pie 指示器（Material Design 圆环）**
