@@ -278,8 +278,10 @@ void PcmBackend::decodeLoop() {
             auto now = std::chrono::steady_clock::now();
             if (now - lastRing > std::chrono::seconds(1)) {
                 lastRing = now;
+                if (0) {
                 CXA_LOG("decode ring: count=%zu write=%zu got=%zu",
                         ringCount_, ringWrite_, got);
+                }
             }
         }
     }
@@ -311,9 +313,11 @@ size_t PcmBackend::pullAudio(int16_t* out, size_t frames) {
         auto now = std::chrono::steady_clock::now();
         if (now - lastLive > std::chrono::seconds(1)) {
             lastLive = now;
+            if (0) {
             CXA_LOG("pullAudio live: st=%d take=%zu want=%zu "
                     "ringCount=%zu framesPlayed=%lld",
                     st, take, want, ringCount_, (long long)framesPlayed_.load());
+			}
         }
     }
     for (size_t i = 0; i < take; ++i) {
