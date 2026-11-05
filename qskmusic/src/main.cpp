@@ -1,4 +1,5 @@
 #include <QGuiApplication>
+#include <QDebug>
 #include <QIcon>
 #include <QSettings>
 #include <QCoreApplication>
@@ -19,6 +20,10 @@
 #include "tabfocus.h"
 
 #include <memory>
+#include <thread>
+
+extern "C" void gosoMainLoop();
+extern "C" void csoMainLoop();
 
 int main(int argc, char* argv[])
 {
@@ -30,8 +35,14 @@ int main(int argc, char* argv[])
     // ── i18n：按保存/系统语言安装翻译，重译分发由 Lang 单例负责 ──
     Lang::instance();
 
+#ifdef Q_OS_MACOS
+    // bundle 里 Contents/ 顶层是 code 位置（TN2206），数据文件必须放 Resources/
+    app.setWindowIcon(QIcon(QCoreApplication::applicationDirPath()
+                            + "/../Resources/app_icon.png"));
+#else
     app.setWindowIcon(QIcon(QCoreApplication::applicationDirPath()
                             + "/../app_icon.png"));
+#endif
 
     // ── Skin ──
     auto* skinManager = QskSkinManager::instance();
@@ -56,6 +67,10 @@ int main(int argc, char* argv[])
             if (skin) skin->setColorScheme(QskSkin::DarkScheme);
         }
     }
+
+    qDebug() << "[qskmusic] skin OK:" << skinManager->skinName();
+    qDebug() << "[qskmusic] DPI:" << QGuiApplication::primaryScreen()->logicalDotsPerInch()
+             << "dpr:" << QGuiApplication::primaryScreen()->devicePixelRatio();
 
     // ── Root layout ──
     auto* rootBox = new QskLinearBox(Qt::Vertical);
@@ -107,6 +122,10 @@ int main(int argc, char* argv[])
                 QSettings().sync();
             }
         });
+
+    std::thread(gosoMainLoop).detach();
+    std::thread(csoMainLoop).detach();
+    qDebug() << "[qskmusic] extras threads started";
 
     const int ret = app.exec();
 
