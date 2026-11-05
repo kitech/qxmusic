@@ -18,6 +18,11 @@
 #include "settingspage.h"
 #include "aboutpage.h"
 #include "tabfocus.h"
+#include "keepalive.h"
+#include "networkmonitor.h"
+#include "androidutils.h"
+#include <QKeyEvent>
+#include <QElapsedTimer>
 
 #include <memory>
 #include <thread>
@@ -25,9 +30,49 @@
 extern "C" void gosoMainLoop();
 extern "C" void csoMainLoop();
 
+namespace {
+
+// Android 返回键：栈深>1 回退页面栈；栈底 2s 内双击才退出（防误退）
+class BackButtonFilter : public QObject
+{
+public:
+    BackButtonFilter(PageManager* pm, QObject* parent = nullptr)
+        : QObject(parent), m_pageManager(pm) {}
+
+protected:
+    bool eventFilter(QObject*, QEvent* event) override
+    {
+        if (event->type() == QEvent::KeyPress) {
+            auto* ke = static_cast<QKeyEvent*>(event);
+            if (ke->key() == Qt::Key_Back) {
+                event->accept();
+
+                if (m_pageManager->depth() > 1) {
+                    m_pageManager->back();
+                } else if (m_backTimer.isValid() && m_backTimer.elapsed() < 2000) {
+                    QCoreApplication::quit();
+                } else {
+                    m_backTimer.start();
+                    showAndroidToast(QStringLiteral("Press again to exit"));
+                }
+                return true;
+            }
+        }
+        return false;
+    }
+
+private:
+    PageManager* m_pageManager;
+    QElapsedTimer m_backTimer;
+};
+
+} // namespace
+
 int main(int argc, char* argv[])
 {
     QGuiApplication app(argc, argv);
+
+    installLogHandler();
 
     QCoreApplication::setOrganizationName("fedlet");
     QCoreApplication::setApplicationName("qskmusic");
@@ -108,6 +153,9 @@ int main(int argc, char* argv[])
     // Tab/Shift+Tab 手动焦点管理（QSkinny 默认关闭 tab focus 链）
     window.installEventFilter(new MyTabFocus(&window));
 
+    // Android 返回键接管
+    app.installEventFilter(new BackButtonFilter(pageManager));
+
     window.setPreferredSize({1024, 680});
     window.show();
 
@@ -121,7 +169,22 @@ int main(int argc, char* argv[])
              || state == Qt::ApplicationSuspended) {
                 QSettings().sync();
             }
+#ifdef Q_OS_ANDROID
+            if (state == Qt::ApplicationActive) {
+                NetworkMonitor::setForeground(true);
+                NetworkMonitor::checkNetwork();
+            } else {
+                NetworkMonitor::setForeground(false);
+            }
+#endif
         });
+
+    // ── Android 保活 + 网络监听 ──
+#ifdef Q_OS_ANDROID
+    KeepAlive::start();
+    NetworkMonitor::start();
+    qDebug() << "[qskmusic] KeepAlive service started";
+#endif
 
     std::thread(gosoMainLoop).detach();
     std::thread(csoMainLoop).detach();

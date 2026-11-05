@@ -66,6 +66,10 @@ cp "$BUILD_DIR/libcso.so" "$LIB_DIR/"
 mkdir -p "$APK_DIR/res/drawable"
 cp app_icon.png "$APK_DIR/res/drawable/ic_launcher.png"
 
+# 复制自定义 Java 源码到 Android 构建目录（保活 service + 网络监听）
+mkdir -p "$APK_DIR/src/main/java"
+cp -R android/src/java/* "$APK_DIR/src/main/java/"
+
 # 移除 renderscript.srcDirs 配置（build-tools 34+ 不再支持）
 sed -i '/renderscript\.srcDirs/d' "$APK_DIR/build.gradle"
 
@@ -75,6 +79,9 @@ sed -i "/defaultConfig {/a\\        versionCode ${APP_VERSION_CODE}\n        ver
 
 # Qt 模板生成 useLegacyPackaging true（.so DEFLATE 压缩，安装时解压到磁盘）。
 # Qt 6.9 之前不支持直接从 APK 加载未压缩(STORED)的 .so —— 必须保持 true。
+
+# 覆盖 manifest（保活 service 声明 + 前台服务权限）
+cp android/AndroidManifest.xml "$APK_DIR/AndroidManifest.xml"
 
 # 4. append Qt-specific properties (missing from --aux-mode)
 cat >> "$APK_DIR/gradle.properties" <<PROPS

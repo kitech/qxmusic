@@ -51,6 +51,12 @@ qt_add_executable(qskmusic
     src/toastpopup.cpp
     src/progresspopup.h
     src/progresspopup.cpp
+    src/keepalive.h
+    src/keepalive.cpp
+    src/networkmonitor.h
+    src/networkmonitor.cpp
+    src/androidutils.h
+    src/androidutils.cpp
     src/version_config.h
     ${QSKCOMP_SOURCES}
 )
