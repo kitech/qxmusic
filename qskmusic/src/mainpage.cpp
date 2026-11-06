@@ -1,6 +1,7 @@
 #include "mainpage.h"
 #include "pagemanager.h"
 #include "playerbar.h"
+#include "navbar.h"
 #include "queuepopup.h"
 #include "toastpopup.h"
 #include "logmodel.h"
@@ -8,6 +9,7 @@
 #include <QskTextLabel.h>
 #include <QskPushButton.h>
 #include <QskScrollArea.h>
+#include <QskStackBox.h>
 #include <QskSeparator.h>
 #include <QskFontRole.h>
 #include <QQuickWindow>
@@ -52,46 +54,42 @@ void MainPage::onCreate(const QVariantMap&, const QVariantMap&)
 
     new QskSeparator(Qt::Horizontal, layout);
 
-    // ── 主体：左导航 + 右歌曲列表 ──
+    // ── 主体：宽屏 nav rail + 内容列；窄屏底栏挂在 layout 末尾 ──
     auto* body = new QskLinearBox(Qt::Horizontal, layout);
     body->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
 
-    // 左侧导航桩
-    auto* nav = new QskLinearBox(Qt::Vertical, body);
-    nav->setPanel(true);
-    nav->setPreferredWidth(160);
+    m_navRail = new NavBar(body);
+    connect(m_navRail, &NavBar::currentIndexChanged, this, &MainPage::switchTab);
+    connect(m_navRail, &NavBar::modeChanged, this, [this](bool rail) {
+        m_navRail->setVisible(rail);
+        m_navBottom->setVisible(!rail);
+    });
 
-    auto* navTitle = new QskTextLabel(QString::fromUtf8("音乐库"), nav);
-    navTitle->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
-    navTitle->setPreferredHeight(40);
+    auto* contentCol = new QskLinearBox(Qt::Vertical, body);
+    contentCol->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
 
-    const QStringList navItems = {
-        QString::fromUtf8("全部歌曲"),
-        QString::fromUtf8("我喜欢的音乐"),
-        QString::fromUtf8("最近播放"),
-        QString::fromUtf8("下载音乐"),
-    };
-    for (const auto& it : navItems) {
-        auto* btn = new QskPushButton(it, nav);
-        btn->setPreferredHeight(40);
-        connect(btn, &QskAbstractButton::clicked, this, [btn]() {
-            ToastPopup::show(btn, QString::fromUtf8("桩导航：%1").arg(btn->text()));
-        });
+    // 4 个歌单 tab 子视图（QskStackBox 切换，状态互不干扰）
+    m_contentStack = new QskStackBox(contentCol);
+    m_contentStack->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
+    for (int i = 0; i < 4; ++i) {
+        auto* rows = new QskLinearBox(Qt::Vertical);
+        rows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
+        auto* scroll = new QskScrollArea(m_contentStack);
+        scroll->setScrolledItem(rows);
+        scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
+        buildSongList(rows);
+        m_tabViews.append(scroll);
     }
-    nav->addStretch(1);
+    m_contentStack->setCurrentItem(m_tabViews.first());
 
-    // 右侧歌曲列表（QskScrollArea + 内容盒 Expanding/Minimum 范式）
-    m_songRows = new QskLinearBox(Qt::Vertical);
-    m_songRows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
+    m_playerBar = new PlayerBar(contentCol);
 
-    auto* scroll = new QskScrollArea(body);
-    scroll->setScrolledItem(m_songRows);
-    scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
-
-    buildSongList();
+    // ── 底部导航（窄屏形态；宽屏由 modeChanged 隐藏）──
+    m_navBottom = new NavBar(layout);
+    connect(m_navBottom, &NavBar::currentIndexChanged, this, &MainPage::switchTab);
+    m_navRail->setVisible(false);   // 初始窄屏形态，挂 window 后按实际宽度校正
 
     // ── 底部播放条 ──
-    m_playerBar = new PlayerBar(layout);
     connect(m_playerBar, &PlayerBar::playPauseRequested, this, [this]() {
         m_playing = !m_playing;
         m_playerBar->setPlaying(m_playing);
@@ -123,13 +121,13 @@ void MainPage::onCreate(const QVariantMap&, const QVariantMap&)
     });
 }
 
-void MainPage::buildSongList()
+void MainPage::buildSongList(QskLinearBox* rows)
 {
-    const auto children = m_songRows->childItems();
+    const auto children = rows->childItems();
     for (auto* c : children) c->deleteLater();
 
     for (int i = 0; i < m_titles.size(); ++i) {
-        auto* row = new QskLinearBox(Qt::Horizontal, m_songRows);
+        auto* row = new QskLinearBox(Qt::Horizontal, rows);
         row->setPreferredHeight(44);
 
         auto* num = new QskTextLabel(QString::number(i + 1), row);
@@ -152,7 +150,19 @@ void MainPage::buildSongList()
                 QString("play: %1").arg(m_titles.at(i)));
         });
     }
-    m_songRows->update();
+    rows->update();
+}
+
+void MainPage::switchTab(int index)
+{
+    if (index < 0 || index >= m_tabViews.size()) return;
+    if (m_contentStack->currentItem() != m_tabViews.at(index))
+        m_contentStack->setCurrentItem(m_tabViews.at(index));
+    // 同步两个导航条选中态（blockSignals 防信号回环）
+    for (auto* nav : { m_navRail, m_navBottom }) {
+        const QSignalBlocker blocker(nav);
+        nav->setCurrentIndex(index);
+    }
 }
 
 void MainPage::openQueue()

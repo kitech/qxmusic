@@ -3,15 +3,17 @@
 
 #include "page.h"
 
+class NavBar;
 class PlayerBar;
 class QskLinearBox;
 class QskScrollArea;
+class QskStackBox;
 class QueuePopup;
 
 /*
  * 音乐主页初版（qlmusic mainwindow 的 qsk 化骨架，桩数据）：
  *   顶栏（标题 + 日志/设置/关于入口）
- *   主体（左侧导航桩 + 右侧歌曲列表桩）
+ *   主体（宽屏 nav rail / 窄屏底部导航，4 个歌单 tab 切换）
  *   底部播放条（PlayerBar）
  */
 class MainPage : public Page
@@ -25,10 +27,14 @@ protected:
                   const QVariantMap& savedState) override;
 
 private:
-    void buildSongList();
+    void buildSongList(QskLinearBox* rows);
     void openQueue();
+    void switchTab(int index);
 
-    QskLinearBox* m_songRows = nullptr;
+    QskStackBox* m_contentStack = nullptr;
+    NavBar* m_navRail = nullptr;
+    NavBar* m_navBottom = nullptr;
+    QList<QskScrollArea*> m_tabViews;
     PlayerBar* m_playerBar = nullptr;
     QueuePopup* m_queuePopup = nullptr;
     QStringList m_titles;

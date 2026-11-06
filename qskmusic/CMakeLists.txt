@@ -37,6 +37,8 @@ qt_add_executable(qskmusic
     src/myi18n.cpp
     src/mainpage.h
     src/mainpage.cpp
+    src/navbar.h
+    src/navbar.cpp
     src/playerbar.h
     src/playerbar.cpp
     src/queuepopup.h
