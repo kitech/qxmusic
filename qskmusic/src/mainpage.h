@@ -2,12 +2,15 @@
 #define MAIN_PAGE_H
 
 #include "page.h"
+#include "ncmapi.h"
 
 class NavBar;
+class LyricPopup;
 class PlayerBar;
 class QskLinearBox;
 class QskScrollArea;
 class QskStackBox;
+class QskTextField;
 class QueuePopup;
 
 /*
@@ -27,19 +30,31 @@ protected:
                   const QVariantMap& savedState) override;
 
 private:
-    void buildSongList(QskLinearBox* rows);
+    void buildStubList(QskLinearBox* rows);
+    void buildSearchList();
     void openQueue();
     void switchTab(int index);
+    void playSong(int index);
+    void openLyric();
+    qint64 currentSongId() const;
+    QString currentTitle() const;
 
     QskStackBox* m_contentStack = nullptr;
     NavBar* m_navRail = nullptr;
     NavBar* m_navBottom = nullptr;
     QList<QskScrollArea*> m_tabViews;
+    QskLinearBox* m_searchRows = nullptr;
+    QskTextField* m_searchField = nullptr;
     PlayerBar* m_playerBar = nullptr;
     QueuePopup* m_queuePopup = nullptr;
+    LyricPopup* m_lyricPopup = nullptr;
+    QList<Song> m_songs;
     QStringList m_titles;
     int m_currentTrack = -1;
     bool m_playing = false;
+    bool m_resolving = false;
+    qint64 m_lrcSongId = 0;
+    QString m_lrcText;
 };
 
 #endif

@@ -28,6 +28,7 @@ Q_SIGNALS:
     void nextRequested();
     void queueRequested();
     void volumeClicked();
+    void lyricRequested();
 
 private:
     static QString fmtMs(int ms);
@@ -39,6 +40,7 @@ private:
     QskTextLabel* m_timeLabel = nullptr;
     QskPushButton* m_volumeBtn = nullptr;
     QskPushButton* m_queueBtn = nullptr;
+    QskPushButton* m_lyricBtn = nullptr;
     int m_progressMs = 0;
     int m_durationMs = 0;
     bool m_playing = false;

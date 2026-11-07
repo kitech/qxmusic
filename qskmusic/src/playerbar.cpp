@@ -36,6 +36,10 @@ PlayerBar::PlayerBar(QQuickItem* parent)
     m_timeLabel->setPreferredWidth(110);
     m_timeLabel->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
 
+    m_lyricBtn = new QskPushButton(QString::fromUtf8("词"), this);
+    m_lyricBtn->setPreferredSize(36, 36);
+    connect(m_lyricBtn, &QskAbstractButton::clicked, this, &PlayerBar::lyricRequested);
+
     m_volumeBtn = new QskPushButton(QString::fromUtf8("🔊"), this);
     m_volumeBtn->setPreferredSize(36, 36);
     connect(m_volumeBtn, &QskAbstractButton::clicked, this, &PlayerBar::volumeClicked);

@@ -27,6 +27,38 @@ endif()
 # qskcomp：QSKinny 自绘组件库（与 anystik 同源共享）
 include(${CMAKE_CURRENT_SOURCE_DIR}/../qskcomp/qskcomp.cmake)
 
+# ── libncm：NCM 客户端共享库（go163-music-core 预构建，build 脚本先行产出） ──
+# 桌面端产物被 build 脚本拷进 ${CMAKE_BINARY_DIR}（构建 rpath 直达）；
+# Android 用 go163-music-core out 的 arm64 产物（运行期从 APK lib 目录解析）
+if(ANDROID)
+    set(NCM_SRC_SO ${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/android/arm64-v8a/libncm.so)
+    set(NCM_SO "${NCM_SRC_SO}")
+else()
+    set(NCM_SRC_SO ${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/libncm.so)
+    set(NCM_SO "${CMAKE_BINARY_DIR}/libncm.so")
+endif()
+if(APPLE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/libncm.dylib")
+    set(NCM_SO "${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/libncm.dylib")
+endif()
+if(NOT EXISTS "${NCM_SRC_SO}")
+    message(FATAL_ERROR "libncm 产物缺失: ${NCM_SRC_SO}（先跑 build 脚本里的 libncm 构建步）")
+endif()
+add_library(ncm SHARED IMPORTED)
+set_target_properties(ncm PROPERTIES IMPORTED_LOCATION "${NCM_SO}")
+
+# ELF e_machine 守卫（offset 0x12，LE）：aarch64=B7、x86-64=3E。
+# 防错链跨架构产物（如把宿主 x86-64 库链进 Android 包）。mac 产物是
+# Mach-O 不是 ELF，跳过。
+file(READ "${NCM_SO}" NCM_EMachine HEX LIMIT 2 OFFSET 18)
+if(ANDROID OR CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)")
+    set(NCM_EXPECT_EM "^[bB]7")
+elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)")
+    set(NCM_EXPECT_EM "^[3eE]")
+endif()
+if(DEFINED NCM_EXPECT_EM AND NOT NCM_EMachine MATCHES "${NCM_EXPECT_EM}")
+    message(FATAL_ERROR "libncm 架构与目标不符: ${NCM_SO} (e_machine=${NCM_EMachine}，期望 ${NCM_EXPECT_EM})")
+endif()
+
 qt_add_executable(qskmusic
     src/main.cpp
     src/page.h
@@ -51,6 +83,10 @@ qt_add_executable(qskmusic
     src/aboutpage.cpp
     src/toastpopup.h
     src/toastpopup.cpp
+    src/ncmapi.h
+    src/ncmapi.cpp
+    src/lyricpopup.h
+    src/lyricpopup.cpp
     src/progresspopup.h
     src/progresspopup.cpp
     src/keepalive.h
@@ -69,10 +105,11 @@ target_sources(qskmusic PRIVATE ${qskmusic_resources})
 
 target_include_directories(qskmusic PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/include
     ${QSKCOMP_INCLUDE_DIRS}
 )
 
-target_link_libraries(qskmusic PRIVATE Qsk::QSkinny Qt6::Core Qt6::Gui Qt6::Quick Qt6::Network Qt6::Multimedia Qt6::QuickPrivate)
+target_link_libraries(qskmusic PRIVATE Qsk::QSkinny Qt6::Core Qt6::Gui Qt6::Quick Qt6::Network Qt6::Multimedia Qt6::QuickPrivate ncm)
 
 # ── extras/go 共享库 (c-shared) ──
 set(GO_SRC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/extras/go)

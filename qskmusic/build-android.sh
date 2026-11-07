@@ -27,6 +27,17 @@ BUILD_DIR=build-android
     "$QT_HOST/bin/lrelease" "$f" -qm "${f%.ts}.qm"
   done )
 
+# ── libncm：Android arm64 产物（NDK 交叉；ANDROID_NDK_ROOT 已在头部导出）──
+# 产物布局：out/android/<abi>/libncm.so（与桌面 out/libncm.so 互不覆盖）
+( cd ../go163-music-core && scripts/build-android.sh --arch arm64 )
+
+# 架构守卫：APK 产物必须是 aarch64（防错拿宿主 x86-64 库打进包）
+if ! file ../go163-music-core/out/android/arm64-v8a/libncm.so | grep -q aarch64; then
+    echo "FATAL: libncm arm64 产物架构不对：" >&2
+    file ../go163-music-core/out/android/arm64-v8a/libncm.so >&2
+    exit 1
+fi
+
 # 1. cmake configure via qt-cmake
 "$QT_ANDROID/bin/qt-cmake" -S . -B "$BUILD_DIR" \
     -DANDROID_SDK_ROOT="$ANDROID_SDK_ROOT" \
@@ -54,6 +65,9 @@ cp "$QSK_ANDROID/lib/qskinny/plugins/platforminputcontexts/"*.so "$LIB_DIR/"
 # 复制 extras 共享库到 APK（libgoso 由 cmake extras 段按 GOOS=android 自动构建）
 cp "$BUILD_DIR/libgoso.so" "$LIB_DIR/"
 cp "$BUILD_DIR/libcso.so" "$LIB_DIR/"
+
+# libncm（NCM 客户端，go163-music-core 预构建 arm64 产物 → 打进 APK）
+cp ../go163-music-core/out/android/arm64-v8a/libncm.so "$LIB_DIR/"
 
 "$QT_HOST/bin/androiddeployqt" \
     --input "$BUILD_DIR/android-qskmusic-deployment-settings.json" \
