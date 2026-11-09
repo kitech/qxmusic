@@ -3,6 +3,7 @@
 #include "playerbar.h"
 #include "navbar.h"
 #include "lyricpopup.h"
+#include "categoryview.h"
 #include "queuepopup.h"
 #include "toastpopup.h"
 #include "logmodel.h"
@@ -72,10 +73,10 @@ void MainPage::onCreate(const QVariantMap&, const QVariantMap&)
     auto* contentCol = new QskLinearBox(Qt::Vertical, body);
     contentCol->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
 
-    // 4 个歌单 tab 子视图（QskStackBox 切换，状态互不干扰）
+    // 5 个 tab 子视图（QskStackBox 切换，状态互不干扰）
     m_contentStack = new QskStackBox(contentCol);
     m_contentStack->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < 5; ++i) {
         if (i == 0) {
             // 「歌曲」tab：搜索框 + 真实搜索结果
             auto* col = new QskLinearBox(Qt::Vertical, m_contentStack);
@@ -102,6 +103,20 @@ void MainPage::onCreate(const QVariantMap&, const QVariantMap&)
             scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
             m_searchRows = rows;
             m_tabViews.append(col);
+        } else if (i == 1) {
+            // 「分类」tab：qlmusic 分类树 + 歌单列表（push 页面栈）
+            m_categoryView = new CategoryView(m_contentStack);
+            connect(m_categoryView, &CategoryView::categorySelected, this,
+                [this](const QString& cat) {
+                    if (auto* pm = pageManager()) {
+                        QVariantMap args;
+                        args.insert("cat", cat);
+                        args.insert("title", cat.isEmpty()
+                            ? QString::fromUtf8("热门歌单") : cat);
+                        pm->open("playlists", args);
+                    }
+                });
+            m_tabViews.append(m_categoryView);
         } else {
             auto* rows = new QskLinearBox(Qt::Vertical);
             rows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
@@ -155,9 +170,10 @@ void MainPage::onCreate(const QVariantMap&, const QVariantMap&)
             playSong(m_currentTrack + 1);
         });
     auto* ap = AudioPlayer::instance();
-    connect(ap, &AudioPlayer::finished, this, [this](const QString&) {
+    connect(ap, &AudioPlayer::finished, this, [this](const QString& id) {
         m_playing = false;
         m_playerBar->setPlaying(false);
+        if (id.toLongLong() != currentSongId()) return;   // 非本页队列（子页面在播）
         playSong(m_currentTrack + 1);   // 自然播完自动下一首（越界则停）
     });
     connect(ap, &AudioPlayer::positionChanged, this,

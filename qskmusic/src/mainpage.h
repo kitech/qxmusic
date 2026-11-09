@@ -4,6 +4,7 @@
 #include "page.h"
 #include "ncmapi.h"
 
+class CategoryView;
 class NavBar;
 class LyricPopup;
 class PlayerBar;
@@ -43,6 +44,7 @@ private:
     NavBar* m_navRail = nullptr;
     NavBar* m_navBottom = nullptr;
     QList<QQuickItem*> m_tabViews;   // tab0=搜索列盒，其余=滚动视图
+    CategoryView* m_categoryView = nullptr;
     QskLinearBox* m_searchRows = nullptr;
     QskTextField* m_searchField = nullptr;
     PlayerBar* m_playerBar = nullptr;

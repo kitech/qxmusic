@@ -5,6 +5,7 @@
 namespace {
 const QStringList kTabs = {
     QString::fromUtf8("歌曲"),
+    QString::fromUtf8("分类"),
     QString::fromUtf8("我喜欢的音乐"),
     QString::fromUtf8("最近播放"),
     QString::fromUtf8("下载音乐"),
@@ -18,7 +19,7 @@ NavBar::NavBar(QQuickItem* parent)
 {
     setPanel(true);
 
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < kTabs.size(); ++i) {
         auto* btn = new QskPushButton(kTabs.at(i), this);
         btn->setCheckable(true);
         connect(btn, &QskAbstractButton::clicked, this, [this, i]() {
@@ -64,7 +65,7 @@ void NavBar::updateMode()
 
 void NavBar::setCurrentIndex(int index)
 {
-    if (index < 0 || index >= 4 || index == m_current) return;
+    if (index < 0 || index >= kTabs.size() || index == m_current) return;
     m_current = index;
     syncChecked();
     Q_EMIT currentIndexChanged(index);
@@ -72,6 +73,6 @@ void NavBar::setCurrentIndex(int index)
 
 void NavBar::syncChecked()
 {
-    for (int i = 0; i < 4; ++i)
+    for (int i = 0; i < kTabs.size(); ++i)
         m_buttons[i]->setChecked(i == m_current);
 }

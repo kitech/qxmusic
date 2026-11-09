@@ -93,6 +93,14 @@ qt_add_executable(qskmusic
     src/ncmapi.cpp
     src/lyricpopup.h
     src/lyricpopup.cpp
+    src/ncmcatalog.h
+    src/ncmcatalog.cpp
+    src/categoryview.h
+    src/categoryview.cpp
+    src/playlistlistpage.h
+    src/playlistlistpage.cpp
+    src/playlisttrackspage.h
+    src/playlisttrackspage.cpp
     src/progresspopup.h
     src/progresspopup.cpp
     src/keepalive.h

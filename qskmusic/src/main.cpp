@@ -21,6 +21,8 @@
 #include "logpage.h"
 #include "settingspage.h"
 #include "aboutpage.h"
+#include "playlistlistpage.h"
+#include "playlisttrackspage.h"
 #include "tabfocus.h"
 #include "keepalive.h"
 #include "networkmonitor.h"
@@ -223,6 +225,14 @@ int main(int argc, char* argv[])
 
     pageManager->registerPage("logs", []() -> Page* {
         return new LogPage();
+    }, {CachePolicy::Transient, LaunchMode::Standard});
+
+    pageManager->registerPage("playlists", []() -> Page* {
+        return new PlaylistListPage();
+    }, {CachePolicy::Transient, LaunchMode::Standard});
+
+    pageManager->registerPage("tracks", []() -> Page* {
+        return new PlaylistTracksPage();
     }, {CachePolicy::Transient, LaunchMode::Standard});
 
     // ── Window ──
