@@ -68,7 +68,7 @@ target_supported || exit 1
 pick_cc
 print_target
 
-LDFLAGS_EXTRA=()
+LDFLAGS_EXTRA=("-extldflags=-Wl,-soname,libncm.so")
 [[ "$BUILD_MODE" == "release" ]] && LDFLAGS_EXTRA+=("-s" "-w")
 
 # 本机架构直接放 out/ 方便链接；交叉产物放 out/linux/<arch>/ 避免互相覆盖

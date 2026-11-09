@@ -38,6 +38,11 @@ if ! file ../go163-music-core/out/android/arm64-v8a/libncm.so | grep -q aarch64;
     exit 1
 fi
 
+# 拷进构建目录：CMake IMPORTED 指该副本（配合 IMPORTED_NO_SONAME 避免
+# DT_NEEDED 记录绝对路径）
+mkdir -p "$BUILD_DIR"
+cp ../go163-music-core/out/android/arm64-v8a/libncm.so "$BUILD_DIR/"
+
 # 1. cmake configure via qt-cmake
 "$QT_ANDROID/bin/qt-cmake" -S . -B "$BUILD_DIR" \
     -DANDROID_SDK_ROOT="$ANDROID_SDK_ROOT" \

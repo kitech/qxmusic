@@ -98,8 +98,8 @@ ensure_go_sum
 # 在进入循环前解析一次：find_ndk 里有废弃变量的告警，逐 ABI 调用会重复刷屏。
 resolve_ndk_once || die "未找到 NDK。请设置 ANDROID_NDK_ROOT，或设置 ANDROID_SDK_ROOT 让本脚本自动挑选"
 
-LDFLAGS_EXTRA=("-s" "-w")
-[[ "$BUILD_MODE" == "release" ]] || LDFLAGS_EXTRA=()
+LDFLAGS_EXTRA=("-extldflags=-Wl,-soname,libncm.so")
+[[ "$BUILD_MODE" == "release" ]] && LDFLAGS_EXTRA+=("-s" "-w")
 
 FAILED=()
 DONE=()
@@ -129,12 +129,22 @@ for abi in "${ABIS[@]}"; do
   mkdir -p "$ABIDIR/include"
 
   info "构建 $ABIDIR/libncm.so"
+  # CGO_CFLAGS 两个要点（勿把它们插进下面的 \ 续行链，否则整条 env 命令会被注释截断）：
+  # 1) __ANDROID_API__ 不要手动定义：NDK r26+ 的编译器包装器
+  #    （aarch64-linux-android<api>-clang，见 _common.sh pick_android_cc）
+  #    已按包装器名烘焙 minSdk，并在内置预定义里给出
+  #      #define __ANDROID_API__ __ANDROID_MIN_SDK_VERSION__
+  #    再传 -D__ANDROID_API__ 会触发 -Werror,-Wmacro-redefined 直接编译失败。
+  #    只需保留 -fPIC（c-shared 必需）。
+  # 2) -DNCM_GO_CGO 不能省：cgo 导出的 Go 侧无法表达 const，生成的
+  #    _cgo_export.h/_cgo_export.c 原型是 char*；公共头默认 NCM_CPARAM=const，
+  #    不摘 const 会与导出原型冲突（conflicting types，与 linux/macos 脚本一致）。
   if ! env CGO_ENABLED=1 \
           GOOS=android \
           GOARCH="$GOARCH" \
           ${GOARM:+GOARM=$GOARM} \
           CC="$CC" \
-          CGO_CFLAGS="${CGO_CFLAGS:-} -fPIC -D__ANDROID_API__=$ANDROID_API" \
+          CGO_CFLAGS="${CGO_CFLAGS:-} -fPIC -DNCM_GO_CGO" \
           CGO_LDFLAGS="${CGO_LDFLAGS:-} $ANDROID_LDFLAGS_EXTRA" \
           go build \
             -buildmode=c-shared \

@@ -588,7 +588,11 @@ func ncm_search(h *C.ncm_client, keywords *C.char, limit C.int32_t, out **C.char
 		if limit <= 0 {
 			limit = 30
 		}
-		return stub(out)
+		res, err := catalog.Search(C.GoString(keywords), int(limit))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
 	})
 }
 

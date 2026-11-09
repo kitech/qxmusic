@@ -42,7 +42,7 @@ private:
     QskStackBox* m_contentStack = nullptr;
     NavBar* m_navRail = nullptr;
     NavBar* m_navBottom = nullptr;
-    QList<QskScrollArea*> m_tabViews;
+    QList<QQuickItem*> m_tabViews;   // tab0=搜索列盒，其余=滚动视图
     QskLinearBox* m_searchRows = nullptr;
     QskTextField* m_searchField = nullptr;
     PlayerBar* m_playerBar = nullptr;

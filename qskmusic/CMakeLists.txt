@@ -28,11 +28,12 @@ endif()
 include(${CMAKE_CURRENT_SOURCE_DIR}/../qskcomp/qskcomp.cmake)
 
 # ── libncm：NCM 客户端共享库（go163-music-core 预构建，build 脚本先行产出） ──
-# 桌面端产物被 build 脚本拷进 ${CMAKE_BINARY_DIR}（构建 rpath 直达）；
-# Android 用 go163-music-core out 的 arm64 产物（运行期从 APK lib 目录解析）
+# 各平台产物先由 build 脚本拷进 ${CMAKE_BINARY_DIR}，IMPORTED 指向该副本。
+# libncm 无 SONAME：必须 IMPORTED_NO_SONAME，让 ld 用 -lncm 链接；
+# 否则 DT_NEEDED 会记成链接命令行上的绝对路径，APK 运行期 dlopen 必崩。
 if(ANDROID)
     set(NCM_SRC_SO ${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/android/arm64-v8a/libncm.so)
-    set(NCM_SO "${NCM_SRC_SO}")
+    set(NCM_SO "${CMAKE_BINARY_DIR}/libncm.so")
 else()
     set(NCM_SRC_SO ${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/libncm.so)
     set(NCM_SO "${CMAKE_BINARY_DIR}/libncm.so")
@@ -43,8 +44,13 @@ endif()
 if(NOT EXISTS "${NCM_SRC_SO}")
     message(FATAL_ERROR "libncm 产物缺失: ${NCM_SRC_SO}（先跑 build 脚本里的 libncm 构建步）")
 endif()
+if(NOT EXISTS "${NCM_SO}")
+    message(FATAL_ERROR "libncm 副本缺失: ${NCM_SO}（build 脚本应先把它拷进构建目录）")
+endif()
 add_library(ncm SHARED IMPORTED)
-set_target_properties(ncm PROPERTIES IMPORTED_LOCATION "${NCM_SO}")
+set_target_properties(ncm PROPERTIES
+    IMPORTED_LOCATION "${NCM_SO}"
+    IMPORTED_NO_SONAME TRUE)
 
 # ELF e_machine 守卫（offset 0x12，LE）：aarch64=B7、x86-64=3E。
 # 防错链跨架构产物（如把宿主 x86-64 库链进 Android 包）。mac 产物是

@@ -392,6 +392,40 @@ func SongDetail(ids string) (SongDetailResult, error) {
 	return res, nil
 }
 
+// Search 关键词搜索（type=1 单曲，匿名可用）。
+// 响应形状与 cloudsearch 一致：{"result":{"songs":[...]}}。
+func Search(keywords string, limit int) (SongDetailResult, error) {
+	kw := strings.TrimSpace(keywords)
+	if kw == "" {
+		return SongDetailResult{}, errs.ErrInvalidArg
+	}
+	if limit <= 0 {
+		limit = 30
+	}
+	svc := &nmsvc.SearchService{
+		S:     kw,
+		Type:  "1",
+		Limit: strconv.Itoa(limit),
+	}
+	code, body := svc.Search()
+	if err := opStatus("search", "/api/cloudsearch/pc", code, len(body)); err != nil {
+		return SongDetailResult{}, err
+	}
+	var env struct {
+		Result struct {
+			Songs []rawSong `json:"songs"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return SongDetailResult{}, fmt.Errorf("%w: cloudsearch 解析失败: %v", errs.ErrBadResponse, err)
+	}
+	res := SongDetailResult{Songs: make([]Song, 0, len(env.Result.Songs))}
+	for _, raw := range env.Result.Songs {
+		res.Songs = append(res.Songs, convSong(raw))
+	}
+	return res, nil
+}
+
 // CheckMusic 探测歌曲可用性（player/url 探测）。
 func CheckMusic(songID int64, br int32) (CheckMusicResult, error) {
 	if songID <= 0 {

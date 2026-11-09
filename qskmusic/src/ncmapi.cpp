@@ -9,6 +9,11 @@
 
 namespace {
 
+QString statusText(ncm::Status s)
+{
+    return QString::fromStdString(std::string(ncm::to_string(s)));
+}
+
 Song parseSong(const QJsonObject& o)
 {
     Song s;
@@ -90,7 +95,7 @@ void NcmApi::searchAsync(const QString& keywords, int limit)
         QList<Song> songs;
         QString err;
         if (st != ncm::Status::Ok) {
-            err = QString::fromStdString(ncm::to_string(st));
+            err = statusText(st);
         } else {
             songs = parseSongs(QByteArray::fromStdString(json));
         }
@@ -107,7 +112,7 @@ void NcmApi::resolveAsync(qint64 songId, int quality)
             static_cast<ncm::Quality>(quality), json);
         QString url, err;
         if (st != ncm::Status::Ok) {
-            err = QString::fromStdString(ncm::to_string(st));
+            err = statusText(st);
         } else {
             const auto o = QJsonDocument::fromJson(
                 QByteArray::fromStdString(json)).object();
@@ -128,7 +133,7 @@ void NcmApi::lyricAsync(qint64 songId)
         const auto st = m_client.lyric(songId, json);
         QString lrc, err;
         if (st != ncm::Status::Ok) {
-            err = QString::fromStdString(ncm::to_string(st));
+            err = statusText(st);
         } else {
             const auto o = QJsonDocument::fromJson(
                 QByteArray::fromStdString(json)).object();
