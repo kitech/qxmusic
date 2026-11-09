@@ -81,8 +81,6 @@ qt_add_executable(qskmusic
     src/mainpage.cpp
     src/playback.h
     src/playback.cpp
-    src/categorypage.h
-    src/categorypage.cpp
     src/playerbar.h
     src/playerbar.cpp
     src/queuepopup.h

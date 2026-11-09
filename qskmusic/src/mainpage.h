@@ -9,11 +9,10 @@ class QskTextLabel;
 class QskPushButton;
 
 /*
- * 首页（anystik 主页骨架 + qlmusic 启动节奏）：
- *   顶栏 = 标题 + ☰（QskMenu：分类/搜索/日志/设置/关于）；
- *   内容 = 热门歌单列表（构造即拉 = qlmusic requestTopPlaylists(__hot__,0)）
- *          + 加载更多（offset 分页）；
- *   点歌单 push 曲目页。
+ * 首页（qlmusic SideNav 的手机化）：
+ *   顶栏 = 标题 + ☰（搜索/日志/设置/关于）；
+ *   内容 = 分类树：第 1 项「热门歌单」(=__hot__ 哨兵) + 热门分类 + 分组分类，
+ *          启动即动态拉取（qlmusic loadCategories）；点项 push 歌单列表页。
  */
 class HomePage : public Page
 {
@@ -27,15 +26,11 @@ protected:
 
 private:
     void showOptionsMenu(const QPointF& origin);
-    void requestPage(int offset);
-    void rebuildCards();
+    void rebuild(const QStringList& hot, const QList<CategoryGroup>& groups);
+    void addEntry(const QString& label, const QString& cat);
 
-    QskLinearBox* m_cardRows = nullptr;
+    QskLinearBox* m_rows = nullptr;
     QskTextLabel* m_status = nullptr;
-    QskPushButton* m_moreBtn = nullptr;
-    QList<PlaylistCard> m_cards;
-    bool m_loading = false;
-    bool m_more = false;
 };
 
 #endif

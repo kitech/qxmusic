@@ -18,7 +18,6 @@
 #include "myi18n.h"
 #include "pagemanager.h"
 #include "mainpage.h"
-#include "categorypage.h"
 #include "playlistlistpage.h"
 #include "playlisttrackspage.h"
 #include "searchpage.h"
@@ -269,10 +268,6 @@ int main(int argc, char* argv[])
     pageManager->registerPage("home", []() -> Page* {
         return new HomePage();
     }, {CachePolicy::Permanent, LaunchMode::SingleInstance});
-
-    pageManager->registerPage("category", []() -> Page* {
-        return new CategoryPage();
-    }, {CachePolicy::Transient, LaunchMode::Standard});
 
     pageManager->registerPage("playlists", []() -> Page* {
         return new PlaylistListPage();
