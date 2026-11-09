@@ -26,6 +26,7 @@ protected:
 private:
     void requestPage(int offset);
     void rebuildCards();
+    int cardRowAt(const QPointF& localPos) const;   // 非卡片行=-1
 
     QString m_cat;
     QString m_title;

@@ -25,6 +25,7 @@ protected:
 
 private:
     void buildRows();
+    int songRowAt(const QPointF& localPos) const;   // 非曲目行=-1
 
     qint64 m_playlistId = 0;
     QString m_title;

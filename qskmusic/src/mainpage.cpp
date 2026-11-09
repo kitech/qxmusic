@@ -11,6 +11,7 @@
 #include <QskLabelData.h>
 #include <QskPopup.h>
 #include <QskBoxShapeMetrics.h>
+#include <private/qquicktaphandler_p.h>
 #include <QPointF>
 
 HomePage::HomePage(QQuickItem* parent)
@@ -55,6 +56,21 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
     auto* scroll = new QskScrollArea(layout);
     scroll->setScrolledItem(m_rows);
     scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
+
+    // 安卓触摸坑：滚动内容里的行点击不能靠 QskPushButton::clicked（flickable
+    // 拦 touch 后不再合成 mouse），照 anystik stickerlist 用 QQuickTapHandler
+    {
+        auto* tap = new QQuickTapHandler(m_rows);
+        tap->setGesturePolicy(QQuickTapHandler::DragThreshold);
+        connect(tap, &QQuickTapHandler::singleTapped, this,
+            [this](QEventPoint point, Qt::MouseButton) {
+                const int idx = entryRowAt(point.position());
+                if (idx < 0) return;
+                const QString& cat = m_rowCat[idx];
+                openPlaylistList(cat, cat.isEmpty()
+                    ? QString::fromUtf8("热门歌单") : cat);
+            });
+    }
 
     connect(&NcmCatalog::instance(), &NcmCatalog::categoriesDone, this,
         [this](const QStringList& hot, const QList<CategoryGroup>& groups,
@@ -119,23 +135,29 @@ void HomePage::rebuild(const QStringList& hot,
 {
     const auto children = m_rows->childItems();
     for (auto* c : children) c->deleteLater();
+    m_rowIsEntry.clear();
+    m_rowCat.clear();
+
+    auto addHeader = [this](const QString& text) {
+        // 组头行：注册为不可点（与 m_rows 子项保持一一平行，TapHandler 分发口径）
+        auto* lbl = new QskTextLabel(text, m_rows);
+        lbl->setFontRole(QskFontRole(QskFontRole::Title, QskFontRole::Normal));
+        lbl->setPreferredHeight(38);
+        lbl->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+        m_rowIsEntry.push_back(false);
+        m_rowCat.push_back(QString());
+    };
 
     // 第一项 = 热门歌单（qlmusic SideNav __hot__ 哨兵，服务端 cat="全部"）
     addEntry(QString::fromUtf8("热门歌单"), QString());
 
     if (!hot.isEmpty()) {
-        auto* lbl = new QskTextLabel(QString::fromUtf8("热门分类"), m_rows);
-        lbl->setFontRole(QskFontRole(QskFontRole::Title, QskFontRole::Normal));
-        lbl->setPreferredHeight(38);
-        lbl->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+        addHeader(QString::fromUtf8("热门分类"));
         for (const auto& c : hot)
             addEntry(c, c);
     }
     for (const auto& g : groups) {
-        auto* lbl = new QskTextLabel(g.name, m_rows);
-        lbl->setFontRole(QskFontRole(QskFontRole::Title, QskFontRole::Normal));
-        lbl->setPreferredHeight(38);
-        lbl->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+        addHeader(g.name);
         for (const auto& c : g.categories)
             addEntry(c, c);
     }
@@ -144,15 +166,34 @@ void HomePage::rebuild(const QStringList& hot,
 
 void HomePage::addEntry(const QString& label, const QString& cat)
 {
-    auto* btn = new QskPushButton(label, m_rows);
-    btn->setPreferredHeight(44);
-    connect(btn, &QskAbstractButton::clicked, this, [this, cat]() {
-        if (auto* pm = pageManager()) {
-            QVariantMap args;
-            args.insert("cat", cat);
-            args.insert("title", cat.isEmpty()
-                ? QString::fromUtf8("热门歌单") : cat);
-            pm->open("playlists", args);
+    // 行视觉：QskTextLabel（点击由内容盒上的 QQuickTapHandler 分发——
+    // 安卓滚动内容里按钮 clicked 不可靠，见 AGENTS.md 4.2）
+    auto* lbl = new QskTextLabel(label, m_rows);
+    lbl->setPreferredHeight(44);
+    lbl->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+    lbl->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    m_rowIsEntry.push_back(true);
+    m_rowCat.push_back(cat);
+}
+
+int HomePage::entryRowAt(const QPointF& localPos) const
+{
+    const auto rows = m_rows->childItems();
+    for (int i = 0; i < rows.size(); ++i) {
+        if (localPos.y() >= rows[i]->y()
+            && localPos.y() < rows[i]->y() + rows[i]->height()) {
+            return (i < m_rowIsEntry.size() && m_rowIsEntry[i]) ? i : -1;
         }
-    });
+    }
+    return -1;
+}
+
+void HomePage::openPlaylistList(const QString& cat, const QString& title)
+{
+    if (auto* pm = pageManager()) {
+        QVariantMap args;
+        args.insert("cat", cat);
+        args.insert("title", title);
+        pm->open("playlists", args);
+    }
 }

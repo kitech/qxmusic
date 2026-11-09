@@ -1,6 +1,7 @@
 #include "searchpage.h"
 #include "pagemanager.h"
 #include "playback.h"
+#include <private/qquicktaphandler_p.h>
 #include <QskLinearBox.h>
 #include <QskTextLabel.h>
 #include <QskPushButton.h>
@@ -71,6 +72,18 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
     scroll->setScrolledItem(m_rows);
     scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
 
+    // 安卓触摸坑（AGENTS.md 4.2）：结果行点击走 QQuickTapHandler
+    {
+        auto* tap = new QQuickTapHandler(m_rows);
+        tap->setGesturePolicy(QQuickTapHandler::DragThreshold);
+        connect(tap, &QQuickTapHandler::singleTapped, this,
+            [this](QEventPoint point, Qt::MouseButton) {
+                const int idx = songRowAt(point.position());
+                if (idx < 0 || idx >= m_songs.size()) return;
+                Playback::instance().setQueue(m_songs, idx);
+            });
+    }
+
     connect(&NcmApi::instance(), &NcmApi::searchDone, this,
         [this](const QList<Song>& songs, const QString& err) {
             if (!err.isEmpty()) {
@@ -113,12 +126,18 @@ void SearchPage::rebuildList()
             QString("%1:%2").arg(total / 60).arg(total % 60, 2, 10, QLatin1Char('0')), row);
         dur->setPreferredWidth(44);
         dur->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
-
-        auto* playBtn = new QskPushButton(QString::fromUtf8("▶"), row);
-        playBtn->setPreferredSize(32, 32);
-        connect(playBtn, &QskAbstractButton::clicked, this, [this, i]() {
-            Playback::instance().setQueue(m_songs, i);
-        });
     }
     m_rows->update();
+}
+
+int SearchPage::songRowAt(const QPointF& localPos) const
+{
+    const auto rows = m_rows->childItems();
+    for (int i = 0; i < rows.size(); ++i) {
+        if (localPos.y() >= rows[i]->y()
+            && localPos.y() < rows[i]->y() + rows[i]->height()) {
+            return i;
+        }
+    }
+    return -1;
 }

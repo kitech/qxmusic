@@ -26,6 +26,7 @@ protected:
 
 private:
     void rebuildList();
+    int songRowAt(const QPointF& localPos) const;
 
     QskTextField* m_field = nullptr;
     QskTextLabel* m_status = nullptr;

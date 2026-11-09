@@ -1,5 +1,6 @@
 #include "playlistlistpage.h"
 #include "pagemanager.h"
+#include <private/qquicktaphandler_p.h>
 #include <QskLinearBox.h>
 #include <QskTextLabel.h>
 #include <QskPushButton.h>
@@ -68,6 +69,24 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
     scroll->setScrolledItem(m_cardRows);
     scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
 
+    // 安卓触摸坑（AGENTS.md 4.2）：滚动内容行点击走 QQuickTapHandler
+    {
+        auto* tap = new QQuickTapHandler(m_cardRows);
+        tap->setGesturePolicy(QQuickTapHandler::DragThreshold);
+        connect(tap, &QQuickTapHandler::singleTapped, this,
+            [this](QEventPoint point, Qt::MouseButton) {
+                const int idx = cardRowAt(point.position());
+                if (idx < 0 || idx >= m_cards.size()) return;
+                const auto& card = m_cards.at(idx);
+                if (auto* pm = pageManager()) {
+                    QVariantMap args;
+                    args.insert("playlistId", card.id);
+                    args.insert("title", card.name);
+                    pm->open("tracks", args);
+                }
+            });
+    }
+
     // ── 底部：状态 + 加载更多 ──
     m_status = new QskTextLabel(layout);
     m_status->setPreferredHeight(32);
@@ -125,16 +144,9 @@ void PlaylistListPage::rebuildCards()
         row->setPreferredHeight(56);
         row->setSpacing(8);
 
-        auto* openBtn = new QskPushButton(elided(card.name, 16), row);
-        openBtn->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
-        connect(openBtn, &QskAbstractButton::clicked, this, [this, card]() {
-            if (auto* pm = pageManager()) {
-                QVariantMap args;
-                args.insert("playlistId", card.id);
-                args.insert("title", card.name);
-                pm->open("tracks", args);
-            }
-        });
+        auto* name = new QskTextLabel(elided(card.name, 16), row);
+        name->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+        name->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
 
         QString sub;
         if (!card.creator.isEmpty())
@@ -147,4 +159,16 @@ void PlaylistListPage::rebuildCards()
         subLbl->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
     }
     m_cardRows->update();
+}
+
+int PlaylistListPage::cardRowAt(const QPointF& localPos) const
+{
+    const auto rows = m_cardRows->childItems();
+    for (int i = 0; i < rows.size(); ++i) {
+        if (localPos.y() >= rows[i]->y()
+            && localPos.y() < rows[i]->y() + rows[i]->height()) {
+            return i;   // 本页行全部可点，直接返回行号
+        }
+    }
+    return -1;
 }

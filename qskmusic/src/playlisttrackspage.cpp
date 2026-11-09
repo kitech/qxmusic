@@ -8,6 +8,7 @@
 #include <QskScrollArea.h>
 #include <QskSeparator.h>
 #include <QskFontRole.h>
+#include <private/qquicktaphandler_p.h>
 
 namespace {
 
@@ -60,6 +61,19 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
     scroll->setScrolledItem(m_rows);
     scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
 
+    // 安卓触摸坑（AGENTS.md 4.2）：曲目行点击走 QQuickTapHandler
+    // （行 = 整行可点，点即以该行为起点投全歌单队列）
+    {
+        auto* tap = new QQuickTapHandler(m_rows);
+        tap->setGesturePolicy(QQuickTapHandler::DragThreshold);
+        connect(tap, &QQuickTapHandler::singleTapped, this,
+            [this](QEventPoint point, Qt::MouseButton) {
+                const int idx = songRowAt(point.position());
+                if (idx < 0 || idx >= m_songs.size()) return;
+                Playback::instance().setQueue(m_songs, idx);
+            });
+    }
+
     connect(&NcmCatalog::instance(), &NcmCatalog::playlistTracksDone, this,
         [this](const PlaylistInfo& info, const QString& err) {
             if (info.id != m_playlistId) return;
@@ -107,12 +121,18 @@ void PlaylistTracksPage::buildRows()
             QString("%1:%2").arg(total / 60).arg(total % 60, 2, 10, QLatin1Char('0')), row);
         dur->setPreferredWidth(44);
         dur->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
-
-        auto* playBtn = new QskPushButton(QString::fromUtf8("▶"), row);
-        playBtn->setPreferredSize(32, 32);
-        connect(playBtn, &QskAbstractButton::clicked, this, [this, i]() {
-            Playback::instance().setQueue(m_songs, i);
-        });
     }
     m_rows->update();
+}
+
+int PlaylistTracksPage::songRowAt(const QPointF& localPos) const
+{
+    const auto rows = m_rows->childItems();
+    for (int i = 0; i < rows.size(); ++i) {
+        if (localPos.y() >= rows[i]->y()
+            && localPos.y() < rows[i]->y() + rows[i]->height()) {
+            return i;   // 曲目行全部可点
+        }
+    }
+    return -1;
 }
