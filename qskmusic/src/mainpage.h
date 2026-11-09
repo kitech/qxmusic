@@ -2,31 +2,24 @@
 #define MAIN_PAGE_H
 
 #include "page.h"
-#include "ncmapi.h"
-#include <QPointF>
+#include "ncmcatalog.h"
 
-class CategoryView;
-class NavBar;
-class LyricPopup;
-class PlayerBar;
-class RecView;
 class QskLinearBox;
-class QskScrollArea;
-class QskStackBox;
-class QskTextField;
-class QueuePopup;
+class QskTextLabel;
+class QskPushButton;
 
 /*
- * 音乐主页初版（qlmusic mainwindow 的 qsk 化骨架，桩数据）：
- *   顶栏（标题 + ☰ 菜单：日志/设置/关于）
- *   主体（宽屏 nav rail / 窄屏底部导航，5 个 tab 切换）
- *   底部播放条（PlayerBar）
+ * 首页（anystik 主页骨架 + qlmusic 启动节奏）：
+ *   顶栏 = 标题 + ☰（QskMenu：分类/搜索/日志/设置/关于）；
+ *   内容 = 热门歌单列表（构造即拉 = qlmusic requestTopPlaylists(__hot__,0)）
+ *          + 加载更多（offset 分页）；
+ *   点歌单 push 曲目页。
  */
-class MainPage : public Page
+class HomePage : public Page
 {
     Q_OBJECT
 public:
-    MainPage(QQuickItem* parent = nullptr);
+    explicit HomePage(QQuickItem* parent = nullptr);
 
 protected:
     void onCreate(const QVariantMap& launchArgs,
@@ -34,29 +27,15 @@ protected:
 
 private:
     void showOptionsMenu(const QPointF& origin);
-    void buildStubList(QskLinearBox* rows);
-    void openQueue();
-    void switchTab(int index);
-    void playSong(int index);
-    void openLyric();
-    qint64 currentSongId() const;
-    QString currentTitle() const;
+    void requestPage(int offset);
+    void rebuildCards();
 
-    QskStackBox* m_contentStack = nullptr;
-    NavBar* m_navBottom = nullptr;
-    QList<QQuickItem*> m_tabViews;   // tab0=推荐，tab1=分类，tab2=我的（滚动视图）
-    RecView* m_recView = nullptr;
-    CategoryView* m_categoryView = nullptr;
-    PlayerBar* m_playerBar = nullptr;
-    QueuePopup* m_queuePopup = nullptr;
-    LyricPopup* m_lyricPopup = nullptr;
-    QList<Song> m_songs;
-    QStringList m_titles;
-    int m_currentTrack = -1;
-    bool m_playing = false;
-    bool m_resolving = false;
-    qint64 m_lrcSongId = 0;
-    QString m_lrcText;
+    QskLinearBox* m_cardRows = nullptr;
+    QskTextLabel* m_status = nullptr;
+    QskPushButton* m_moreBtn = nullptr;
+    QList<PlaylistCard> m_cards;
+    bool m_loading = false;
+    bool m_more = false;
 };
 
 #endif

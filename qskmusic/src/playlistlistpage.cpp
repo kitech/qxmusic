@@ -18,6 +18,13 @@ QString fmtCount(qint64 n)
     return QString::number(n);
 }
 
+// anystik stickerlist 范式：代码级截断，文本永不画出 item 边界
+QString elided(const QString& text, int maxChars)
+{
+    return text.size() > maxChars
+        ? text.left(maxChars - 1) + QString::fromUtf8("…") : text;
+}
+
 } // namespace
 
 PlaylistListPage::PlaylistListPage(QQuickItem* parent)
@@ -118,7 +125,7 @@ void PlaylistListPage::rebuildCards()
         row->setPreferredHeight(56);
         row->setSpacing(8);
 
-        auto* openBtn = new QskPushButton(card.name, row);
+        auto* openBtn = new QskPushButton(elided(card.name, 16), row);
         openBtn->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
         connect(openBtn, &QskAbstractButton::clicked, this, [this, card]() {
             if (auto* pm = pageManager()) {
@@ -129,8 +136,9 @@ void PlaylistListPage::rebuildCards()
             }
         });
 
-        QString sub = card.creator;
-        if (!sub.isEmpty()) sub += QString::fromUtf8(" · ");
+        QString sub;
+        if (!card.creator.isEmpty())
+            sub = elided(card.creator, 8) + QString::fromUtf8(" · ");
         sub += QString::fromUtf8("%1 首").arg(card.trackCount);
         sub += QString::fromUtf8(" · 播放 %1").arg(fmtCount(card.playCount));
         auto* subLbl = new QskTextLabel(sub, row);

@@ -79,8 +79,10 @@ qt_add_executable(qskmusic
     src/myi18n.cpp
     src/mainpage.h
     src/mainpage.cpp
-    src/navbar.h
-    src/navbar.cpp
+    src/playback.h
+    src/playback.cpp
+    src/categorypage.h
+    src/categorypage.cpp
     src/playerbar.h
     src/playerbar.cpp
     src/queuepopup.h
@@ -99,18 +101,12 @@ qt_add_executable(qskmusic
     src/lyricpopup.cpp
     src/ncmcatalog.h
     src/ncmcatalog.cpp
-    src/categoryview.h
-    src/categoryview.cpp
-    src/recview.h
-    src/recview.cpp
     src/searchpage.h
     src/searchpage.cpp
     src/playlistlistpage.h
     src/playlistlistpage.cpp
     src/playlisttrackspage.h
     src/playlisttrackspage.cpp
-    src/probepage.h
-    src/probepage.cpp
     src/progresspopup.h
     src/progresspopup.cpp
     src/keepalive.h

@@ -18,20 +18,24 @@
 #include "myi18n.h"
 #include "pagemanager.h"
 #include "mainpage.h"
-#include "logpage.h"
-#include "settingspage.h"
-#include "aboutpage.h"
+#include "categorypage.h"
 #include "playlistlistpage.h"
 #include "playlisttrackspage.h"
 #include "searchpage.h"
-#include "probepage.h"
+#include "logpage.h"
+#include "settingspage.h"
+#include "aboutpage.h"
+#include "playerbar.h"
+#include "queuepopup.h"
+#include "lyricpopup.h"
+#include "playback.h"
+#include "toastpopup.h"
 #include "tabfocus.h"
 #include "keepalive.h"
 #include "networkmonitor.h"
 #include "androidutils.h"
 #include <QKeyEvent>
 #include <QElapsedTimer>
-#include <QTimer>
 
 #include <memory>
 #include <thread>
@@ -202,7 +206,7 @@ int main(int argc, char* argv[])
     qDebug() << "[qskmusic] DPI:" << QGuiApplication::primaryScreen()->logicalDotsPerInch()
              << "dpr:" << QGuiApplication::primaryScreen()->devicePixelRatio();
 
-    // ── Root layout ──
+    // ── Root layout（anystik 同款）──
     auto* rootBox = new QskLinearBox(Qt::Vertical);
     rootBox->setPanel(true);
     auto* stackBox = new QskStackBox(rootBox);
@@ -213,10 +217,74 @@ int main(int argc, char* argv[])
     // ── PageManager ──
     auto* pageManager = new PageManager(stackBox);
 
+    // ── 全局唯一播放条 + 队列/歌词弹层（qlmusic 主窗体底部播放条正統）──
+    auto* playerBar = new PlayerBar(rootBox);
+    auto* queuePopup = new QueuePopup(rootBox);
+    auto* lyricPopup = new LyricPopup(rootBox);
+    auto& pb = Playback::instance();
+    QObject::connect(&pb, &Playback::playingChanged, playerBar, &PlayerBar::setPlaying);
+    QObject::connect(&pb, &Playback::progressMsChanged, playerBar, &PlayerBar::setProgressMs);
+    QObject::connect(&pb, &Playback::durationMsChanged, playerBar, &PlayerBar::setDurationMs);
+    QObject::connect(&pb, &Playback::playError, playerBar, [playerBar](const QString& msg) {
+        ToastPopup::show(playerBar, msg);
+    });
+    QObject::connect(playerBar, &PlayerBar::playPauseRequested, &pb, &Playback::togglePause);
+    QObject::connect(playerBar, &PlayerBar::prevRequested, &pb, &Playback::prev);
+    QObject::connect(playerBar, &PlayerBar::nextRequested, &pb, &Playback::next);
+    QObject::connect(playerBar, &PlayerBar::volumeClicked, playerBar, [playerBar]() {
+        ToastPopup::show(playerBar, QString::fromUtf8("音量弹层：下轮实装"));
+    });
+    QObject::connect(playerBar, &PlayerBar::queueRequested, playerBar, [&pb, queuePopup]() {
+        QStringList names;
+        for (const auto& s : pb.queue())
+            names << (s.artists.isEmpty() ? s.name
+                                          : QString("%1 - %2").arg(s.name, s.artists));
+        queuePopup->setTracks(names);
+        queuePopup->setCurrentIndex(pb.currentIndex());
+        if (!queuePopup->isOpen())
+            queuePopup->open();
+    });
+    QObject::connect(queuePopup, &QueuePopup::trackSelected, &pb, &Playback::playIndex);
+    QObject::connect(playerBar, &PlayerBar::lyricRequested, playerBar, [&pb, lyricPopup]() {
+        if (pb.currentSongId() == 0) {
+            ToastPopup::show(lyricPopup, QString::fromUtf8("先播放一首歌"));
+            return;
+        }
+        if (pb.lyricCached(pb.currentSongId()))
+            lyricPopup->setLyric(pb.currentTitle(), pb.lrcText());
+        else
+            lyricPopup->setLyric(pb.currentTitle(), QString::fromUtf8("歌词加载中…"));
+        if (!lyricPopup->isOpen())
+            lyricPopup->open();
+    });
+    QObject::connect(&pb, &Playback::songChanged, lyricPopup, [&pb, lyricPopup]() {
+        if (lyricPopup->isOpen()) {
+            lyricPopup->setLyric(pb.currentTitle(),
+                pb.lyricCached(pb.currentSongId()) ? pb.lrcText()
+                    : QString::fromUtf8("歌词加载中…"));
+        }
+    });
+
     // ── Register pages ──
-    pageManager->registerPage("main", []() -> Page* {
-        return new MainPage();
+    pageManager->registerPage("home", []() -> Page* {
+        return new HomePage();
     }, {CachePolicy::Permanent, LaunchMode::SingleInstance});
+
+    pageManager->registerPage("category", []() -> Page* {
+        return new CategoryPage();
+    }, {CachePolicy::Transient, LaunchMode::Standard});
+
+    pageManager->registerPage("playlists", []() -> Page* {
+        return new PlaylistListPage();
+    }, {CachePolicy::Transient, LaunchMode::Standard});
+
+    pageManager->registerPage("tracks", []() -> Page* {
+        return new PlaylistTracksPage();
+    }, {CachePolicy::Transient, LaunchMode::Standard});
+
+    pageManager->registerPage("search", []() -> Page* {
+        return new SearchPage();
+    }, {CachePolicy::Transient, LaunchMode::Standard});
 
     pageManager->registerPage("settings", []() -> Page* {
         return new SettingsPage();
@@ -228,22 +296,6 @@ int main(int argc, char* argv[])
 
     pageManager->registerPage("logs", []() -> Page* {
         return new LogPage();
-    }, {CachePolicy::Transient, LaunchMode::Standard});
-
-    pageManager->registerPage("playlists", []() -> Page* {
-        return new PlaylistListPage();
-    }, {CachePolicy::Transient, LaunchMode::Standard});
-
-    pageManager->registerPage("tracks", []() -> Page* {
-        return new PlaylistTracksPage();
-    }, {CachePolicy::Transient, LaunchMode::Standard});
-
-    pageManager->registerPage("probe", []() -> Page* {
-        return new ProbePage();
-    }, {CachePolicy::Transient, LaunchMode::Standard});
-
-    pageManager->registerPage("search", []() -> Page* {
-        return new SearchPage();
     }, {CachePolicy::Transient, LaunchMode::Standard});
 
     // ── Window ──
@@ -260,23 +312,8 @@ int main(int argc, char* argv[])
     window.setPreferredSize({1024, 680});
     window.show();
 
-    // ── Start with main page ── (window 已就绪，控件可正常解析 skin hint)
-    pageManager->open("main");
-
-    // ── DIAG：分步开页定位安卓闪退（定位后撤）──
-    // 2s 空页 → 4s logs → 6s settings；崩在哪步看 qDebug 标记
-    QTimer::singleShot(2000, pageManager, [pageManager]() {
-        qDebug() << "[qskmusic] DIAG: open probe";
-        pageManager->open("probe");
-    });
-    QTimer::singleShot(4000, pageManager, [pageManager]() {
-        qDebug() << "[qskmusic] DIAG: open logs";
-        pageManager->open("logs");
-    });
-    QTimer::singleShot(6000, pageManager, [pageManager]() {
-        qDebug() << "[qskmusic] DIAG: open settings";
-        pageManager->open("settings");
-    });
+    // ── Start with home page ── (window 已就绪，控件可正常解析 skin hint)
+    pageManager->open("home");
 
     // ── Application lifecycle → sync QSettings ──
     QObject::connect(&app, &QGuiApplication::applicationStateChanged,
