@@ -134,7 +134,8 @@ void PlaylistListPage::rebuildCards()
         sub += QString::fromUtf8("%1 首").arg(card.trackCount);
         sub += QString::fromUtf8(" · 播放 %1").arg(fmtCount(card.playCount));
         auto* subLbl = new QskTextLabel(sub, row);
-        subLbl->setPreferredWidth(150);
+        subLbl->setPreferredWidth(120);
+        subLbl->setSizePolicy(QskSizePolicy::Preferred, QskSizePolicy::Preferred);
         subLbl->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
     }
     m_cardRows->update();

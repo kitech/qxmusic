@@ -1,9 +1,11 @@
 #include "mainpage.h"
 #include "pagemanager.h"
+#include "menuoverlay.h"
 #include "playerbar.h"
 #include "navbar.h"
 #include "lyricpopup.h"
 #include "categoryview.h"
+#include "recview.h"
 #include "queuepopup.h"
 #include "toastpopup.h"
 #include "logmodel.h"
@@ -16,6 +18,9 @@
 #include <QskTextField.h>
 #include <QskSeparator.h>
 #include <QskFontRole.h>
+#include <QskMenu.h>
+#include <QskLabelData.h>
+#include <QskPopup.h>
 #include <QQuickWindow>
 #include <QUrl>
 
@@ -40,71 +45,51 @@ void MainPage::onCreate(const QVariantMap&, const QVariantMap&)
 
     auto* title = new QskTextLabel("qskmusic", topBar);
     title->setFontRole(QskFontRole(QskFontRole::Title, QskFontRole::Normal));
-    title->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+    title->setSizePolicy(QskSizePolicy::Preferred, QskSizePolicy::Preferred);
     title->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
 
-    auto* logsBtn = new QskPushButton(tr("Logs"), topBar);
-    auto* settingsBtn = new QskPushButton(tr("Settings"), topBar);
-    auto* aboutBtn = new QskPushButton(tr("About"), topBar);
+    // 搜索为次要入口（qlmusic 侧栏搜索同定位）：顶栏 🔍 → 独立搜索页
+    auto* searchBtn = new QskPushButton(QString::fromUtf8("🔍"), topBar);
+    searchBtn->setPreferredSize(40, 40);
+    connect(searchBtn, &QskAbstractButton::clicked, this, [this]() {
+        if (auto* pm = pageManager()) pm->open("search");
+    });
 
-    connect(logsBtn, &QskAbstractButton::clicked, this, [this]() {
-        if (auto* pm = pageManager()) pm->open("logs");
-    });
-    connect(settingsBtn, &QskAbstractButton::clicked, this, [this]() {
-        if (auto* pm = pageManager()) pm->open("settings");
-    });
-    connect(aboutBtn, &QskAbstractButton::clicked, this, [this]() {
-        if (auto* pm = pageManager()) pm->open("about");
+    // 顶栏只留一个「☰」：3 个文字按钮在窄屏会溢出被裁（QSkinny 按钮
+    // 默认 Minimum 策略不可收缩）。菜单范式照 anystik showOptionsMenu。
+    auto* menuBtn = new QskPushButton(QString::fromUtf8("☰"), topBar);
+    menuBtn->setPreferredSize(40, 40);
+    connect(menuBtn, &QskAbstractButton::clicked, this, [this, menuBtn]() {
+        showOptionsMenu(menuBtn->mapToItem(this, QPointF(0, menuBtn->height())));
     });
 
     new QskSeparator(Qt::Horizontal, layout);
 
-    // ── 主体：宽屏 nav rail + 内容列；窄屏底栏挂在 layout 末尾 ──
-    auto* body = new QskLinearBox(Qt::Horizontal, layout);
-    body->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
-
-    m_navRail = new NavBar(body);
-    connect(m_navRail, &NavBar::currentIndexChanged, this, &MainPage::switchTab);
-    connect(m_navRail, &NavBar::modeChanged, this, [this](bool rail) {
-        m_navRail->setVisible(rail);
-        m_navBottom->setVisible(!rail);
-    });
-
-    auto* contentCol = new QskLinearBox(Qt::Vertical, body);
+    // ── 主体（anystik 思路单列：顶栏 → tab 内容 → 播放条 → 底栏）──
+    // 不做双导航条/宽窄屏切换：Android 启动时窗口宽度多次跳变，
+    // orientation 重排会踩 Qt 6.7.3 render 线程 clip batch 空指针
+    auto* contentCol = new QskLinearBox(Qt::Vertical, layout);
     contentCol->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
 
-    // 5 个 tab 子视图（QskStackBox 切换，状态互不干扰）
+    // 3 个 tab 子视图（对齐 qlmusic SideNav 顶级入口：推荐/分类/我的）
     m_contentStack = new QskStackBox(contentCol);
     m_contentStack->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
-    for (int i = 0; i < 5; ++i) {
+    for (int i = 0; i < 3; ++i) {
         if (i == 0) {
-            // 「歌曲」tab：搜索框 + 真实搜索结果
-            auto* col = new QskLinearBox(Qt::Vertical, m_contentStack);
-            col->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
-
-            auto* searchBar = new QskLinearBox(Qt::Horizontal, col);
-            searchBar->setMargins(8, 8, 8, 0);
-            searchBar->setSpacing(8);
-            m_searchField = new QskTextField(searchBar);
-            m_searchField->setPlaceholderText(QStringLiteral("搜索歌曲、歌手…"));
-            m_searchField->setFixedHeight(30);   // QSkinny 输入框后半高字坑：必须锁死高
-            m_searchField->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
-            auto* searchBtn = new QskPushButton(QStringLiteral("搜索"), searchBar);
-            connect(searchBtn, &QskAbstractButton::clicked, this, [this]() {
-                const QString kw = m_searchField->text().trimmed();
-                if (!kw.isEmpty())
-                    NcmApi::instance().searchAsync(kw, 30);
-            });
-
-            auto* rows = new QskLinearBox(Qt::Vertical);
-            rows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
-            auto* scroll = new QskScrollArea(col);
-            scroll->setScrolledItem(rows);
-            scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
-            m_searchRows = rows;
-            m_tabViews.append(col);
+            // 「推荐」tab：启动即拉热门歌单（qlmusic 启动口径）
+            m_recView = new RecView(m_contentStack);
+            connect(m_recView, &RecView::playlistSelected, this,
+                [this](qint64 playlistId, const QString& name) {
+                    if (auto* pm = pageManager()) {
+                        QVariantMap args;
+                        args.insert("playlistId", playlistId);
+                        args.insert("title", name);
+                        pm->open("tracks", args);
+                    }
+                });
+            m_tabViews.append(m_recView);
         } else if (i == 1) {
-            // 「分类」tab：qlmusic 分类树 + 歌单列表（push 页面栈）
+            // 「分类」tab：qlmusic 分类树（push 歌单列表页）
             m_categoryView = new CategoryView(m_contentStack);
             connect(m_categoryView, &CategoryView::categorySelected, this,
                 [this](const QString& cat) {
@@ -133,15 +118,6 @@ void MainPage::onCreate(const QVariantMap&, const QVariantMap&)
 
     // ── libncm 信号接线（NcmApi/AudioPlayer 信号均跨线程队列到主线程）──
     auto& ncm = NcmApi::instance();
-    connect(&ncm, &NcmApi::searchDone, this,
-        [this](const QList<Song>& songs, const QString& err) {
-            if (!err.isEmpty()) {
-                ToastPopup::show(this, QString::fromUtf8("搜索失败：%1").arg(err));
-                return;
-            }
-            m_songs = songs;
-            buildSearchList();
-        });
     connect(&ncm, &NcmApi::resolveDone, this,
         [this](qint64 songId, const QString& url, const QString& err) {
             m_resolving = false;
@@ -181,13 +157,9 @@ void MainPage::onCreate(const QVariantMap&, const QVariantMap&)
     connect(ap, &AudioPlayer::durationChanged, this,
         [this](qint64 ms) { m_playerBar->setDurationMs(int(ms)); });
 
-    // 默认热词自动搜一次，启动即有内容
-    NcmApi::instance().searchAsync(QStringLiteral("周杰伦"), 30);
-
     // ── 底部导航（窄屏形态；宽屏由 modeChanged 隐藏）──
     m_navBottom = new NavBar(layout);
     connect(m_navBottom, &NavBar::currentIndexChanged, this, &MainPage::switchTab);
-    m_navRail->setVisible(false);   // 初始窄屏形态，挂 window 后按实际宽度校正
 
     // ── 底部播放条 ──
     connect(m_playerBar, &PlayerBar::playPauseRequested, this, [this]() {
@@ -221,6 +193,42 @@ void MainPage::onCreate(const QVariantMap&, const QVariantMap&)
     });
 }
 
+void MainPage::showOptionsMenu(const QPointF& origin)
+{
+    // 旧菜单/遮罩先清（重复点击不叠加），anystik stickerhomepage 同款
+    for (auto* old : findChildren<QskMenu*>())
+        old->deleteLater();
+    for (auto* old : findChildren<MenuOverlay*>())
+        old->deleteLater();
+
+    auto* menu = new QskMenu(this);
+    menu->setModal(true);
+    menu->setPopupFlag(QskPopup::DeleteOnClose, false);
+
+    const int idxLog = menu->addOption(QskLabelData(tr("Logs")));
+    const int idxSettings = menu->addOption(QskLabelData(tr("Settings")));
+    const int idxAbout = menu->addOption(QskLabelData(tr("About")));
+    menu->setOrigin(origin);
+
+    connect(menu, &QskMenu::triggered, this,
+        [this, idxLog, idxSettings, idxAbout](int index) {
+            if (auto* pm = pageManager()) {
+                if (index == idxLog) pm->open("logs");
+                else if (index == idxSettings) pm->open("settings");
+                else if (index == idxAbout) pm->open("about");
+            }
+            if (auto* m = qobject_cast<QskMenu*>(sender()))
+                m->close();
+        });
+
+    {
+        auto* overlay = new MenuOverlay(menu);
+        connect(menu, &QObject::destroyed, overlay, &QObject::deleteLater);
+        connect(menu, &QskPopup::closed, overlay, &QObject::deleteLater);
+    }
+    menu->open();
+}
+
 void MainPage::buildStubList(QskLinearBox* rows)
 {
     const auto children = rows->childItems();
@@ -246,41 +254,6 @@ void MainPage::buildStubList(QskLinearBox* rows)
         });
     }
     rows->update();
-}
-
-void MainPage::buildSearchList()
-{
-    const auto children = m_searchRows->childItems();
-    for (auto* c : children) c->deleteLater();
-
-    for (int i = 0; i < m_songs.size(); ++i) {
-        const auto& s = m_songs.at(i);
-        auto* row = new QskLinearBox(Qt::Horizontal, m_searchRows);
-        row->setPreferredHeight(44);
-
-        auto* num = new QskTextLabel(QString::number(i + 1), row);
-        num->setPreferredWidth(36);
-        num->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
-
-        auto* name = new QskTextLabel(
-            s.artists.isEmpty() ? s.name
-                                : QString("%1 - %2").arg(s.name, s.artists), row);
-        name->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
-        name->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
-
-        const int total = s.durationMs / 1000;
-        auto* dur = new QskTextLabel(
-            QString("%1:%2").arg(total / 60).arg(total % 60, 2, 10, QLatin1Char('0')), row);
-        dur->setPreferredWidth(48);
-        dur->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
-
-        auto* playBtn = new QskPushButton(QString::fromUtf8("▶"), row);
-        playBtn->setPreferredSize(32, 32);
-        connect(playBtn, &QskAbstractButton::clicked, this, [this, i]() {
-            playSong(i);
-        });
-    }
-    m_searchRows->update();
 }
 
 void MainPage::playSong(int index)
@@ -344,11 +317,7 @@ void MainPage::switchTab(int index)
     if (index < 0 || index >= m_tabViews.size()) return;
     if (m_contentStack->currentItem() != m_tabViews.at(index))
         m_contentStack->setCurrentItem(m_tabViews.at(index));
-    // 同步两个导航条选中态（blockSignals 防信号回环）
-    for (auto* nav : { m_navRail, m_navBottom }) {
-        const QSignalBlocker blocker(nav);
-        nav->setCurrentIndex(index);
-    }
+    if (m_navBottom) m_navBottom->setCurrentIndex(index);
 }
 
 void MainPage::openQueue()

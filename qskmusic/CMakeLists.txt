@@ -101,10 +101,16 @@ qt_add_executable(qskmusic
     src/ncmcatalog.cpp
     src/categoryview.h
     src/categoryview.cpp
+    src/recview.h
+    src/recview.cpp
+    src/searchpage.h
+    src/searchpage.cpp
     src/playlistlistpage.h
     src/playlistlistpage.cpp
     src/playlisttrackspage.h
     src/playlisttrackspage.cpp
+    src/probepage.h
+    src/probepage.cpp
     src/progresspopup.h
     src/progresspopup.cpp
     src/keepalive.h

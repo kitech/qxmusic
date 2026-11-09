@@ -3,11 +3,13 @@
 
 #include "page.h"
 #include "ncmapi.h"
+#include <QPointF>
 
 class CategoryView;
 class NavBar;
 class LyricPopup;
 class PlayerBar;
+class RecView;
 class QskLinearBox;
 class QskScrollArea;
 class QskStackBox;
@@ -16,8 +18,8 @@ class QueuePopup;
 
 /*
  * 音乐主页初版（qlmusic mainwindow 的 qsk 化骨架，桩数据）：
- *   顶栏（标题 + 日志/设置/关于入口）
- *   主体（宽屏 nav rail / 窄屏底部导航，4 个歌单 tab 切换）
+ *   顶栏（标题 + ☰ 菜单：日志/设置/关于）
+ *   主体（宽屏 nav rail / 窄屏底部导航，5 个 tab 切换）
  *   底部播放条（PlayerBar）
  */
 class MainPage : public Page
@@ -31,8 +33,8 @@ protected:
                   const QVariantMap& savedState) override;
 
 private:
+    void showOptionsMenu(const QPointF& origin);
     void buildStubList(QskLinearBox* rows);
-    void buildSearchList();
     void openQueue();
     void switchTab(int index);
     void playSong(int index);
@@ -41,12 +43,10 @@ private:
     QString currentTitle() const;
 
     QskStackBox* m_contentStack = nullptr;
-    NavBar* m_navRail = nullptr;
     NavBar* m_navBottom = nullptr;
-    QList<QQuickItem*> m_tabViews;   // tab0=搜索列盒，其余=滚动视图
+    QList<QQuickItem*> m_tabViews;   // tab0=推荐，tab1=分类，tab2=我的（滚动视图）
+    RecView* m_recView = nullptr;
     CategoryView* m_categoryView = nullptr;
-    QskLinearBox* m_searchRows = nullptr;
-    QskTextField* m_searchField = nullptr;
     PlayerBar* m_playerBar = nullptr;
     QueuePopup* m_queuePopup = nullptr;
     LyricPopup* m_lyricPopup = nullptr;

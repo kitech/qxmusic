@@ -23,12 +23,15 @@
 #include "aboutpage.h"
 #include "playlistlistpage.h"
 #include "playlisttrackspage.h"
+#include "searchpage.h"
+#include "probepage.h"
 #include "tabfocus.h"
 #include "keepalive.h"
 #include "networkmonitor.h"
 #include "androidutils.h"
 #include <QKeyEvent>
 #include <QElapsedTimer>
+#include <QTimer>
 
 #include <memory>
 #include <thread>
@@ -235,6 +238,14 @@ int main(int argc, char* argv[])
         return new PlaylistTracksPage();
     }, {CachePolicy::Transient, LaunchMode::Standard});
 
+    pageManager->registerPage("probe", []() -> Page* {
+        return new ProbePage();
+    }, {CachePolicy::Transient, LaunchMode::Standard});
+
+    pageManager->registerPage("search", []() -> Page* {
+        return new SearchPage();
+    }, {CachePolicy::Transient, LaunchMode::Standard});
+
     // ── Window ──
     QskWindow window;
     window.setTitle("qskmusic");
@@ -251,6 +262,21 @@ int main(int argc, char* argv[])
 
     // ── Start with main page ── (window 已就绪，控件可正常解析 skin hint)
     pageManager->open("main");
+
+    // ── DIAG：分步开页定位安卓闪退（定位后撤）──
+    // 2s 空页 → 4s logs → 6s settings；崩在哪步看 qDebug 标记
+    QTimer::singleShot(2000, pageManager, [pageManager]() {
+        qDebug() << "[qskmusic] DIAG: open probe";
+        pageManager->open("probe");
+    });
+    QTimer::singleShot(4000, pageManager, [pageManager]() {
+        qDebug() << "[qskmusic] DIAG: open logs";
+        pageManager->open("logs");
+    });
+    QTimer::singleShot(6000, pageManager, [pageManager]() {
+        qDebug() << "[qskmusic] DIAG: open settings";
+        pageManager->open("settings");
+    });
 
     // ── Application lifecycle → sync QSettings ──
     QObject::connect(&app, &QGuiApplication::applicationStateChanged,

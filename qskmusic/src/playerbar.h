@@ -21,6 +21,7 @@ public:
     void setProgressMs(int ms);
     void setDurationMs(int ms);
     void setPlaying(bool playing);
+    void updateCompact(bool compact);
 
 Q_SIGNALS:
     void playPauseRequested();

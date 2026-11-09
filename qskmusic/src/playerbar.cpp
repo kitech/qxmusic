@@ -3,6 +3,7 @@
 #include <QskProgressBar.h>
 #include <QskTextLabel.h>
 #include <QskSizePolicy.h>
+#include <QQuickWindow>
 
 namespace {
 constexpr int kBarHeight = 64;
@@ -48,6 +49,15 @@ PlayerBar::PlayerBar(QQuickItem* parent)
     m_queueBtn->setPreferredSize(36, 36);
     connect(m_queueBtn, &QskAbstractButton::clicked, this, &PlayerBar::queueRequested);
 
+    // 窄屏紧凑模式：<600dp 隐藏时间标签并缩小按钮/间距，防右侧溢出被裁
+    connect(this, &QQuickItem::windowChanged, this, [this](QQuickWindow* w) {
+        if (w)
+            connect(w, &QWindow::widthChanged, this, [this]() {
+                updateCompact(window() && window()->width() < 600);
+            });
+        updateCompact(window() && window()->width() < 600);
+    });
+
     update();
 }
 
@@ -79,4 +89,18 @@ void PlayerBar::setPlaying(bool playing)
 {
     m_playing = playing;
     m_playBtn->setText(playing ? QString::fromUtf8("⏸") : QString::fromUtf8("▶"));
+}
+
+void PlayerBar::updateCompact(bool compact)
+{
+    m_timeLabel->setVisible(!compact);
+    setSpacing(compact ? 6 : 10);
+    setMargins(compact ? 6 : 12, compact ? 4 : 8,
+               compact ? 6 : 12, compact ? 4 : 8);
+    m_prevBtn->setPreferredSize(compact ? 30 : 36, compact ? 30 : 36);
+    m_playBtn->setPreferredSize(compact ? 36 : 44, compact ? 36 : 44);
+    m_nextBtn->setPreferredSize(compact ? 30 : 36, compact ? 30 : 36);
+    m_lyricBtn->setPreferredSize(compact ? 30 : 36, compact ? 30 : 36);
+    m_volumeBtn->setPreferredSize(compact ? 30 : 36, compact ? 30 : 36);
+    m_queueBtn->setPreferredSize(compact ? 30 : 36, compact ? 30 : 36);
 }

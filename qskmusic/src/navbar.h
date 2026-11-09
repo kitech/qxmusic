@@ -6,11 +6,9 @@
 class QskPushButton;
 
 /*
- * 自适应导航条（Material 3：底部导航栏 / nav rail 双形态）：
- *   窗宽 <600dp  → 横排底栏（56dp 高）
- *   窗宽 ≥600dp  → 竖排 rail（160dp 宽）
- * 5 个顶级目的地 tab；tab 切换不入 PageManager 栈
- * （Material：返回键不在 tab 间导航）。
+ * 底部导航条（anystik 思路：单形态，不做宽窄屏切换）：
+ *   3 个顶级目的地 tab，横排底栏 56dp 高；tab 切换不入 PageManager 栈
+ *   （Material：返回键不在 tab 间导航）。
  */
 class NavBar : public QskLinearBox
 {
@@ -20,18 +18,15 @@ public:
 
 Q_SIGNALS:
     void currentIndexChanged(int index);
-    void modeChanged(bool rail);
 
 public Q_SLOTS:
     void setCurrentIndex(int index);
 
 private:
-    void updateMode();
     void syncChecked();
 
-    QskPushButton* m_buttons[5] = {};
+    QskPushButton* m_buttons[3] = {};
     int m_current = 0;
-    bool m_rail = false;
 };
 
 #endif
