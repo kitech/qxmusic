@@ -29,17 +29,18 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/../qskcomp/qskcomp.cmake)
 
 # ── libncm：NCM 客户端共享库（go163-music-core 预构建，build 脚本先行产出） ──
 # 各平台产物先由 build 脚本拷进 ${CMAKE_BINARY_DIR}，IMPORTED 指向该副本。
-# libncm 无 SONAME：必须 IMPORTED_NO_SONAME，让 ld 用 -lncm 链接；
+# ELF 无 SONAME 时必须 IMPORTED_NO_SONAME，让 ld 用 -lncm 链接；
 # 否则 DT_NEEDED 会记成链接命令行上的绝对路径，APK 运行期 dlopen 必崩。
+# mac 不设：dylib 自带 install_name(@rpath/libncm.dylib)，走常规链接+rpath。
 if(ANDROID)
     set(NCM_SRC_SO ${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/android/arm64-v8a/libncm.so)
     set(NCM_SO "${CMAKE_BINARY_DIR}/libncm.so")
+elseif(APPLE)
+    set(NCM_SRC_SO ${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/libncm.dylib)
+    set(NCM_SO "${CMAKE_BINARY_DIR}/libncm.dylib")
 else()
     set(NCM_SRC_SO ${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/libncm.so)
     set(NCM_SO "${CMAKE_BINARY_DIR}/libncm.so")
-endif()
-if(APPLE AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/libncm.dylib")
-    set(NCM_SO "${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/libncm.dylib")
 endif()
 if(NOT EXISTS "${NCM_SRC_SO}")
     message(FATAL_ERROR "libncm 产物缺失: ${NCM_SRC_SO}（先跑 build 脚本里的 libncm 构建步）")
@@ -48,21 +49,24 @@ if(NOT EXISTS "${NCM_SO}")
     message(FATAL_ERROR "libncm 副本缺失: ${NCM_SO}（build 脚本应先把它拷进构建目录）")
 endif()
 add_library(ncm SHARED IMPORTED)
-set_target_properties(ncm PROPERTIES
-    IMPORTED_LOCATION "${NCM_SO}"
-    IMPORTED_NO_SONAME TRUE)
+set_target_properties(ncm PROPERTIES IMPORTED_LOCATION "${NCM_SO}")
+if(NOT APPLE)
+    set_target_properties(ncm PROPERTIES IMPORTED_NO_SONAME TRUE)
+endif()
 
 # ELF e_machine 守卫（offset 0x12，LE）：aarch64=B7、x86-64=3E。
 # 防错链跨架构产物（如把宿主 x86-64 库链进 Android 包）。mac 产物是
-# Mach-O 不是 ELF，跳过。
-file(READ "${NCM_SO}" NCM_EMachine HEX LIMIT 2 OFFSET 18)
-if(ANDROID OR CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|arm64)")
-    set(NCM_EXPECT_EM "^[bB]7")
-elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)")
-    set(NCM_EXPECT_EM "^[3eE]")
-endif()
-if(DEFINED NCM_EXPECT_EM AND NOT NCM_EMachine MATCHES "${NCM_EXPECT_EM}")
-    message(FATAL_ERROR "libncm 架构与目标不符: ${NCM_SO} (e_machine=${NCM_EMachine}，期望 ${NCM_EXPECT_EM})")
+# Mach-O 不是 ELF，整体跳过（否则 arm64 会误命中 aarch64 分支）。
+if(NOT APPLE)
+    file(READ "${NCM_SO}" NCM_EMachine HEX LIMIT 2 OFFSET 18)
+    if(ANDROID OR CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+        set(NCM_EXPECT_EM "^[bB]7")
+    elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64)")
+        set(NCM_EXPECT_EM "^[3eE]")
+    endif()
+    if(DEFINED NCM_EXPECT_EM AND NOT NCM_EMachine MATCHES "${NCM_EXPECT_EM}")
+        message(FATAL_ERROR "libncm 架构与目标不符: ${NCM_SO} (e_machine=${NCM_EMachine}，期望 ${NCM_EXPECT_EM})")
+    endif()
 endif()
 
 qt_add_executable(qskmusic
