@@ -81,8 +81,12 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
     auto* playAllBtn = new QskPushButton(QString::fromUtf8("▶ 播放全部"), infoRow);
     playAllBtn->setPreferredHeight(34);
     connect(playAllBtn, &QskAbstractButton::clicked, this, [this]() {
-        if (!m_songs.isEmpty())
-            Playback::instance().setQueue(m_songs, 0);
+        qDebug() << "[DIAG] playAll clicked songs=" << m_songs.size();
+        if (m_songs.isEmpty()) {
+            ToastPopup::show(this, QString::fromUtf8("歌单尚未加载"));
+            return;
+        }
+        Playback::instance().setQueue(m_songs, 0);
     });
 
     m_rows = new QskLinearBox(Qt::Vertical);
@@ -213,6 +217,7 @@ void PlaylistTracksPage::buildRows()
         auto* playBtn = new QskPushButton(QString::fromUtf8("▶"), row);
         playBtn->setPreferredSize(30, 30);
         connect(playBtn, &QskAbstractButton::clicked, this, [this, i]() {
+            qDebug() << "[DIAG] rowPlay clicked row=" << i;
             Playback::instance().setQueue(m_songs, i);
         });
     }

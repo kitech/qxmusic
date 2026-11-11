@@ -45,10 +45,13 @@ Q_SIGNALS:
 private:
     explicit Playback(QObject* parent = nullptr);
 
+    int firstPlayableAtOrAfter(int from) const;   // 预跳过灰歌；无则 -1
+
     QList<Song> m_queue;
     int m_current = -1;
     bool m_resolving = false;
     bool m_playing = false;
+    int m_errSkipRun = 0;   // 连续播放失败计数（qlmusic skipOnError 同义，阈值 99）
     qint64 m_lrcSongId = 0;
     QString m_lrcText;
 };
