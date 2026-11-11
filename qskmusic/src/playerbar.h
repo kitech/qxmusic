@@ -11,9 +11,11 @@ class QTimer;
 
 /*
  * 全局唯一播放条（qlmusic 主窗体底部播放条的 qsk 版）：
- *   布局横排：prev / play / next / 歌名歌手 / 进度条 / 时间 / 词 / 音量 / 队列
- *   右侧图标区附带下载进度（qlmusic setDownloadState 同款位置）。
- *   状态由 main.cpp 从 Playback/DownloadService 转发进来，页面不持有实例。
+ *   两行高（56dp）单层横排五格：icon | 文本列(歌名/歌手) | 圆形播放键 | 时间列 | 队列
+ *   —— 切歌：文本列左右横划（原 ⏮/⏭ 按钮功能保留，位置换手势）
+ *   —— 歌词：队列键长按（原「词」按钮功能保留）
+ *   —— 音量：仅桌面；Android 隐藏（设计明确要求）
+ *   —— 下载进度：右侧瞬时显示（仅下载中出现，沿用原行为）
  */
 class PlayerBar : public QskLinearBox
 {
@@ -30,24 +32,23 @@ public:
 
 Q_SIGNALS:
     void playPauseRequested();
-    void prevRequested();
-    void nextRequested();
+    void prevRequested();      // 由文本列左划触发
+    void nextRequested();      // 由文本列右划触发
     void queueRequested();
-    void volumeClicked();
-    void lyricRequested();
+    void volumeClicked();      // 仅桌面（Android 无该按钮）
+    void lyricRequested();     // 队列键长按
 
 private:
     static QString fmtMs(int ms);
 
-    QskPushButton* m_prevBtn = nullptr;
-    QskPushButton* m_playBtn = nullptr;
-    QskPushButton* m_nextBtn = nullptr;
+    QskTextLabel* m_icon = nullptr;
     QskTextLabel* m_title = nullptr;
     QskTextLabel* m_artist = nullptr;
-    QskTextLabel* m_timeLabel = nullptr;
-    QskPushButton* m_lyricBtn = nullptr;
-    QskPushButton* m_volumeBtn = nullptr;
+    QskPushButton* m_playBtn = nullptr;
+    QskTextLabel* m_timeCur = nullptr;
+    QskTextLabel* m_timeDur = nullptr;
     QskPushButton* m_queueBtn = nullptr;
+    QskPushButton* m_volumeBtn = nullptr;   // 仅桌面创建；Android 为 nullptr
     QskProgressBar* m_dlBar = nullptr;
     QskTextLabel* m_dlPct = nullptr;
     ProgressLineItem* m_line = nullptr;
