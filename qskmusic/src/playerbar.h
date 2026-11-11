@@ -4,10 +4,8 @@
 #include <QskLinearBox.h>
 
 class QskPushButton;
-class QskProgressBar;
 class QskTextLabel;
 class ProgressLineItem;
-class QTimer;
 
 /*
  * 全局唯一播放条（qlmusic 主窗体底部播放条的 qsk 版）：
@@ -27,8 +25,9 @@ public:
     void setProgressMs(int ms);
     void setDurationMs(int ms);
     void setPlaying(bool playing);
-    void setDownloadProgress(int pct);   // -1 未定；0-100；100 完成 1.2s 隐藏；-2 失败
+    void setDownloadProgress(int pct);   // 驱动下载进度线（-1 未定；0-100；100/-2 → 归零）
     void attachProgressLine(ProgressLineItem* line) { m_line = line; }
+    void attachDownloadLine(ProgressLineItem* line) { m_dlLine = line; }
 
 Q_SIGNALS:
     void playPauseRequested();
@@ -49,10 +48,8 @@ private:
     QskTextLabel* m_timeDur = nullptr;
     QskPushButton* m_queueBtn = nullptr;
     QskPushButton* m_volumeBtn = nullptr;   // 仅桌面创建；Android 为 nullptr
-    QskProgressBar* m_dlBar = nullptr;
-    QskTextLabel* m_dlPct = nullptr;
     ProgressLineItem* m_line = nullptr;
-    QTimer* m_dlHideTimer = nullptr;
+    ProgressLineItem* m_dlLine = nullptr;   // 下载进度线（播放条下方，常显）
     int m_progressMs = 0;
     int m_durationMs = 0;
     bool m_playing = false;

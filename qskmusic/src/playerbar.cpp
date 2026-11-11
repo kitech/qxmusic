@@ -98,21 +98,8 @@ PlayerBar::PlayerBar(QQuickItem* parent)
             this, &PlayerBar::volumeClicked);
 #endif
 
-    // ⑦ 下载进度（右侧瞬时显示：仅下载中出现，完成 1.2s 自动隐藏）
-    m_dlBar = new QskProgressBar(0, 100, this);
-    m_dlBar->setPreferredSize(40, 6);
-    m_dlBar->setSizePolicy(QskSizePolicy::Minimum, QskSizePolicy::Preferred);
-    m_dlPct = new QskTextLabel(this);
-    m_dlPct->setPreferredWidth(32);
-    m_dlPct->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
-    m_dlHideTimer = new QTimer(this);
-    m_dlHideTimer->setSingleShot(true);
-    connect(m_dlHideTimer, &QTimer::timeout, this, [this]() {
-        m_dlBar->setVisible(false);
-        m_dlPct->setVisible(false);
-    });
-    m_dlBar->setVisible(false);
-    m_dlPct->setVisible(false);
+    // ⑦ 下载进度改为播放条下方的独立进度线（main.cpp 装配，
+    //    本类只做数据转发；播放条内不再保留下载控件）
 
     update();
 }
@@ -160,26 +147,11 @@ void PlayerBar::setPlaying(bool playing)
 
 void PlayerBar::setDownloadProgress(int pct)
 {
-    m_dlHideTimer->stop();
-
-    if (pct == 100) {
-        // 完成：短暂留痕后隐藏（qlmusic setDownloadHiddenLater 同款 1.2s）
-        m_dlBar->setVisible(false);
-        m_dlPct->setVisible(true);
-        m_dlPct->setText(QString::fromUtf8("✓"));
-        m_dlHideTimer->start(1200);
-        return;
+    if (!m_dlLine) return;
+    if (pct >= 0 && pct < 100) {
+        m_dlLine->setRatio(pct / 100.0);     // 下载中：绿线按比例填充
+    } else {
+        // 100 完成 / -2 失败 / 其它：无进度（线回底槽色，常显）
+        m_dlLine->setRatio(0.0);
     }
-    if (pct < 0) {
-        // -1 未定态；-2 失败
-        m_dlBar->setVisible(false);
-        m_dlPct->setVisible(true);
-        m_dlPct->setText(pct == -2 ? QString::fromUtf8("✕")
-                                   : QString::fromUtf8("↓"));
-        return;
-    }
-    m_dlBar->setVisible(true);
-    m_dlBar->setValue(pct);
-    m_dlPct->setVisible(true);
-    m_dlPct->setText(QString::fromUtf8("%1%").arg(pct));
 }

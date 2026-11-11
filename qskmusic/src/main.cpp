@@ -323,6 +323,8 @@ int main(int argc, char* argv[])
     lineBox->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Fixed);
     lineBox->setAutoLayoutChildren(true);
     auto* progressLine = new ProgressLineItem(lineBox);
+    progressLine->setColors(QColor(0x4a, 0x4a, 0x4a),   // 底槽（空进度可见）
+                            QColor(0x3d, 0x8b, 0xfd));  // 播放：蓝
     playerBar->attachProgressLine(progressLine);
     {   // 插到播放条之前（rootBox 顺序：stackBox | lineBox | playerBar）
         const int idx = rootBox->indexOf(playerBar);
@@ -331,6 +333,16 @@ int main(int argc, char* argv[])
             rootBox->insertItem(idx, lineBox);
         }
     }
+
+    // 下载进度线（新增）：播放条下方，常显；无进度=底槽色，有下载=绿色填充
+    auto* dlLineBox = new QskControl(rootBox);       // 创建在 playerBar 之后 = 下方
+    dlLineBox->setPreferredHeight(3);
+    dlLineBox->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Fixed);
+    dlLineBox->setAutoLayoutChildren(true);
+    auto* dlLine = new ProgressLineItem(dlLineBox);
+    dlLine->setColors(QColor(0x4a, 0x4a, 0x4a),      // 底槽
+                      QColor(0x4c, 0xaf, 0x50));     // 下载：绿
+    playerBar->attachDownloadLine(dlLine);
     auto* queuePopup = new QueuePopup(rootBox);
     auto* lyricPopup = new LyricPopup(rootBox);
     auto& pb = Playback::instance();
