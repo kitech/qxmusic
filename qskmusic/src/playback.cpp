@@ -37,6 +37,16 @@ Playback::Playback(QObject* parent)
             m_resolving = false;
             if (songId != currentSongId()) return;   // 期间已切曲，丢弃
             if (!err.isEmpty() || url.isEmpty()) {
+                // qlmusic mainwindow.cpp:1722-1756 同口径：灰歌 -6 / 仅试听 -7
+                // / 地区限制 -5 = 实锤不可播 → 队列项置 playable=false 并通知列表
+                if (err == QStringLiteral("NoResource")
+                    || err == QStringLiteral("TrialOnly")
+                    || err == QStringLiteral("GeoBlock")) {
+                    if (m_current >= 0 && m_current < m_queue.size()) {
+                        m_queue[m_current].playable = false;
+                        Q_EMIT playableChanged(songId);
+                    }
+                }
                 Q_EMIT playError(err == QStringLiteral("NoResource")
                     ? QString::fromUtf8("灰色歌曲，无可播资源")
                     : QString::fromUtf8("获取播放链接失败：%1").arg(err));

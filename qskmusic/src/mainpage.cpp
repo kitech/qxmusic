@@ -64,9 +64,8 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
         tap->setGesturePolicy(QQuickTapHandler::DragThreshold);
         connect(tap, &QQuickTapHandler::singleTapped, this,
             [this](QEventPoint point, Qt::MouseButton) {
-                const int idx = entryRowAt(point.position());
-                if (idx < 0) return;
-                const QString& cat = m_rowCat[idx];
+                QString cat;
+                if (!chipAt(point.position(), &cat)) return;
                 openPlaylistList(cat, cat.isEmpty()
                     ? QString::fromUtf8("热门歌单") : cat);
             });
@@ -135,57 +134,72 @@ void HomePage::rebuild(const QStringList& hot,
 {
     const auto children = m_rows->childItems();
     for (auto* c : children) c->deleteLater();
-    m_rowIsEntry.clear();
-    m_rowCat.clear();
+    m_chipCats.clear();
 
     auto addHeader = [this](const QString& text) {
-        // 组头行：注册为不可点（与 m_rows 子项保持一一平行，TapHandler 分发口径）
         auto* lbl = new QskTextLabel(text, m_rows);
         lbl->setFontRole(QskFontRole(QskFontRole::Title, QskFontRole::Normal));
-        lbl->setPreferredHeight(38);
+        lbl->setPreferredHeight(30);   // 紧凑：38 → 30
         lbl->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
-        m_rowIsEntry.push_back(false);
-        m_rowCat.push_back(QString());
     };
 
-    // 第一项 = 热门歌单（qlmusic SideNav __hot__ 哨兵，服务端 cat="全部"）
-    addEntry(QString::fromUtf8("热门歌单"), QString());
+    // 首行 = 热门歌单（qlmusic __hot__ 哨兵；服务端 cat="全部"）
+    addHotEntry();
 
-    if (!hot.isEmpty()) {
-        addHeader(QString::fromUtf8("热门分类"));
-        for (const auto& c : hot)
-            addEntry(c, c);
-    }
-    for (const auto& g : groups) {
-        addHeader(g.name);
-        for (const auto& c : g.categories)
-            addEntry(c, c);
-    }
+    auto addGroup = [&](const QString& title, const QStringList& cats) {
+        if (cats.isEmpty()) return;
+        addHeader(title);
+        auto* grid = addSectionGrid();
+        for (const auto& c : cats)
+            addChip(grid, c, c);
+    };
+    addGroup(QString::fromUtf8("热门分类"), hot);
+    for (const auto& g : groups)
+        addGroup(g.name, g.categories);
     m_rows->update();
 }
 
-void HomePage::addEntry(const QString& label, const QString& cat)
+void HomePage::addHotEntry()
 {
-    // 行视觉：QskTextLabel（点击由内容盒上的 QQuickTapHandler 分发——
-    // 安卓滚动内容里按钮 clicked 不可靠，见 AGENTS.md 4.2）
-    auto* lbl = new QskTextLabel(label, m_rows);
-    lbl->setPreferredHeight(44);
+    // 整行高亮入口（保留 qlmusic 推荐位醒目性）
+    auto* lbl = new QskTextLabel(QString::fromUtf8("热门歌单"), m_rows);
+    lbl->setPreferredHeight(40);
     lbl->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
     lbl->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
-    m_rowIsEntry.push_back(true);
-    m_rowCat.push_back(cat);
+    m_chipCats.push_back({ lbl, QString() });   // 空串 = 热门哨兵
 }
 
-int HomePage::entryRowAt(const QPointF& localPos) const
+QskLinearBox* HomePage::addSectionGrid()
 {
-    const auto rows = m_rows->childItems();
-    for (int i = 0; i < rows.size(); ++i) {
-        if (localPos.y() >= rows[i]->y()
-            && localPos.y() < rows[i]->y() + rows[i]->height()) {
-            return (i < m_rowIsEntry.size() && m_rowIsEntry[i]) ? i : -1;
+    // 三列 chips 网格（QSkinny 官方 dimension 口径：超 3 个自动换行）
+    auto* grid = new QskLinearBox(Qt::Vertical, 3, m_rows);
+    grid->setSpacing(6);
+    return grid;
+}
+
+void HomePage::addChip(QskLinearBox* grid, const QString& label,
+    const QString& cat)
+{
+    auto* chip = new QskTextLabel(label, grid);
+    chip->setPreferredHeight(32);   // 紧凑 chip（原 44dp 通栏按钮）
+    chip->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+    chip->setAlignment(Qt::AlignCenter);
+    m_chipCats.push_back({ chip, cat });
+}
+
+bool HomePage::chipAt(const QPointF& localPos, QString* cat) const
+{
+    // 嵌套网格命中：逐 chips 把其 rect 映射到 m_rows 坐标系做 contains
+    for (const auto& p : m_chipCats) {
+        if (!p.first) continue;
+        const QRectF r = p.first->mapRectToItem(
+            m_rows, QRectF(0, 0, p.first->width(), p.first->height()));
+        if (r.contains(localPos)) {
+            if (cat) *cat = p.second;
+            return true;
         }
     }
-    return -1;
+    return false;
 }
 
 void HomePage::openPlaylistList(const QString& cat, const QString& title)

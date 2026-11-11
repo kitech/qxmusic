@@ -93,6 +93,18 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
         });
 
     NcmCatalog::instance().loadPlaylistTracksAsync(m_playlistId);
+
+    // 实锤灰歌 → 本地行摘对号并重建（qlmusic 实时兜底同款）
+    connect(&Playback::instance(), &Playback::playableChanged, this,
+        [this](qint64 songId) {
+            for (auto& s : m_songs) {
+                if (s.id == songId && s.playable) {
+                    s.playable = false;
+                    buildRows();
+                    break;
+                }
+            }
+        });
 }
 
 void PlaylistTracksPage::buildRows()
@@ -117,9 +129,12 @@ void PlaylistTracksPage::buildRows()
         name->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
 
         const int total = s.durationMs / 1000;
-        auto* dur = new QskTextLabel(
-            QString("%1:%2").arg(total / 60).arg(total % 60, 2, 10, QLatin1Char('0')), row);
-        dur->setPreferredWidth(44);
+        QString durText = QString("%1:%2").arg(total / 60)
+            .arg(total % 60, 2, 10, QLatin1Char('0'));
+        if (s.id > 0 && s.playable)
+            durText += QString::fromUtf8(" ✓");   // 非灰歌对号（本地歌 id=0 不标）
+        auto* dur = new QskTextLabel(durText, row);
+        dur->setPreferredWidth(56);
         dur->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
     }
     m_rows->update();

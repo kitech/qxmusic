@@ -3,6 +3,9 @@
 
 #include "page.h"
 #include "ncmcatalog.h"
+#include <QPair>
+#include <QRectF>
+#include <QPointF>
 
 class QskLinearBox;
 class QskTextLabel;
@@ -27,15 +30,16 @@ protected:
 private:
     void showOptionsMenu(const QPointF& origin);
     void rebuild(const QStringList& hot, const QList<CategoryGroup>& groups);
-    void addEntry(const QString& label, const QString& cat);
+    void addHotEntry();
+    QskLinearBox* addSectionGrid();
+    void addChip(QskLinearBox* grid, const QString& label, const QString& cat);
     void openPlaylistList(const QString& cat, const QString& title);
-    int entryRowAt(const QPointF& localPos) const;   // 返回 m_rows 子项序号；非条目行=-1
+    bool chipAt(const QPointF& localPos, QString* cat) const;
 
     QskLinearBox* m_rows = nullptr;
     QskTextLabel* m_status = nullptr;
-    // 与 m_rows 子项一一平行（anystik stickerlist TapHandler 分发口径）
-    QList<bool> m_rowIsEntry;
-    QList<QString> m_rowCat;
+    // chips 命中表：item → cat（TapHandler 用 mapRectToItem 测交，嵌套网格亦可）
+    QList<QPair<QQuickItem*, QString>> m_chipCats;
 };
 
 #endif
