@@ -385,10 +385,11 @@ int main(int argc, char* argv[])
             // 预取未到位/失败的兜底：立即再拉一次
             NcmApi::instance().lyricAsync(pb.currentSongId());
         }
+        lyricPopup->relayout();      // 先定几何（首帧即正确位置）
         if (!lyricPopup->isOpen())
             lyricPopup->open();
-        // open 后窗口几何未定可能空布局：补一发 polish
-        QTimer::singleShot(0, lyricPopup, [lyricPopup]() { lyricPopup->update(); });
+        // 打开后再补一次（窗口尺寸此时才最终可用）
+        QTimer::singleShot(0, lyricPopup, [lyricPopup]() { lyricPopup->relayout(); });
     });
     QObject::connect(&pb, &Playback::songChanged, lyricPopup, [&pb, lyricPopup]() {
         if (lyricPopup->isOpen()) {

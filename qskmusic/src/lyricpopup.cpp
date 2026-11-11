@@ -3,7 +3,10 @@
 #include <QskLinearBox.h>
 #include <QskScrollArea.h>
 #include <QskTextLabel.h>
+#include <QskPushButton.h>
 #include <QskBoxShapeMetrics.h>
+#include <QskGradient.h>
+#include <QskFontRole.h>
 #include <QQuickWindow>
 #include <QColor>
 #include <QPair>
@@ -11,6 +14,28 @@
 #include <algorithm>
 
 namespace {
+
+// 与 qskcomp/dialogpopup 相同范式：坐标基准 = 父项所在窗口的尺寸
+QRectF parentRectOf(QQuickItem* parent)
+{
+    if (!parent)
+        return {};
+    if (auto* w = parent->window())
+        return QRectF(QPointF(), w->size());
+    return QRectF(-parent->x(), -parent->y(), parent->width(), parent->height());
+}
+
+// 面板不透明度：只改皮肤填充色的 alpha（保留主题配色）
+void applyPanelOpacity(QskBox* panel, qreal opacity)
+{
+    if (!panel)
+        return;
+    QskGradient g = panel->fillGradient();
+    if (!g.isValid())
+        return;
+    g.setAlpha(qRound(qBound(0.0, opacity, 1.0) * 255.0));
+    panel->setFillGradient(g);
+}
 
 // 解析行首所有 [mm:ss.xx] / [mm:ss] 标签（多标签行返回多个时间），返回正文
 QString takeTags(const QString& line, QList<int>& times)
@@ -44,10 +69,20 @@ LyricPopup::LyricPopup(QQuickItem* parent)
 
     m_panel = new QskBox(this);
     m_panel->setBoxShapeHint(QskBox::Panel, QskBoxShapeMetrics(14, Qt::AbsoluteSize));
+    applyPanelOpacity(m_panel, 0.92);   // 消除弹层过透（dialogpopup 同款）
 
     m_layout = new QskLinearBox(Qt::Vertical, m_panel);
     m_layout->setMargins(18);
     m_layout->setSpacing(10);
+
+    // 左上歌词图标（emoji 字符，绝对定位见 updateGeometry）
+    m_icon = new QskTextLabel(QString::fromUtf8("📃"), m_panel);
+    m_icon->setAlignment(Qt::AlignCenter);
+    m_icon->setFontRole(QskFontRole(QskFontRole::Caption, QskFontRole::Normal));
+
+    // 右上关闭（明确出口）
+    m_closeBtn = new QskPushButton(QString::fromUtf8("✕"), m_panel);
+    connect(m_closeBtn, &QskAbstractButton::clicked, this, [this]() { close(); });
 
     m_titleLabel = new QskTextLabel(m_layout);
     m_titleLabel->setAlignment(Qt::AlignVCenter | Qt::AlignHCenter);
@@ -153,16 +188,24 @@ void LyricPopup::setCurrentLine(int idx)
 void LyricPopup::updateLayout()
 {
     updateGeometry();
+    if (m_layout && m_panel)
+        m_layout->setGeometry(QRectF(0, 0, m_panel->width(), m_panel->height()));
 }
 
 void LyricPopup::updateGeometry()
 {
-    const auto rect = this->rect();
-    if (rect.isEmpty())
+    const auto parentRect = parentRectOf(parentItem());
+    if (parentRect.isEmpty())
         return;
 
-    const qreal w = qBound<qreal>(280, rect.width() * 0.86, 520);
-    const qreal h = rect.height() * 0.6;
-    m_panel->setGeometry((rect.width() - w) / 2, (rect.height() - h) / 2, w, h);
-    m_layout->setGeometry(QRectF(0, 0, w, h));
+    const qreal w = qBound<qreal>(280, parentRect.width() * 0.86, 520);
+    const qreal h = qMin(parentRect.height() * 0.6, parentRect.height() * 0.9);
+    QRectF popupRect(0, 0, w, h);
+    popupRect.moveCenter(parentRect.center());
+    setGeometry(popupRect);                    // 关键：弹层自身定位（此前缺失）
+    m_panel->setGeometry(QRectF(0, 0, w, h));  // 面板填满弹层
+
+    // 左上图标 / 右上关闭按钮（面板内绝对定位）
+    m_icon->setGeometry(QRectF(10, 8, 22, 22));
+    m_closeBtn->setGeometry(QRectF(w - 38, 6, 30, 30));
 }
