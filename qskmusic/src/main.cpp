@@ -38,6 +38,7 @@
 #include "androidutils.h"
 #include <QKeyEvent>
 #include <QElapsedTimer>
+#include <QTimer>
 #include <QQuickWindow>
 #include <QMouseEvent>
 #include <QTouchEvent>
@@ -370,24 +371,44 @@ int main(int argc, char* argv[])
     });
     QObject::connect(queuePopup, &QueuePopup::trackSelected, &pb, &Playback::playIndex);
     QObject::connect(playerBar, &PlayerBar::lyricRequested, playerBar, [&pb, lyricPopup]() {
+        qDebug() << "[DIAG] lyricRequested songId=" << pb.currentSongId()
+                 << "cached=" << pb.lyricCached(pb.currentSongId())
+                 << "open=" << lyricPopup->isOpen();
         if (pb.currentSongId() == 0) {
             ToastPopup::show(lyricPopup, QString::fromUtf8("先播放一首歌"));
             return;
         }
-        if (pb.lyricCached(pb.currentSongId()))
+        if (pb.lyricCached(pb.currentSongId())) {
             lyricPopup->setLyric(pb.currentTitle(), pb.lrcText());
-        else
-            lyricPopup->setLyric(pb.currentTitle(), QString::fromUtf8("歌词加载中…"));
+        } else {
+            lyricPopup->setLyric(pb.currentTitle(), QString::fromUtf8("加载中…"));
+            // 预取未到位/失败的兜底：立即再拉一次
+            NcmApi::instance().lyricAsync(pb.currentSongId());
+        }
         if (!lyricPopup->isOpen())
             lyricPopup->open();
+        // open 后窗口几何未定可能空布局：补一发 polish
+        QTimer::singleShot(0, lyricPopup, [lyricPopup]() { lyricPopup->update(); });
     });
     QObject::connect(&pb, &Playback::songChanged, lyricPopup, [&pb, lyricPopup]() {
         if (lyricPopup->isOpen()) {
             lyricPopup->setLyric(pb.currentTitle(),
                 pb.lyricCached(pb.currentSongId()) ? pb.lrcText()
-                    : QString::fromUtf8("歌词加载中…"));
+                    : QString::fromUtf8("加载中…"));
         }
     });
+
+    // 歌词到达 → 弹层实时刷新（修复"永远加载中"）
+    QObject::connect(&pb, &Playback::lyricReady, lyricPopup,
+        [&pb, lyricPopup](qint64 songId, const QString& text) {
+            if (!lyricPopup->isOpen() || songId != pb.currentSongId())
+                return;
+            lyricPopup->setLyric(pb.currentTitle(), text);
+        });
+
+    // 播放进度 → 当前行高亮 + 自动滚动
+    QObject::connect(&pb, &Playback::progressMsChanged, lyricPopup,
+        [lyricPopup](int ms) { lyricPopup->setProgressMs(ms); });
 
     // 当前歌名/歌手（qlmusic 播放条同款）+ 下载进度转发
     QObject::connect(&pb, &Playback::songChanged, playerBar, [&pb, playerBar]() {

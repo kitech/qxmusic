@@ -8,6 +8,7 @@
 #include <QskSizePolicy.h>
 #include <private/qquickdraghandler_p.h>
 #include <private/qquicktaphandler_p.h>
+#include <QDebug>
 #include <QTimer>
 
 namespace {
@@ -80,9 +81,11 @@ PlayerBar::PlayerBar(QQuickItem* parent)
 
     // ⑤ 词按钮（歌词弹层入口，原入口恢复）+ 队列键
     m_lyricBtn = new QskPushButton(QString::fromUtf8("词"), this);
-    m_lyricBtn->setPreferredSize(30, 30);
-    connect(m_lyricBtn, &QskAbstractButton::clicked,
-            this, &PlayerBar::lyricRequested);
+    m_lyricBtn->setPreferredSize(36, 36);   // 提高触摸命中率
+    connect(m_lyricBtn, &QskAbstractButton::clicked, this, [this]() {
+        qDebug() << "[DIAG] lyricBtn clicked";
+        Q_EMIT lyricRequested();
+    });
 
     m_queueBtn = new QskPushButton(QString::fromUtf8("☰"), this);
     m_queueBtn->setPreferredSize(36, 36);

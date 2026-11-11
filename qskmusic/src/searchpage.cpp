@@ -71,13 +71,17 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
         }
     });
 
-    m_status = new StatusLine(layout);
-
-    m_rows = new QskLinearBox(Qt::Vertical);
-    m_rows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
+    // 状态行并入滚动内容首项（不占页面顶部固定带）
     auto* scroll = new QskScrollArea(layout);
-    scroll->setScrolledItem(m_rows);
     scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
+    auto* content = new QskLinearBox(Qt::Vertical);
+    content->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
+    scroll->setScrolledItem(content);
+
+    m_status = new StatusLine(content);
+
+    m_rows = new QskLinearBox(Qt::Vertical, content);
+    m_rows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
 
     // 安卓触摸坑（AGENTS.md 4.2）：结果行点击走 QQuickTapHandler
     {

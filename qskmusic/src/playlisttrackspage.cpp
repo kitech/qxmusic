@@ -61,13 +61,6 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
 
     new QskSeparator(Qt::Horizontal, layout);
 
-    m_status = new StatusLine(layout);
-    m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载歌单…"));
-    connect(m_status, &StatusLine::retryClicked, this, [this]() {
-        m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载歌单…"));
-        NcmCatalog::instance().loadPlaylistTracksAsync(m_playlistId);
-    });
-
     // 信息行：共 N 首 + 播放全部（滚动区外，QskPushButton 可靠通道；
     // qlmusic contentview playAll → trackActivated(0) 同义）
     auto* infoRow = new QskLinearBox(Qt::Horizontal, layout);
@@ -89,11 +82,22 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
         Playback::instance().setQueue(m_songs, 0);
     });
 
-    m_rows = new QskLinearBox(Qt::Vertical);
-    m_rows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
+    // 状态行并入滚动内容首项（不占页面顶部固定带）
     auto* scroll = new QskScrollArea(layout);
-    scroll->setScrolledItem(m_rows);
     scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
+    auto* content = new QskLinearBox(Qt::Vertical);
+    content->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
+    scroll->setScrolledItem(content);
+
+    m_status = new StatusLine(content);
+    m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载歌单…"));
+    connect(m_status, &StatusLine::retryClicked, this, [this]() {
+        m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载歌单…"));
+        NcmCatalog::instance().loadPlaylistTracksAsync(m_playlistId);
+    });
+
+    m_rows = new QskLinearBox(Qt::Vertical, content);
+    m_rows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
 
     // 安卓触摸坑（AGENTS.md 4.2）：曲目行点击走 QQuickTapHandler
     // （行 = 整行可点，点即以该行为起点投全歌单队列）

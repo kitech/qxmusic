@@ -41,6 +41,8 @@ Q_SIGNALS:
     void progressMsChanged(int ms);
     void durationMsChanged(int ms);
     void playError(const QString& message);
+    // 歌词到达/失败（空文本=无歌词）→ 弹层实时刷新（修复"永远加载中"）
+    void lyricReady(qint64 songId, const QString& text);
 
 private:
     explicit Playback(QObject* parent = nullptr);

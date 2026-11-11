@@ -73,6 +73,7 @@ Playback::Playback(QObject* parent)
         [this](qint64 songId, const QString& lrc, const QString&) {
             m_lrcSongId = songId;
             m_lrcText = lrc;
+            Q_EMIT lyricReady(songId, lrc);   // 弹层据此实时刷新
         });
     connect(&ncm, &NcmApi::playFailReceived, this, [this](qint64, const QString& reason) {
         Q_EMIT playError(QString::fromUtf8("播放失败：%1，切下一首").arg(reason));
