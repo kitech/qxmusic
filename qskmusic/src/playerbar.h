@@ -46,6 +46,7 @@ private:
     QskPushButton* m_playBtn = nullptr;
     QskTextLabel* m_timeCur = nullptr;
     QskTextLabel* m_timeDur = nullptr;
+    QskPushButton* m_lyricBtn = nullptr;    // 歌词入口（点击）
     QskPushButton* m_queueBtn = nullptr;
     QskPushButton* m_volumeBtn = nullptr;   // 仅桌面创建；Android 为 nullptr
     ProgressLineItem* m_line = nullptr;

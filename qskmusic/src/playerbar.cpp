@@ -78,12 +78,18 @@ PlayerBar::PlayerBar(QQuickItem* parent)
     m_timeDur->setFontRole(QskFontRole(QskFontRole::Caption, QskFontRole::Normal));
     m_timeDur->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
 
-    // ⑤ 队列键（点击=队列；长按=歌词——原「词」按钮功能保留）
+    // ⑤ 词按钮（歌词弹层入口，原入口恢复）+ 队列键
+    m_lyricBtn = new QskPushButton(QString::fromUtf8("词"), this);
+    m_lyricBtn->setPreferredSize(30, 30);
+    connect(m_lyricBtn, &QskAbstractButton::clicked,
+            this, &PlayerBar::lyricRequested);
+
     m_queueBtn = new QskPushButton(QString::fromUtf8("☰"), this);
     m_queueBtn->setPreferredSize(36, 36);
     connect(m_queueBtn, &QskAbstractButton::clicked,
             this, &PlayerBar::queueRequested);
     {
+        // 队列键长按=歌词（额外通道，既有行为保留）
         auto* tap = new QQuickTapHandler(m_queueBtn);
         connect(tap, &QQuickTapHandler::longPressed, this, [this]() {
             Q_EMIT lyricRequested();
