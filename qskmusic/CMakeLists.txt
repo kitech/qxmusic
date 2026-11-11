@@ -83,6 +83,8 @@ qt_add_executable(qskmusic
     src/playback.cpp
     src/playerbar.h
     src/playerbar.cpp
+    src/progressline.h
+    src/progressline.cpp
     src/queuepopup.h
     src/queuepopup.cpp
     src/logpage.h

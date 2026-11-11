@@ -25,6 +25,8 @@
 #include "settingspage.h"
 #include "aboutpage.h"
 #include "playerbar.h"
+#include "progressline.h"
+#include <QskControl.h>
 #include "queuepopup.h"
 #include "lyricpopup.h"
 #include "playback.h"
@@ -314,6 +316,21 @@ int main(int argc, char* argv[])
 
     // ── 全局唯一播放条 + 队列/歌词弹层（qlmusic 主窗体底部播放条正統）──
     auto* playerBar = new PlayerBar(rootBox);
+    // 全宽细线进度（贴播放条上沿，业界 mini-player 惯例）：
+    // QskControl 容器参与 Qsk 布局（Expanding/Fixed 3dp），自绘项作为其子项铺满
+    auto* lineBox = new QskControl(rootBox);
+    lineBox->setPreferredHeight(3);
+    lineBox->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Fixed);
+    lineBox->setAutoLayoutChildren(true);
+    auto* progressLine = new ProgressLineItem(lineBox);
+    playerBar->attachProgressLine(progressLine);
+    {   // 插到播放条之前（rootBox 顺序：stackBox | lineBox | playerBar）
+        const int idx = rootBox->indexOf(playerBar);
+        if (idx >= 0) {
+            rootBox->removeItem(lineBox);
+            rootBox->insertItem(idx, lineBox);
+        }
+    }
     auto* queuePopup = new QueuePopup(rootBox);
     auto* lyricPopup = new LyricPopup(rootBox);
     auto& pb = Playback::instance();

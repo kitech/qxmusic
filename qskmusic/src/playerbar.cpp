@@ -1,4 +1,5 @@
 #include "playerbar.h"
+#include "progressline.h"
 #include <QskPushButton.h>
 #include <QskProgressBar.h>
 #include <QskTextLabel.h>
@@ -47,9 +48,9 @@ PlayerBar::PlayerBar(QQuickItem* parent)
     m_artist->setFontRole(QskFontRole(QskFontRole::Caption, QskFontRole::Normal));
     m_artist->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
 
-    m_progress = new QskProgressBar(0, 1000, this);
-    m_progress->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
-    m_progress->setValue(0);
+    // 进度条已改为播放条上沿的全宽细线（ProgressLineItem，main.cpp 装配），
+    // 此处不再创建内嵌 QskProgressBar——释放横向空间
+
 
     m_timeLabel = new QskTextLabel(QStringLiteral("0:00 / 0:00"), this);
     m_timeLabel->setPreferredWidth(72);
@@ -106,8 +107,9 @@ void PlayerBar::setSongInfo(const QString& title, const QString& artist)
 void PlayerBar::setProgressMs(int ms)
 {
     m_progressMs = ms;
-    m_progress->setValue(m_durationMs > 0
-        ? int(qreal(ms) / m_durationMs * 1000.0) : 0);
+    if (m_line)
+        m_line->setRatio(m_durationMs > 0
+            ? qreal(ms) / m_durationMs : 0.0);
     m_timeLabel->setText(fmtMs(m_progressMs) + " / " + fmtMs(m_durationMs));
 }
 

@@ -6,6 +6,7 @@
 class QskPushButton;
 class QskProgressBar;
 class QskTextLabel;
+class ProgressLineItem;
 class QTimer;
 
 /*
@@ -25,6 +26,7 @@ public:
     void setDurationMs(int ms);
     void setPlaying(bool playing);
     void setDownloadProgress(int pct);   // -1 未定；0-100；100 完成 1.2s 隐藏；-2 失败
+    void attachProgressLine(ProgressLineItem* line) { m_line = line; }
 
 Q_SIGNALS:
     void playPauseRequested();
@@ -42,13 +44,13 @@ private:
     QskPushButton* m_nextBtn = nullptr;
     QskTextLabel* m_title = nullptr;
     QskTextLabel* m_artist = nullptr;
-    QskProgressBar* m_progress = nullptr;
     QskTextLabel* m_timeLabel = nullptr;
     QskPushButton* m_lyricBtn = nullptr;
     QskPushButton* m_volumeBtn = nullptr;
     QskPushButton* m_queueBtn = nullptr;
     QskProgressBar* m_dlBar = nullptr;
     QskTextLabel* m_dlPct = nullptr;
+    ProgressLineItem* m_line = nullptr;
     QTimer* m_dlHideTimer = nullptr;
     int m_progressMs = 0;
     int m_durationMs = 0;
