@@ -35,6 +35,12 @@
 #include "androidutils.h"
 #include <QKeyEvent>
 #include <QElapsedTimer>
+#include <QQuickWindow>
+#include <QMouseEvent>
+#include <QTouchEvent>
+#include <QskPopup.h>
+#include <QskTextInput.h>
+#include "playback.h"
 
 #include <memory>
 #include <thread>
@@ -44,16 +50,22 @@ extern "C" void csoMainLoop();
 
 namespace {
 
-// Android 返回键：栈深>1 回退页面栈；栈底 2s 内双击才退出（防误退）
-class BackButtonFilter : public QObject
+// 全局键过滤器（规则见 docs/空格键播控规则.md）：
+//   返回键 —— 栈深>1 回退页面栈；栈底 2s 内双击才退出（防误退）
+//   空格   —— 播放/暂停（文本输入且内容非空时放行输入；空框=播控）
+//   媒体键 —— 永远播控（输入中亦可，无歧义通道）
+//   点击非输入区域 —— 清除输入焦点（Qt Quick 默认不清 activeFocusItem）
+class GlobalKeyFilter : public QObject
 {
 public:
-    BackButtonFilter(PageManager* pm, QObject* parent = nullptr)
+    GlobalKeyFilter(PageManager* pm, QObject* parent = nullptr)
         : QObject(parent), m_pageManager(pm) {}
 
 protected:
-    bool eventFilter(QObject*, QEvent* event) override
+    bool eventFilter(QObject* obj, QEvent* event) override
     {
+        auto* win = qobject_cast<QQuickWindow*>(obj);
+
         if (event->type() == QEvent::KeyPress) {
             auto* ke = static_cast<QKeyEvent*>(event);
             if (ke->key() == Qt::Key_Back) {
@@ -69,11 +81,76 @@ protected:
                 }
                 return true;
             }
+
+            const bool space = ke->key() == Qt::Key_Space
+                && ke->modifiers() == Qt::NoModifier;
+            const bool media = ke->key() == Qt::Key_MediaTogglePlayPause;
+            if (space || media) {
+                if (hasOpenModalPopup(win))
+                    return false;                       // 弹层内交给弹层
+                QQuickItem* f = win ? win->activeFocusItem() : nullptr;
+                if (space && isTextInputFocus(f)
+                    && !focusText(f).trimmed().isEmpty())
+                    return false;                       // 输入内容非空：打字
+                Playback::instance().togglePause();     // 空框/其他焦点：播控
+                return true;                            // 吞：防按钮二次响应
+            }
+        } else if (event->type() == QEvent::MouseButtonPress
+                   || event->type() == QEvent::TouchBegin) {
+            // 焦点释放：点非输入区域 → 清输入焦点
+            if (win) {
+                QQuickItem* f = win->activeFocusItem();
+                if (isTextInputFocus(f) && !hitIsInside(win, event, f))
+                    f->setFocus(false);
+            }
         }
         return false;
     }
 
 private:
+    // 文本输入判定（含 QskTextField 内嵌 QQuickTextInput 编辑态焦点）
+    static bool isTextInputFocus(QQuickItem* item)
+    {
+        for (QQuickItem* it = item; it; it = it->parentItem()) {
+            if (qobject_cast<QskTextInput*>(it)) return true;
+            if (it->inherits("QQuickTextInput")
+                || it->inherits("QQuickTextEdit")) return true;
+        }
+        return false;
+    }
+
+    static QString focusText(QQuickItem* item)
+    {
+        for (QQuickItem* it = item; it; it = it->parentItem())
+            if (auto* ti = qobject_cast<QskTextInput*>(it))
+                return ti->text();
+        return QString();
+    }
+
+    static bool hasOpenModalPopup(QQuickWindow* win)
+    {
+        if (!win) return false;
+        for (auto* p : win->findChildren<QskPopup*>())
+            if (p->isOpen() && p->isModal()) return true;
+        return false;
+    }
+
+    static bool hitIsInside(QQuickWindow* win, QEvent* event, QQuickItem* item)
+    {
+        QPointF pos;
+        if (event->type() == QEvent::MouseButtonPress)
+            pos = static_cast<QMouseEvent*>(event)->position();
+        else {
+            const auto pts = static_cast<QTouchEvent*>(event)->points();
+            if (pts.isEmpty()) return true;   // 无坐标：保守认为在控件内
+            pos = pts.first().position();
+        }
+        QQuickItem* hit = win->contentItem()->childAt(pos.x(), pos.y());
+        for (QQuickItem* it = hit; it; it = it->parentItem())
+            if (it == item) return true;
+        return false;
+    }
+
     PageManager* m_pageManager;
     QElapsedTimer m_backTimer;
 };
@@ -301,8 +378,8 @@ int main(int argc, char* argv[])
     // Tab/Shift+Tab 手动焦点管理（QSkinny 默认关闭 tab focus 链）
     window.installEventFilter(new MyTabFocus(&window));
 
-    // Android 返回键接管
-    app.installEventFilter(new BackButtonFilter(pageManager));
+    // 全局键过滤（返回键 + 空格播控 + 焦点释放）
+    app.installEventFilter(new GlobalKeyFilter(pageManager));
 
     window.setPreferredSize({1024, 680});
     window.show();

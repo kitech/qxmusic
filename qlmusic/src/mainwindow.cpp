@@ -17,6 +17,7 @@
 #include "api.h"
 #include "eventpoller.h"
 #include "sidenav.h"
+#include "searchline.h"
 #include "contentview.h"
 #include "queuepanel.h"
 #include "playerbar.h"
@@ -1219,7 +1220,19 @@ void MainWindow::onNcmDownloadProgress(qint64 songId, int pct)
 }
 
 /* 空格=全局播放/暂停（Qt3 无 QShortcut，走 app 级 eventFilter；
- * 输入控件聚焦与外来顶层窗口（音量滑条 popup 等）豁免，避免误触） */
+ * 规则见 docs/空格键播控规则.md：
+ *   文本输入有焦点且内容非空 → 空格打字（放行）
+ *   文本输入有焦点但内容为空/占位符态 → 空格=播放/暂停
+ *   其他焦点 → 空格=播放/暂停；媒体键永远播控
+ *   点击非输入区域 → 清输入焦点（否则空格长期失效） */
+namespace {
+static bool isTextInputWidget(QWidget* w)
+{
+    return w && (w->inherits("QLineEdit") || w->inherits("QTextEdit")
+                 || w->inherits("QComboBox") || w->inherits("QSpinBox"));
+}
+} // namespace
+
 bool MainWindow::eventFilter(QObject* obj, QEvent* ev)
 {
     if (ev->type() == QEvent::KeyPress) {
@@ -1229,16 +1242,47 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* ev)
 #else
         int mods = (int)ke->modifiers();
 #endif
-        if (ke->key() == Qt::Key_Space && mods == 0) {   /* 无修饰键 */
+        const int key = ke->key();
+        if ((key == Qt::Key_Space && mods == 0)
+            || key == Qt::Key_MediaTogglePlayPause) {
             QWidget* fw = qApp->focusWidget();
-            if (fw && (fw->inherits("QLineEdit") || fw->inherits("QTextEdit") ||
-                       fw->inherits("QComboBox") || fw->inherits("QSpinBox")))
-                return QMainWindow::eventFilter(obj, ev);
             if (fw && fw->topLevelWidget() != this)
                 return QMainWindow::eventFilter(obj, ev);
+            if (fw && isTextInputWidget(fw)) {
+                if (key == Qt::Key_MediaTogglePlayPause) {
+                    onPlayPause();
+                    return true;      /* 媒体键不受输入内容限制 */
+                }
+                QString text;
+                if (fw->inherits("QLineEdit"))
+                    text = static_cast<QLineEdit*>(fw)->text();
+                else if (fw->inherits("QTextEdit"))
+                    text = qTextEditText(static_cast<QTextEdit*>(fw));   /* compat34：Qt3/4 双兼容 */
+                else
+                    return QMainWindow::eventFilter(obj, ev);   /* Combo/Spin 全豁免 */
+                /* 搜索框占位符态：lineEdit 里显示提示文案，视同空 */
+                for (QWidget* p = fw; p; p = p->parentWidget()) {
+                    if (SearchLineEdit* sl = qobject_cast<SearchLineEdit*>(p)) {
+                        if (sl->lineEdit()->isPlaceholderVisible())
+                            text.clear();
+                        break;
+                    }
+                }
+                if (!text.trimmed().isEmpty())
+                    return QMainWindow::eventFilter(obj, ev);   /* 非空：空格打字 */
+                onPlayPause();        /* 空框：空格=播控（不插入空格） */
+                return true;
+            }
             onPlayPause();
             return true;
         }
+    } else if (ev->type() == QEvent::MouseButtonPress) {
+        /* 焦点生命周期：点非输入区域 → 清输入焦点（配套规则 2） */
+        QWidget* fw = qApp->focusWidget();
+        QWidget* target = qobject_cast<QWidget*>(obj);
+        if (fw && target && isTextInputWidget(fw)
+            && target != fw && !fw->isAncestorOf(target))
+            fw->clearFocus();
     }
     return QMainWindow::eventFilter(obj, ev);
 }

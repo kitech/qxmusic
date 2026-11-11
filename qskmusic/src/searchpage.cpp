@@ -7,6 +7,7 @@
 #include <QskPushButton.h>
 #include <QskScrollArea.h>
 #include <QskTextField.h>
+#include <QskTextInput.h>
 #include <QskSeparator.h>
 #include <QskFontRole.h>
 
@@ -56,6 +57,12 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
     m_field->setFixedHeight(30);   // QSkinny 输入框后半高字坑：必须锁死高
     m_field->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
     auto* searchBtn = new QskPushButton(QStringLiteral("搜索"), searchBar);
+    // 规则：首字符禁止空格（docs/空格键播控规则.md 配套 1）
+    connect(m_field, &QskTextInput::textEdited, this,
+        [this](const QString& text) {
+            if (text.startsWith(QLatin1Char(' ')))
+                m_field->setText(text.trimmed());
+        });
     connect(searchBtn, &QskAbstractButton::clicked, this, [this]() {
         const QString kw = m_field->text().trimmed();
         if (!kw.isEmpty())
