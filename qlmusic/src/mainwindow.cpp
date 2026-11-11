@@ -919,6 +919,7 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
     queuePanel->setCurrentTrack(t);
     queuePanel->setQueue(pl->tracks, trackIndex);
     sideNav->setCurrentPlaylist(playlistId);
+    if (contentView) contentView->setPlayingTrackId(t.ncmId);   /* ▶ 标识 */
 
 #ifdef NCM_ENABLE
     /* NCM 远端曲目：cache-first（业界标准：本地命中即播，零网络）——

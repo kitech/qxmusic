@@ -143,6 +143,10 @@ void QueuePanel::paintEvent(QPaintEvent*)
             p.fillRect(QRect(8, ry, width() - 16, 40), pal.activeBg);
         p.setFont(small);
         p.setPen(selected ? pal.accent : pal.textMuted);
+        /* 当前播放行：序号前 ▶ */
+        if (selected)
+            p.drawText(QRect(4, ry, 12, 40), Qt::AlignVCenter | Qt::AlignLeft,
+                       QString::fromUtf8("▶"));
         p.drawText(QRect(16, ry, 22, 40), Qt::AlignVCenter | Qt::AlignLeft, QString::number((int)i + 1));
         p.setFont(selected ? bold : font());
         p.setPen(selected ? pal.accent : pal.textPrimary);

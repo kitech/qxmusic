@@ -47,24 +47,19 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
     new QskSeparator(Qt::Horizontal, layout);
 
     // ── 分类树（qlmusic SideNav：动态加载）──
-    // 状态行不占页面顶部固定带：作为列表内容首项（空/失败才出现，成功后隐藏不占空间）
-    auto* scroll = new QskScrollArea(layout);
-    scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
-    auto* content = new QskLinearBox(Qt::Vertical);
-    content->setSpacing(2);
-    content->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
-    scroll->setScrolledItem(content);
-
-    m_status = new StatusLine(content);
+    m_status = new StatusLine(layout);
     m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载分类…"));
     connect(m_status, &StatusLine::retryClicked, this, [this]() {
         m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载分类…"));
         NcmCatalog::instance().loadCategoriesAsync();
     });
 
-    m_rows = new QskLinearBox(Qt::Vertical, content);
+    m_rows = new QskLinearBox(Qt::Vertical);
     m_rows->setSpacing(2);
     m_rows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
+    auto* scroll = new QskScrollArea(layout);
+    scroll->setScrolledItem(m_rows);
+    scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
 
     // 安卓触摸坑：滚动内容里的行点击不能靠 QskPushButton::clicked（flickable
     // 拦 touch 后不再合成 mouse），照 anystik stickerlist 用 QQuickTapHandler

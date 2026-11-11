@@ -33,7 +33,7 @@ QString fmtCount(qint64 n)
 
 ContentView::ContentView(QWidget* parent)
     : QWidget(parent), m_pl(0), m_mode(TracksMode), m_scrollBar(0), m_scrollY(0),
-      m_scrollDelta(0), m_hover(-1), m_current(-1), m_playlistId(-1),
+      m_scrollDelta(0), m_hover(-1), m_current(-1), m_playingNcmId(0), m_playlistId(-1),
       m_headerH(64), m_rowH(48), m_hasMore(false), m_loadingNow(false)
 {
     setMouseTracking(true);
@@ -49,6 +49,13 @@ void ContentView::retranslateUi()
     m_loadMore = _("content.load_more");
     m_loading = _("content.loading");
     update();
+}
+
+void ContentView::setPlayingTrackId(qint64 ncmId)
+{
+    if (m_playingNcmId == ncmId) return;
+    m_playingNcmId = ncmId;
+    update();   /* 只重绘，不重建列表 */
 }
 
 void ContentView::setLibrary(const std::vector<Playlist>& lib)
@@ -337,6 +344,15 @@ void ContentView::paintEvent(QPaintEvent*)
                     p.fillRect(rr, pal.activeBg);
                 else if (hovered)
                     p.fillRect(rr, pal.hoverBg);
+
+                /* 正在播放标识：非本地曲、ncmId 命中 → 序号前 ▶ */
+                if (t.ncmId > 0 && t.ncmId == m_playingNcmId) {
+                    p.setFont(small);
+                    p.setPen(pal.accent);
+                    p.drawText(QRect(2, y, 14, row.h),
+                               Qt::AlignVCenter | Qt::AlignLeft,
+                               QString::fromUtf8("▶"));
+                }
 
                 p.setFont(small);
                 p.setPen(selected ? pal.accent : pal.textMuted);

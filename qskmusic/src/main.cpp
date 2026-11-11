@@ -370,6 +370,11 @@ int main(int argc, char* argv[])
             queuePopup->open();
     });
     QObject::connect(queuePopup, &QueuePopup::trackSelected, &pb, &Playback::playIndex);
+    // 队列开着时切歌 → 刷新 ▶ 位置
+    QObject::connect(&pb, &Playback::songChanged, queuePopup, [&pb, queuePopup]() {
+        if (queuePopup->isOpen())
+            queuePopup->setCurrentIndex(pb.currentIndex());
+    });
     QObject::connect(playerBar, &PlayerBar::lyricRequested, playerBar, [&pb, lyricPopup]() {
         qDebug() << "[DIAG] lyricRequested songId=" << pb.currentSongId()
                  << "cached=" << pb.lyricCached(pb.currentSongId())

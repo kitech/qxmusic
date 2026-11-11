@@ -3,6 +3,7 @@
 
 #include "page.h"
 #include "ncmapi.h"
+#include <QPair>
 
 class QskLinearBox;
 class QskTextLabel;
@@ -28,11 +29,13 @@ protected:
 private:
     void rebuildList();
     int songRowAt(const QPointF& localPos) const;
+    void updatePlayingMarker();
 
     QskTextField* m_field = nullptr;
     StatusLine* m_status = nullptr;
     QskLinearBox* m_rows = nullptr;
     QList<Song> m_songs;
+    QList<QPair<qint64, QskTextLabel*>> m_playingMarkers;   // songId → 标识列
 };
 
 #endif

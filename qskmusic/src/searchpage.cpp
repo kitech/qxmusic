@@ -3,6 +3,7 @@
 #include "playback.h"
 #include "statusline.h"
 #include <private/qquicktaphandler_p.h>
+#include <QColor>
 #include <QskLinearBox.h>
 #include <QskTextLabel.h>
 #include <QskPushButton.h>
@@ -71,17 +72,13 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
         }
     });
 
-    // 状态行并入滚动内容首项（不占页面顶部固定带）
-    auto* scroll = new QskScrollArea(layout);
-    scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
-    auto* content = new QskLinearBox(Qt::Vertical);
-    content->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
-    scroll->setScrolledItem(content);
+    m_status = new StatusLine(layout);
 
-    m_status = new StatusLine(content);
-
-    m_rows = new QskLinearBox(Qt::Vertical, content);
+    m_rows = new QskLinearBox(Qt::Vertical);
     m_rows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
+    auto* scroll = new QskScrollArea(layout);
+    scroll->setScrolledItem(m_rows);
+    scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
 
     // 安卓触摸坑（AGENTS.md 4.2）：结果行点击走 QQuickTapHandler
     {
@@ -114,18 +111,29 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
     m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在搜索…"));
     NcmApi::instance().searchAsync(QStringLiteral("周杰伦"), 30);
 
-    // 对号只由列表数据（服务端 playable）决定；播放失败不改列表标记
+    // 实锤灰歌…（保留原说明）
+    // 正在播放 ▶：切歌只改文本
+    connect(&Playback::instance(), &Playback::songChanged, this,
+        [this]() { updatePlayingMarker(); });
 }
 
 void SearchPage::rebuildList()
 {
     const auto children = m_rows->childItems();
     for (auto* c : children) c->deleteLater();
+    m_playingMarkers.clear();
 
     for (int i = 0; i < m_songs.size(); ++i) {
         const auto& s = m_songs.at(i);
         auto* row = new QskLinearBox(Qt::Horizontal, m_rows);
         row->setPreferredHeight(44);
+
+        // 正在播放标识列（▶ / 空，14dp）
+        auto* marker = new QskTextLabel(QString(), row);
+        marker->setPreferredWidth(14);
+        marker->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+        marker->setTextColor(QColor(0x3d, 0x8b, 0xfd));
+        m_playingMarkers.append({ s.id, marker });
 
         auto* num = new QskTextLabel(QString::number(i + 1), row);
         num->setPreferredWidth(36);
@@ -154,7 +162,18 @@ void SearchPage::rebuildList()
             Playback::instance().setQueue(m_songs, i);
         });
     }
+    updatePlayingMarker();
     m_rows->update();
+}
+
+void SearchPage::updatePlayingMarker()
+{
+    const qint64 playing = Playback::instance().currentSongId();
+    for (auto& p : m_playingMarkers) {
+        if (p.second)
+            p.second->setText(p.first != 0 && p.first == playing
+                ? QString::fromUtf8("▶") : QString());
+    }
 }
 
 int SearchPage::songRowAt(const QPointF& localPos) const

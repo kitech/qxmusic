@@ -6,6 +6,7 @@
 #include <QskPushButton.h>
 #include <QskFontRole.h>
 #include <QskScrollArea.h>
+#include <QColor>
 #include <QQuickItem>
 #include <QQuickWindow>
 #include <QTimer>
@@ -85,6 +86,13 @@ void QueuePopup::rebuildRows()
     for (int i = 0; i < m_titles.size(); ++i) {
         auto* row = new QskLinearBox(Qt::Horizontal, m_rowsBox);
         row->setPreferredHeight(40);
+
+        // 当前播放行：序号前 ▶（蓝色标识列）
+        auto* marker = new QskTextLabel(
+            i == m_currentIndex ? QString::fromUtf8("▶") : QString(), row);
+        marker->setPreferredWidth(14);
+        marker->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+        marker->setTextColor(QColor(0x3d, 0x8b, 0xfd));
 
         auto* num = new QskTextLabel(QString::number(i + 1), row);
         num->setPreferredWidth(28);

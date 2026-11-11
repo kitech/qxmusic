@@ -3,6 +3,7 @@
 
 #include "page.h"
 #include "ncmapi.h"
+#include <QPair>
 
 class QskLinearBox;
 class QskTextLabel;
@@ -29,11 +30,13 @@ private:
     void buildRows();
     int songRowAt(const QPointF& localPos) const;   // 非曲目行=-1
     void requestDownload(int index);
+    void updatePlayingMarker();                     // ▶ 标识刷新（不重建列表）
 
     qint64 m_playlistId = 0;
     QString m_title;
     QList<Song> m_songs;
     qint64 m_pendingDlId = 0;
+    QList<QPair<qint64, QskTextLabel*>> m_playingMarkers;   // songId → 标识列
     QskLinearBox* m_rows = nullptr;
     QskTextLabel* m_header = nullptr;
     QskTextLabel* m_count = nullptr;

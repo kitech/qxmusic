@@ -25,7 +25,7 @@ class ContentView : public QWidget {
 public:
     explicit ContentView(QWidget* parent = 0);
     void setLibrary(const std::vector<Playlist>& lib);
-    void retranslateUi();
+    void setPlayingTrackId(qint64 ncmId);   /* 正在播放的 NCM 曲目（0=无） */    void retranslateUi();
 
     /* PlaylistListMode：NCM 歌单列表（热门歌单/分类列表） */
     void showPlaylistList(const QString& title, const std::vector<RemotePlaylistCard>& cards,
@@ -84,6 +84,7 @@ private:
     int m_scrollDelta;
     int m_hover;
     int m_current;
+    qint64 m_playingNcmId;   /* 正在播放的 NCM 曲目 id（0=无，本地曲不标） */
     int m_playlistId;
     int m_headerH;
     int m_rowH;

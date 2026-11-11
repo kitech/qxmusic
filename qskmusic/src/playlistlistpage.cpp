@@ -62,22 +62,13 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
 
     new QskSeparator(Qt::Horizontal, layout);
 
-    // ── 歌单卡片滚动区（状态行并入滚动内容首项，不占顶部固定带）──
-    auto* scroll = new QskScrollArea(layout);
-    scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
-    auto* content = new QskLinearBox(Qt::Vertical);
-    content->setSpacing(2);
-    content->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
-    scroll->setScrolledItem(content);
-
-    m_status = new StatusLine(content);
-    connect(m_status, &StatusLine::retryClicked, this, [this]() {
-        requestPage(0);
-    });
-
-    m_cardRows = new QskLinearBox(Qt::Vertical, content);
+    // ── 歌单卡片滚动区 ──
+    m_cardRows = new QskLinearBox(Qt::Vertical);
     m_cardRows->setSpacing(2);
     m_cardRows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
+    auto* scroll = new QskScrollArea(layout);
+    scroll->setScrolledItem(m_cardRows);
+    scroll->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
 
     // 安卓触摸坑（AGENTS.md 4.2）：滚动内容行点击走 QQuickTapHandler
     {
@@ -97,7 +88,11 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
             });
     }
 
-    // ── 底部：加载更多（状态行已并入滚动内容）──
+    // ── 底部：状态 + 加载更多 ──
+    m_status = new StatusLine(layout);
+    connect(m_status, &StatusLine::retryClicked, this, [this]() {
+        requestPage(0);
+    });
     m_moreBtn = new QskPushButton(QString::fromUtf8("加载更多"), layout);
     m_moreBtn->setPreferredHeight(44);
     m_moreBtn->setVisible(false);
