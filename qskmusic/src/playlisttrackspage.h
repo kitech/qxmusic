@@ -6,12 +6,14 @@
 
 class QskLinearBox;
 class QskTextLabel;
+class StatusLine;
 
 /*
- * 歌单曲目页（qlmusic onNcmPlaylistTracks 移植）：
+ * 歌单曲目页（qlmusic onNcmPlaylistTracks + playAll 移植）：
  *   launchArgs: {"playlistId": qint64, "title": 歌单名}
- * 数据：NcmCatalog::playlistTracksDone；点曲 → Playback::setQueue(m_songs, i)
- * （播放/进度/自动下一首全在全局 Playback + 全局 PlayerBar）。
+ * 数据：NcmCatalog::playlistTracksDone；点曲 → Playback::setQueue(m_songs, i)；
+ * 信息行「共 N 首 + ▶ 播放全部」（qlmusic contentview playAll 同义）；
+ * 行长按 → 下载菜单（手动下载通道）。
  */
 class PlaylistTracksPage : public Page
 {
@@ -26,13 +28,16 @@ protected:
 private:
     void buildRows();
     int songRowAt(const QPointF& localPos) const;   // 非曲目行=-1
+    void requestDownload(int index);
 
     qint64 m_playlistId = 0;
     QString m_title;
     QList<Song> m_songs;
+    qint64 m_pendingDlId = 0;
     QskLinearBox* m_rows = nullptr;
     QskTextLabel* m_header = nullptr;
-    QskTextLabel* m_status = nullptr;
+    QskTextLabel* m_count = nullptr;
+    StatusLine* m_status = nullptr;
 };
 
 #endif

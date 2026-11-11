@@ -28,6 +28,7 @@
 #include "queuepopup.h"
 #include "lyricpopup.h"
 #include "playback.h"
+#include "downloadservice.h"
 #include "toastpopup.h"
 #include "tabfocus.h"
 #include "keepalive.h"
@@ -65,6 +66,24 @@ protected:
     bool eventFilter(QObject* obj, QEvent* event) override
     {
         auto* win = qobject_cast<QQuickWindow*>(obj);
+
+        // DIAG: 指针链探针（定位"行点击无响应"根因，结论后撤）
+        if (event->type() == QEvent::MouseButtonPress
+            || event->type() == QEvent::TouchBegin) {
+            QPointF p;
+            if (event->type() == QEvent::MouseButtonPress)
+                p = static_cast<QMouseEvent*>(event)->position();
+            else if (!static_cast<QTouchEvent*>(event)->points().isEmpty())
+                p = static_cast<QTouchEvent*>(event)->points().first().position();
+            QQuickItem* hit = win ? win->contentItem()->childAt(p.x(), p.y()) : nullptr;
+            QString chain;
+            for (QQuickItem* it = hit; it; it = it->parentItem())
+                chain += QString::fromUtf8(it->metaObject()->className())
+                    + QStringLiteral(" < ");
+            qDebug() << "[DIAG] press pos=" << p << "chain=" << chain
+                     << "focus=" << (win && win->activeFocusItem()
+                            ? win->activeFocusItem()->metaObject()->className() : "none");
+        }
 
         if (event->type() == QEvent::KeyPress) {
             auto* ke = static_cast<QKeyEvent*>(event);
@@ -340,6 +359,16 @@ int main(int argc, char* argv[])
                     : QString::fromUtf8("歌词加载中…"));
         }
     });
+
+    // 当前歌名/歌手（qlmusic 播放条同款）+ 下载进度转发
+    QObject::connect(&pb, &Playback::songChanged, playerBar, [&pb, playerBar]() {
+        const Song* s = pb.currentSong();
+        if (s) playerBar->setSongInfo(s->name, s->artists);
+    });
+    QObject::connect(&DownloadService::instance(), &DownloadService::progress,
+        playerBar, [playerBar](qint64, int pct) {
+            playerBar->setDownloadProgress(pct);
+        });
 
     // ── Register pages ──
     pageManager->registerPage("home", []() -> Page* {

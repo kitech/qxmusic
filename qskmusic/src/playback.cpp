@@ -1,5 +1,6 @@
 #include "playback.h"
 #include "audioplayer.h"
+#include "downloadservice.h"
 #include "logmodel.h"
 #include <QUrl>
 
@@ -37,16 +38,7 @@ Playback::Playback(QObject* parent)
             m_resolving = false;
             if (songId != currentSongId()) return;   // 期间已切曲，丢弃
             if (!err.isEmpty() || url.isEmpty()) {
-                // qlmusic mainwindow.cpp:1722-1756 同口径：灰歌 -6 / 仅试听 -7
-                // / 地区限制 -5 = 实锤不可播 → 队列项置 playable=false 并通知列表
-                if (err == QStringLiteral("NoResource")
-                    || err == QStringLiteral("TrialOnly")
-                    || err == QStringLiteral("GeoBlock")) {
-                    if (m_current >= 0 && m_current < m_queue.size()) {
-                        m_queue[m_current].playable = false;
-                        Q_EMIT playableChanged(songId);
-                    }
-                }
+                // 对号只由列表数据（服务端 playable）决定；播放失败不改列表标记
                 Q_EMIT playError(err == QStringLiteral("NoResource")
                     ? QString::fromUtf8("灰色歌曲，无可播资源")
                     : QString::fromUtf8("获取播放链接失败：%1").arg(err));
@@ -56,6 +48,12 @@ Playback::Playback(QObject* parent)
             m_playing = true;
             Q_EMIT playingChanged(true);
             NcmApi::instance().lyricAsync(songId);   // 歌词预取
+
+            // 自动缓存（qlmusic cache-first）：本地无文件则后台下载
+            QString suffix = QUrl(url).path().section(QLatin1Char('.'), -1);
+            if (suffix.isEmpty() || suffix.size() > 5)
+                suffix = QStringLiteral("mp3");
+            DownloadService::instance().enqueue(songId, url, suffix);
         });
     connect(&ncm, &NcmApi::lyricDone, this,
         [this](qint64 songId, const QString& lrc, const QString&) {

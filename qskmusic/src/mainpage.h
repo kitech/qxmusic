@@ -10,6 +10,8 @@
 class QskLinearBox;
 class QskTextLabel;
 class QskPushButton;
+class QskQuickItem;
+class StatusLine;
 
 /*
  * 首页（qlmusic SideNav 的手机化）：
@@ -37,7 +39,7 @@ private:
     bool chipAt(const QPointF& localPos, QString* cat) const;
 
     QskLinearBox* m_rows = nullptr;
-    QskTextLabel* m_status = nullptr;
+    StatusLine* m_status = nullptr;
     // chips 命中表：item → cat（TapHandler 用 mapRectToItem 测交，嵌套网格亦可）
     QList<QPair<QQuickItem*, QString>> m_chipCats;
 };

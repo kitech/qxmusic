@@ -2,13 +2,23 @@
 #include "pagemanager.h"
 #include "playback.h"
 #include "ncmcatalog.h"
+#include "ncmapi.h"
+#include "downloadservice.h"
+#include "statusline.h"
+#include "menuoverlay.h"
+#include "toastpopup.h"
 #include <QskLinearBox.h>
 #include <QskTextLabel.h>
 #include <QskPushButton.h>
 #include <QskScrollArea.h>
 #include <QskSeparator.h>
 #include <QskFontRole.h>
+#include <QskMenu.h>
+#include <QskLabelData.h>
+#include <QskPopup.h>
 #include <private/qquicktaphandler_p.h>
+#include <QUrl>
+#include <QTimer>
 
 namespace {
 
@@ -51,9 +61,29 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
 
     new QskSeparator(Qt::Horizontal, layout);
 
-    m_status = new QskTextLabel(QString::fromUtf8("加载中…"), layout);
-    m_status->setPreferredHeight(32);
-    m_status->setAlignment(Qt::AlignCenter);
+    m_status = new StatusLine(layout);
+    m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载歌单…"));
+    connect(m_status, &StatusLine::retryClicked, this, [this]() {
+        m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载歌单…"));
+        NcmCatalog::instance().loadPlaylistTracksAsync(m_playlistId);
+    });
+
+    // 信息行：共 N 首 + 播放全部（滚动区外，QskPushButton 可靠通道；
+    // qlmusic contentview playAll → trackActivated(0) 同义）
+    auto* infoRow = new QskLinearBox(Qt::Horizontal, layout);
+    infoRow->setSpacing(8);
+    infoRow->setPreferredHeight(38);
+
+    m_count = new QskTextLabel(QString(), infoRow);
+    m_count->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+    m_count->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+
+    auto* playAllBtn = new QskPushButton(QString::fromUtf8("▶ 播放全部"), infoRow);
+    playAllBtn->setPreferredHeight(34);
+    connect(playAllBtn, &QskAbstractButton::clicked, this, [this]() {
+        if (!m_songs.isEmpty())
+            Playback::instance().setQueue(m_songs, 0);
+    });
 
     m_rows = new QskLinearBox(Qt::Vertical);
     m_rows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
@@ -72,13 +102,45 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
                 if (idx < 0 || idx >= m_songs.size()) return;
                 Playback::instance().setQueue(m_songs, idx);
             });
+        // 长按 → 下载菜单（手动下载通道；qlmusic 曲目右键下载同义）
+        connect(tap, &QQuickTapHandler::longPressed, this, [this, tap]() {
+            const int idx = songRowAt(tap->point().position());
+            if (idx < 0 || idx >= m_songs.size()) return;
+
+            // 旧菜单清理（重复长按不叠加）
+            for (auto* old : findChildren<QskMenu*>())
+                old->deleteLater();
+            for (auto* old : findChildren<MenuOverlay*>())
+                old->deleteLater();
+
+            auto* menu = new QskMenu(this);
+            menu->setModal(true);
+            menu->setPopupFlag(QskPopup::DeleteOnClose, false);
+            const int idxDl = menu->addOption(
+                QskLabelData(QString::fromUtf8("下载：%1")
+                    .arg(elided(m_songs.at(idx).name, 10))));
+            menu->setOrigin(tap->point().position());
+            connect(menu, &QskMenu::triggered, this, [this, idx, idxDl](int i) {
+                if (i == idxDl)
+                    requestDownload(idx);
+                if (auto* m = qobject_cast<QskMenu*>(sender()))
+                    m->close();
+            });
+            {
+                auto* overlay = new MenuOverlay(menu);
+                connect(menu, &QObject::destroyed, overlay, &QObject::deleteLater);
+                connect(menu, &QskPopup::closed, overlay, &QObject::deleteLater);
+            }
+            menu->open();
+        });
     }
 
     connect(&NcmCatalog::instance(), &NcmCatalog::playlistTracksDone, this,
         [this](const PlaylistInfo& info, const QString& err) {
             if (info.id != m_playlistId) return;
             if (!err.isEmpty()) {
-                m_status->setText(QString::fromUtf8("加载失败：%1").arg(err));
+                m_status->setStatus(StatusLine::Error,
+                    QString::fromUtf8("加载失败：%1").arg(err));
                 return;
             }
             m_songs = info.songs;
@@ -86,25 +148,35 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
                 m_title = info.name;
                 m_header->setText(elided(m_title, 12));
             }
-            m_status->setText(m_songs.isEmpty()
-                ? QString::fromUtf8("歌单暂无曲目")
-                : QString::fromUtf8("%1 首，点 ▶ 播放").arg(m_songs.size()));
+            if (m_songs.isEmpty()) {
+                m_status->setStatus(StatusLine::Info, QString::fromUtf8("歌单暂无曲目"));
+                m_count->setText(QString());
+            } else {
+                m_status->clearStatus();
+                m_count->setText(QString::fromUtf8("共 %1 首").arg(m_songs.size()));
+            }
             buildRows();
         });
 
     NcmCatalog::instance().loadPlaylistTracksAsync(m_playlistId);
 
-    // 实锤灰歌 → 本地行摘对号并重建（qlmusic 实时兜底同款）
-    connect(&Playback::instance(), &Playback::playableChanged, this,
-        [this](qint64 songId) {
-            for (auto& s : m_songs) {
-                if (s.id == songId && s.playable) {
-                    s.playable = false;
-                    buildRows();
-                    break;
-                }
+    // 手动下载：先取 URL（不触发播放），再入下载队列
+    connect(&NcmApi::instance(), &NcmApi::downloadUrlDone, this,
+        [this](qint64 id, const QString& url, const QString& err) {
+            if (id != m_pendingDlId) return;
+            m_pendingDlId = 0;
+            if (!err.isEmpty() || url.isEmpty()) {
+                ToastPopup::show(this, QString::fromUtf8("获取下载链接失败：%1").arg(err));
+                return;
             }
+            QString suffix = QUrl(url).path().section(QLatin1Char('.'), -1);
+            if (suffix.isEmpty() || suffix.size() > 5)
+                suffix = QStringLiteral("mp3");
+            DownloadService::instance().enqueue(id, url, suffix);
+            ToastPopup::show(this, QString::fromUtf8("已加入下载"));
         });
+
+    // 对号只由列表数据（服务端 playable）决定；播放失败不改列表标记
 }
 
 void PlaylistTracksPage::buildRows()
@@ -136,6 +208,13 @@ void PlaylistTracksPage::buildRows()
         auto* dur = new QskTextLabel(durText, row);
         dur->setPreferredWidth(56);
         dur->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
+
+        // 单独播放按钮（保留；桌面 clicked 生效，安卓触摸由外层 TapHandler 兜底）
+        auto* playBtn = new QskPushButton(QString::fromUtf8("▶"), row);
+        playBtn->setPreferredSize(30, 30);
+        connect(playBtn, &QskAbstractButton::clicked, this, [this, i]() {
+            Playback::instance().setQueue(m_songs, i);
+        });
     }
     m_rows->update();
 }
@@ -150,4 +229,16 @@ int PlaylistTracksPage::songRowAt(const QPointF& localPos) const
         }
     }
     return -1;
+}
+
+void PlaylistTracksPage::requestDownload(int index)
+{
+    if (index < 0 || index >= m_songs.size()) return;
+    const qint64 id = m_songs.at(index).id;
+    if (DownloadService::instance().isCached(id, QStringLiteral("mp3"))) {
+        ToastPopup::show(this, QString::fromUtf8("已缓存，无需下载"));
+        return;
+    }
+    m_pendingDlId = id;
+    NcmApi::instance().resolveForDownloadAsync(id);
 }

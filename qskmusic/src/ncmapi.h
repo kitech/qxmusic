@@ -37,11 +37,13 @@ public:
 
     void searchAsync(const QString& keywords, int limit);
     void resolveAsync(qint64 songId, int quality);
+    void resolveForDownloadAsync(qint64 songId);   // 仅取 URL（不触发播放）
     void lyricAsync(qint64 songId);
 
 Q_SIGNALS:
     void searchDone(const QList<Song>& songs, const QString& err);
     void resolveDone(qint64 songId, const QString& url, const QString& err);
+    void downloadUrlDone(qint64 songId, const QString& url, const QString& err);
     void lyricDone(qint64 songId, const QString& lrc, const QString& err);
     void playFailReceived(qint64 songId, const QString& reason);
 

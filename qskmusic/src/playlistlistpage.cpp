@@ -1,5 +1,6 @@
 #include "playlistlistpage.h"
 #include "pagemanager.h"
+#include "statusline.h"
 #include <private/qquicktaphandler_p.h>
 #include <QskLinearBox.h>
 #include <QskTextLabel.h>
@@ -88,9 +89,10 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
     }
 
     // ── 底部：状态 + 加载更多 ──
-    m_status = new QskTextLabel(layout);
-    m_status->setPreferredHeight(32);
-    m_status->setAlignment(Qt::AlignCenter);
+    m_status = new StatusLine(layout);
+    connect(m_status, &StatusLine::retryClicked, this, [this]() {
+        requestPage(0);
+    });
     m_moreBtn = new QskPushButton(QString::fromUtf8("加载更多"), layout);
     m_moreBtn->setPreferredHeight(44);
     m_moreBtn->setVisible(false);
@@ -103,14 +105,17 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
             if (!m_loading) return;   // 非本页在途请求
             m_loading = false;
             if (!err.isEmpty()) {
-                m_status->setText(QString::fromUtf8("加载失败：%1").arg(err));
+                m_status->setStatus(StatusLine::Error,
+                    QString::fromUtf8("加载失败：%1").arg(err));
                 m_moreBtn->setVisible(m_more);
                 return;
             }
             m_cards += cards;
             m_more = more;
-            m_status->setText(m_cards.isEmpty() ? QString::fromUtf8("暂无歌单")
-                                                : QString());
+            if (m_cards.isEmpty())
+                m_status->setStatus(StatusLine::Info, QString::fromUtf8("暂无歌单"));
+            else
+                m_status->clearStatus();
             m_moreBtn->setVisible(m_more);
             rebuildCards();
         });
@@ -122,7 +127,7 @@ void PlaylistListPage::requestPage(int offset)
 {
     if (m_loading) return;
     m_loading = true;
-    m_status->setText(QString::fromUtf8("加载中…"));
+    m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载歌单…"));
     m_moreBtn->setVisible(false);
     if (offset == 0) {
         m_cards.clear();

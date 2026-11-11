@@ -1,6 +1,7 @@
 #include "mainpage.h"
 #include "pagemanager.h"
 #include "menuoverlay.h"
+#include "statusline.h"
 #include <QskLinearBox.h>
 #include <QskTextLabel.h>
 #include <QskPushButton.h>
@@ -46,9 +47,12 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
     new QskSeparator(Qt::Horizontal, layout);
 
     // ── 分类树（qlmusic SideNav：动态加载）──
-    m_status = new QskTextLabel(QString::fromUtf8("分类加载中…"), layout);
-    m_status->setPreferredHeight(32);
-    m_status->setAlignment(Qt::AlignCenter);
+    m_status = new StatusLine(layout);
+    m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载分类…"));
+    connect(m_status, &StatusLine::retryClicked, this, [this]() {
+        m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载分类…"));
+        NcmCatalog::instance().loadCategoriesAsync();
+    });
 
     m_rows = new QskLinearBox(Qt::Vertical);
     m_rows->setSpacing(2);
@@ -75,10 +79,11 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
         [this](const QStringList& hot, const QList<CategoryGroup>& groups,
                const QString& err) {
             if (!err.isEmpty()) {
-                m_status->setText(QString::fromUtf8("分类加载失败：%1").arg(err));
+                m_status->setStatus(StatusLine::Error,
+                    QString::fromUtf8("加载失败：%1").arg(err));
                 return;
             }
-            m_status->setText(QString());
+            m_status->clearStatus();
             rebuild(hot, groups);
         });
 

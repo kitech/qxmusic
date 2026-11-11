@@ -105,6 +105,10 @@ qt_add_executable(qskmusic
     src/playlistlistpage.cpp
     src/playlisttrackspage.h
     src/playlisttrackspage.cpp
+    src/statusline.h
+    src/statusline.cpp
+    src/downloadservice.h
+    src/downloadservice.cpp
     src/progresspopup.h
     src/progresspopup.cpp
     src/keepalive.h

@@ -7,6 +7,7 @@
 class QskLinearBox;
 class QskTextLabel;
 class QskTextField;
+class StatusLine;
 
 /*
  * 搜索页（qlmusic 侧栏搜索的次要入口）：
@@ -29,7 +30,7 @@ private:
     int songRowAt(const QPointF& localPos) const;
 
     QskTextField* m_field = nullptr;
-    QskTextLabel* m_status = nullptr;
+    StatusLine* m_status = nullptr;
     QskLinearBox* m_rows = nullptr;
     QList<Song> m_songs;
 };

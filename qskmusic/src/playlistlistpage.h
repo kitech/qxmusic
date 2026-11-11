@@ -4,8 +4,9 @@
 #include "page.h"
 #include "ncmcatalog.h"
 
+class PlaylistListView;
 class QskLinearBox;
-class QskTextLabel;
+class StatusLine;
 class QskPushButton;
 
 /*
@@ -34,7 +35,7 @@ private:
     bool m_loading = false;
     QList<PlaylistCard> m_cards;
     QskLinearBox* m_cardRows = nullptr;
-    QskTextLabel* m_status = nullptr;
+    StatusLine* m_status = nullptr;
     QskPushButton* m_moreBtn = nullptr;
 };
 

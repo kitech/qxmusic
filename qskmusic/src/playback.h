@@ -41,8 +41,6 @@ Q_SIGNALS:
     void progressMsChanged(int ms);
     void durationMsChanged(int ms);
     void playError(const QString& message);
-    // resolve 实锤不可播（灰歌/仅试听/地区限制）→ 列表摘对号（qlmusic 同口径）
-    void playableChanged(qint64 songId);
 
 private:
     explicit Playback(QObject* parent = nullptr);

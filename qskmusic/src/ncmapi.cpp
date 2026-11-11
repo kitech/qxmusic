@@ -126,6 +126,28 @@ void NcmApi::resolveAsync(qint64 songId, int quality)
     }).detach();
 }
 
+void NcmApi::resolveForDownloadAsync(qint64 songId)
+{
+    std::thread([this, songId]() {
+        std::string json;
+        const auto st = m_client.resolve_source(songId,
+            static_cast<ncm::Quality>(NCM_Q_EXHIGH), json);
+        QString url, err;
+        if (st != ncm::Status::Ok) {
+            err = statusText(st);
+        } else {
+            const auto o = QJsonDocument::fromJson(
+                QByteArray::fromStdString(json)).object();
+            url = o.value("url").toString();
+            if (url.isEmpty())
+                err = QStringLiteral("no url");
+        }
+        qDebug() << "[qskmusic] ncm download url:" << songId
+                 << (err.isEmpty() ? QStringLiteral("ok") : err);
+        Q_EMIT downloadUrlDone(songId, url, err);
+    }).detach();
+}
+
 void NcmApi::lyricAsync(qint64 songId)
 {
     std::thread([this, songId]() {

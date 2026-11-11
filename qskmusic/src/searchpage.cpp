@@ -1,6 +1,7 @@
 #include "searchpage.h"
 #include "pagemanager.h"
 #include "playback.h"
+#include "statusline.h"
 #include <private/qquicktaphandler_p.h>
 #include <QskLinearBox.h>
 #include <QskTextLabel.h>
@@ -62,16 +63,15 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
         [this](const QString& text) {
             if (text.startsWith(QLatin1Char(' ')))
                 m_field->setText(text.trimmed());
-        });
-    connect(searchBtn, &QskAbstractButton::clicked, this, [this]() {
+        });    connect(searchBtn, &QskAbstractButton::clicked, this, [this]() {
         const QString kw = m_field->text().trimmed();
-        if (!kw.isEmpty())
+        if (!kw.isEmpty()) {
+            m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在搜索…"));
             NcmApi::instance().searchAsync(kw, 30);
+        }
     });
 
-    m_status = new QskTextLabel(layout);
-    m_status->setPreferredHeight(32);
-    m_status->setAlignment(Qt::AlignCenter);
+    m_status = new StatusLine(layout);
 
     m_rows = new QskLinearBox(Qt::Vertical);
     m_rows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
@@ -94,29 +94,23 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
     connect(&NcmApi::instance(), &NcmApi::searchDone, this,
         [this](const QList<Song>& songs, const QString& err) {
             if (!err.isEmpty()) {
-                m_status->setText(QString::fromUtf8("搜索失败：%1").arg(err));
+                m_status->setStatus(StatusLine::Error,
+                    QString::fromUtf8("搜索失败：%1").arg(err));
                 return;
             }
             m_songs = songs;
-            m_status->setText(m_songs.isEmpty() ? QString::fromUtf8("无结果")
-                                                : QString());
+            if (m_songs.isEmpty())
+                m_status->setStatus(StatusLine::Info, QString::fromUtf8("无结果"));
+            else
+                m_status->clearStatus();
             rebuildList();
         });
 
     // 打开即搜默认词（保留原搜索自动行为，不占首屏）
+    m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在搜索…"));
     NcmApi::instance().searchAsync(QStringLiteral("周杰伦"), 30);
 
-    // 实锤灰歌 → 本地行摘对号并重建（qlmusic 实时兜底同款）
-    connect(&Playback::instance(), &Playback::playableChanged, this,
-        [this](qint64 songId) {
-            for (auto& s : m_songs) {
-                if (s.id == songId && s.playable) {
-                    s.playable = false;
-                    rebuildList();
-                    break;
-                }
-            }
-        });
+    // 对号只由列表数据（服务端 playable）决定；播放失败不改列表标记
 }
 
 void SearchPage::rebuildList()
@@ -148,6 +142,13 @@ void SearchPage::rebuildList()
         auto* dur = new QskTextLabel(durText, row);
         dur->setPreferredWidth(56);
         dur->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
+
+        // 单独播放按钮（保留；安卓触摸由外层 TapHandler 兜底）
+        auto* playBtn = new QskPushButton(QString::fromUtf8("▶"), row);
+        playBtn->setPreferredSize(30, 30);
+        connect(playBtn, &QskAbstractButton::clicked, this, [this, i]() {
+            Playback::instance().setQueue(m_songs, i);
+        });
     }
     m_rows->update();
 }
