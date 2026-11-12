@@ -54,6 +54,7 @@ macx:exists($$PWD/../go163-music-core/out/libncm.dylib) {
 }
 
 include(../qlcomp/qlite.pri)
+include(../musiccom/musiccom.pri)
 include($$PWD/audio.pri)
 INCLUDEPATH += ../qlcomp
 INCLUDEPATH += ../qlappcom

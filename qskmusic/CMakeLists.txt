@@ -26,6 +26,7 @@ endif()
 
 # qskcomp：QSKinny 自绘组件库（与 anystik 同源共享）
 include(${CMAKE_CURRENT_SOURCE_DIR}/../qskcomp/qskcomp.cmake)
+include(${CMAKE_CURRENT_SOURCE_DIR}/../musiccom/musiccom.cmake)
 
 # ── libncm：NCM 客户端共享库（go163-music-core 预构建，build 脚本先行产出） ──
 # 各平台产物先由 build 脚本拷进 ${CMAKE_BINARY_DIR}，IMPORTED 指向该副本。
@@ -123,6 +124,7 @@ qt_add_executable(qskmusic
     src/envprobe.cpp
     src/version_config.h
     ${QSKCOMP_SOURCES}
+    ${MUSICCOM_SOURCES}
 )
 
 # ── i18n：.qm 经 .qrc 内嵌（先跑 build 脚本里的 lrelease） ──
@@ -133,6 +135,7 @@ target_include_directories(qskmusic PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/include
     ${QSKCOMP_INCLUDE_DIRS}
+    ${MUSICCOM_INCLUDE_DIRS}
 )
 
 target_link_libraries(qskmusic PRIVATE Qsk::QSkinny Qt6::Core Qt6::Gui Qt6::Quick Qt6::Network Qt6::Multimedia Qt6::QuickPrivate ncm)
