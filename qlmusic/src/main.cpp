@@ -1,5 +1,6 @@
 #include "compat34.h"
 #include "mainwindow.h"
+#include "iconloader.h"
 #include "translator.h"
 #include "appsetup.h"
 #include "LimeStyle.h"
@@ -99,6 +100,7 @@ int main(int argc, char* argv[]) {
     qSetAppIcon(app_icon);
     qSetWindowTitle(&window, _("app_title"));
     window.show();
+    IconLoader::instance().trimCache();
     qSetAppIcon(app_icon);
 
     QtappSetup::setQuitOnExit(true);

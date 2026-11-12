@@ -73,6 +73,7 @@ private:
     void setDownloadHiddenLater();
 
 private slots:
+    void refreshCover();
     void onDlHide();
     void onSpinTick();
     void onMuteToggled(bool on);    /* 静音 checkbox：on=音量0；off=回静音前值 */

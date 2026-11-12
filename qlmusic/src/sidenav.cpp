@@ -4,6 +4,7 @@
 #include "userinfopanel.h"
 #include "translator.h"
 #include "limelog.h"
+#include "icongen.h"
 
 #include <qlabel.h>
 #include <qcombobox.h>
@@ -322,7 +323,15 @@ void SideNav::paintEvent(QPaintEvent*)
         }
         p.setFont(selected ? bold : normal);
         p.setPen(selected ? pal.accent : pal.textPrimary);
-        p.drawText(QRect(20, r.y(), width() - 28, r.height()), Qt::AlignVCenter | Qt::AlignLeft, it.text);
+        int textX = 20;
+        if (it.kind == NavCategory) {
+            // 分类图标（本地生成：首字色块，无网络依赖）
+            QPixmap icon = qximage::categoryIcon(it.text, 18);
+            p.drawPixmap(6, r.y() + (r.height() - 18) / 2, icon);
+            textX = 30;
+        }
+        p.drawText(QRect(textX, r.y(), width() - textX - 8, r.height()),
+                   Qt::AlignVCenter | Qt::AlignLeft, it.text);
         if (it.count >= 0) {
             p.setFont(small);
             p.setPen(pal.textMuted);

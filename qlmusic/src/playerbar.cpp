@@ -2,6 +2,7 @@
 #include "musicstyle.h"
 #include "translator.h"
 #include "identicon.h"
+#include "iconloader.h"
 
 #include <qglobal.h>
 #include <qpainter.h>
@@ -406,6 +407,8 @@ PlayerBar::PlayerBar(QWidget* parent)
 {
     setMouseTracking(true);
     setFixedHeight(80);
+    QObject::connect(&IconLoader::instance(), SIGNAL(iconsReady()),
+                     this, SLOT(refreshCover()));
     retranslateUi();
 #ifdef QT3_BUILD
     m_tip = new PlayerBarToolTip(this);
@@ -446,8 +449,18 @@ void PlayerBar::setTrack(const Track& t)
     m_hasTrack = true;
     m_progressMs = 0;
     m_durationMs = t.durationMs;
-    /* identicon 生成一次缓存：避免拖动音量/进度等高频重绘每帧重生成 */
-    m_coverPixmap = generateIdenticon(m_track.coverSeed, 52);
+    /* 真实封面优先；无图用 identicon。结果进内存 LRU，高频重绘不再重复生成 */
+    m_coverPixmap = IconLoader::instance().cover(
+        m_track.coverUrl, m_track.coverSeed, 52);
+    update();
+}
+
+void PlayerBar::refreshCover()
+{
+    if (!m_hasTrack)
+        return;
+    m_coverPixmap = IconLoader::instance().cover(
+        m_track.coverUrl, m_track.coverSeed, 52);
     update();
 }
 
@@ -731,8 +744,7 @@ void PlayerBar::paintEvent(QPaintEvent*)
     small.setPointSize(qMax(7, small.pointSize() - 2));
 
     if (m_hasTrack) {
-        QPixmap cover = generateIdenticon(m_track.coverSeed, 52);
-        p.drawPixmap(14, 14, cover);
+        p.drawPixmap(14, 14, m_coverPixmap);
         p.setFont(bold);
         p.setPen(pal.textPrimary);
         p.drawText(QRect(78, 18, width() / 2 - 100, 22), Qt::AlignVCenter | Qt::AlignLeft, m_track.title);

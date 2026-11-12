@@ -2,6 +2,7 @@
 #include "musicstyle.h"
 #include "translator.h"
 #include "identicon.h"
+#include "iconloader.h"
 #include "LimeScrollBar.h"
 
 #include <qglobal.h>
@@ -39,6 +40,8 @@ ContentView::ContentView(QWidget* parent)
     setMouseTracking(true);
     m_scrollBar = new LimeScrollBar(Qt::Vertical, this);
     QObject::connect(m_scrollBar, SIGNAL(valueChanged(int)), this, SLOT(onScroll(int)));
+    QObject::connect(&IconLoader::instance(), SIGNAL(iconsReady()),
+                     this, SLOT(update()));
     retranslateUi();
 }
 
@@ -359,7 +362,7 @@ void ContentView::paintEvent(QPaintEvent*)
                 p.drawText(QRect(16, y, 28, row.h), Qt::AlignVCenter | Qt::AlignRight,
                            QString::number(row.index + 1));
 
-                QPixmap cover = generateIdenticon(t.coverUrl.isEmpty() ? t.coverSeed : t.coverUrl, 36);
+                QPixmap cover = IconLoader::instance().cover(t.coverUrl, t.coverSeed, 36);
                 p.drawPixmap(56, y + (row.h - 36) / 2, cover);
 
                 p.setFont(selected ? bold : normal);
@@ -400,8 +403,8 @@ void ContentView::paintEvent(QPaintEvent*)
             p.drawText(QRect(16, y, 28, row.h), Qt::AlignVCenter | Qt::AlignRight,
                        QString::number(row.index + 1));
 
-            QPixmap cover = generateIdenticon(c.coverUrl.isEmpty() ? QString::number((long long)c.id)
-                                                                   : c.coverUrl, 40);
+            QPixmap cover = IconLoader::instance().cover(
+                c.coverUrl, QString::number((long long)c.id), 40);
             p.drawPixmap(56, y + (row.h - 40) / 2, cover);
 
             p.setFont(bold);

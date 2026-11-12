@@ -2,6 +2,7 @@
 #include "musicstyle.h"
 #include "translator.h"
 #include "identicon.h"
+#include "iconloader.h"
 #include "limelog.h"
 
 #include <qglobal.h>
@@ -18,6 +19,7 @@ QueuePanel::QueuePanel(QWidget* parent)
     m_scrollBar = new LimeScrollBar(Qt::Vertical, this);
     m_scrollBar->hide();
     connect(m_scrollBar, SIGNAL(valueChanged(int)), this, SLOT(onScroll(int)));
+    connect(&IconLoader::instance(), SIGNAL(iconsReady()), this, SLOT(update()));
     retranslateUi();
 }
 
@@ -109,7 +111,8 @@ void QueuePanel::paintEvent(QPaintEvent*)
     int y = 46;
     if (m_hasCurrent) {
         int coverSize = qMin(width() - 48, 150);
-        QPixmap cover = generateIdenticon(m_current.coverSeed, coverSize);
+        QPixmap cover = IconLoader::instance().cover(
+            m_current.coverUrl, m_current.coverSeed, coverSize);
         int cx = (width() - coverSize) / 2;
         p.drawPixmap(cx, y, cover);
         y += coverSize + 12;
