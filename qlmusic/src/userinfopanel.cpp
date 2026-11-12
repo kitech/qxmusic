@@ -1,5 +1,6 @@
 #include "userinfopanel.h"
 
+#include "compat34.h"
 #include "musicstyle.h"
 #include "identicon.h"
 #include "translator.h"
@@ -12,10 +13,10 @@ namespace {
 /* Qt3 无 QFontMetrics::elidedText：手动尾部截断 */
 QString elideRight(const QFontMetrics& fm, const QString& text, int maxW)
 {
-    if (text.isEmpty() || fm.width(text) <= maxW) return text;
+    if (text.isEmpty() || qFontWidth(fm, text) <= maxW) return text;
     QString t = text;
     const QString dots = qFromUtf8("…");
-    while (!t.isEmpty() && fm.width(t + dots) > maxW)
+    while (!t.isEmpty() && qFontWidth(fm, t + dots) > maxW)
         t.remove(t.length() - 1, 1);
     return t + dots;
 }

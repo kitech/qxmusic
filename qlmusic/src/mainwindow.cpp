@@ -1232,6 +1232,27 @@ static bool isTextInputWidget(QWidget* w)
     return w && (w->inherits("QLineEdit") || w->inherits("QTextEdit")
                  || w->inherits("QComboBox") || w->inherits("QSpinBox"));
 }
+
+#ifdef QT3_BUILD
+/* Qt3 兼容：无 qobject_cast/trimmed/isAncestorOf，也无 MediaToggle 键 */
+template <typename T> static T qCast(QObject* o) { return qt_cast<T>(o); }
+static const int kMediaTogglePlayPause = Qt::Key_MediaPlay;
+static bool qStringIsBlank(const QString& s) { return s.stripWhiteSpace().isEmpty(); }
+static bool qIsAncestorOf(QWidget* ancestor, QWidget* child)
+{
+    for (QWidget* w = child; w; w = w->parentWidget())
+        if (w == ancestor) return true;
+    return false;
+}
+#else
+template <typename T> static T qCast(QObject* o) { return qobject_cast<T>(o); }
+static const int kMediaTogglePlayPause = Qt::Key_MediaTogglePlayPause;
+static bool qStringIsBlank(const QString& s) { return s.trimmed().isEmpty(); }
+static bool qIsAncestorOf(QWidget* ancestor, QWidget* child)
+{
+    return ancestor && child && ancestor->isAncestorOf(child);
+}
+#endif
 } // namespace
 
 bool MainWindow::eventFilter(QObject* obj, QEvent* ev)
@@ -1245,12 +1266,12 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* ev)
 #endif
         const int key = ke->key();
         if ((key == Qt::Key_Space && mods == 0)
-            || key == Qt::Key_MediaTogglePlayPause) {
+            || key == kMediaTogglePlayPause) {
             QWidget* fw = qApp->focusWidget();
             if (fw && fw->topLevelWidget() != this)
                 return QMainWindow::eventFilter(obj, ev);
             if (fw && isTextInputWidget(fw)) {
-                if (key == Qt::Key_MediaTogglePlayPause) {
+                if (key == kMediaTogglePlayPause) {
                     onPlayPause();
                     return true;      /* 媒体键不受输入内容限制 */
                 }
@@ -1263,13 +1284,13 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* ev)
                     return QMainWindow::eventFilter(obj, ev);   /* Combo/Spin 全豁免 */
                 /* 搜索框占位符态：lineEdit 里显示提示文案，视同空 */
                 for (QWidget* p = fw; p; p = p->parentWidget()) {
-                    if (SearchLineEdit* sl = qobject_cast<SearchLineEdit*>(p)) {
+                    if (SearchLineEdit* sl = qCast<SearchLineEdit*>(p)) {
                         if (sl->lineEdit()->isPlaceholderVisible())
-                            text.clear();
+                            text = QString();
                         break;
                     }
                 }
-                if (!text.trimmed().isEmpty())
+                if (!qStringIsBlank(text))
                     return QMainWindow::eventFilter(obj, ev);   /* 非空：空格打字 */
                 onPlayPause();        /* 空框：空格=播控（不插入空格） */
                 return true;
@@ -1280,9 +1301,9 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* ev)
     } else if (ev->type() == QEvent::MouseButtonPress) {
         /* 焦点生命周期：点非输入区域 → 清输入焦点（配套规则 2） */
         QWidget* fw = qApp->focusWidget();
-        QWidget* target = qobject_cast<QWidget*>(obj);
+        QWidget* target = qCast<QWidget*>(obj);
         if (fw && target && isTextInputWidget(fw)
-            && target != fw && !fw->isAncestorOf(target))
+            && target != fw && !qIsAncestorOf(fw, target))
             fw->clearFocus();
     }
     return QMainWindow::eventFilter(obj, ev);
