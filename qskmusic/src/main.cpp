@@ -40,6 +40,7 @@
 #include <QKeyEvent>
 #include <QElapsedTimer>
 #include <QTimer>
+#include <QTimer>
 #include <QQuickWindow>
 #include <QMouseEvent>
 #include <QTouchEvent>
@@ -352,6 +353,34 @@ int main(int argc, char* argv[])
     // 播放状态 → Android 前台服务（WakeLock 熄屏不断播 / 通知文案）
     QObject::connect(&pb, &Playback::playingChanged, playerBar,
         [](bool playing) { KeepAlive::setPlaybackActive(playing); });
+
+    // ── 阶段2b：锁屏/通知元数据 + 播放状态（进度 1s 节流）──
+    QObject::connect(&pb, &Playback::songChanged, &pb, []() {
+        const Song* s = Playback::instance().currentSong();
+        KeepAlive::setMetadata(s ? s->name : QString(),
+                               s ? s->artists : QString(),
+                               s ? s->durationMs : 0);
+        KeepAlive::setPlaybackState(KeepAlive::StateBuffering, 0, 1.0f);
+    });
+    QObject::connect(&pb, &Playback::playingChanged, &pb, [](bool playing) {
+        KeepAlive::setPlaybackState(
+            playing ? KeepAlive::StatePlaying : KeepAlive::StatePaused,
+            Playback::instance().positionMs(), 1.0f);
+    });
+    auto* mediaTick = new QTimer(&pb);
+    mediaTick->setInterval(1000);
+    QObject::connect(mediaTick, &QTimer::timeout, &pb, []() {
+        Playback& p = Playback::instance();
+        if (p.isPlaying())
+            KeepAlive::setPlaybackState(KeepAlive::StatePlaying, p.positionMs(), 1.0f);
+    });
+    QObject::connect(&pb, &Playback::playingChanged, mediaTick,
+        [mediaTick](bool playing) {
+            if (playing)
+                mediaTick->start(1000);
+            else
+                mediaTick->stop();
+        });
     QObject::connect(&pb, &Playback::progressMsChanged, playerBar, &PlayerBar::setProgressMs);
     QObject::connect(&pb, &Playback::durationMsChanged, playerBar, &PlayerBar::setDurationMs);
     QObject::connect(&pb, &Playback::playError, playerBar, [playerBar](const QString& msg) {

@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QUrl>
 #include <QList>
+#include <QElapsedTimer>
 
 #include "ncmapi.h"
 
@@ -24,6 +25,14 @@ public:
     void togglePause();
     void next();
     void prev();
+
+    // 阶段2：幂等播控（锁屏/焦点回调共用）
+    bool isPlaying() const { return m_playing; }
+    int positionMs() const { return m_positionMs; }
+    void pause();
+    void resume();
+    void handleFocusChange(int change);      // 1 GAIN / -1 LOSS / -2 TRANSIENT / -3 DUCK
+    void handleMediaCommand(int cmd);        // 1 play 2 pause 3 next 4 prev 5 toggle
 
     const QList<Song>& queue() const { return m_queue; }
     int currentIndex() const { return m_current; }
@@ -53,6 +62,9 @@ private:
     int m_current = -1;
     bool m_resolving = false;
     bool m_playing = false;
+    int m_positionMs = 0;
+    bool m_resumeOnFocusGain = false;        // 瞬时丢失后是否恢复
+    QElapsedTimer m_toggleDebounce;          // Qt 媒体键 + MediaSession 双通道去重
     int m_errSkipRun = 0;   // 连续播放失败计数（qlmusic skipOnError 同义，阈值 99）
     qint64 m_lrcSongId = 0;
     QString m_lrcText;

@@ -1,6 +1,7 @@
 #include "playback.h"
 #include "audioplayer.h"
 #include "downloadservice.h"
+#include "keepalive.h"
 #include "logmodel.h"
 #include <QUrl>
 #include <QDebug>
@@ -27,6 +28,7 @@ Playback::Playback(QObject* parent)
             playIndex(m_current + 1);
     });
     connect(ap, &AudioPlayer::positionChanged, this, [this](qint64 ms) {
+        m_positionMs = int(ms);
         Q_EMIT progressMsChanged(int(ms));
     });
     connect(ap, &AudioPlayer::durationChanged, this, [this](qint64 ms) {
@@ -49,6 +51,7 @@ Playback::Playback(QObject* parent)
                 if (++m_errSkipRun >= 99) {
                     m_errSkipRun = 0;
                     m_playing = false;
+                    KeepAlive::abandonAudioFocus();
                     Q_EMIT playingChanged(false);
                     Q_EMIT playError(QString::fromUtf8(
                         "连续 99 首播放失败，已停止连播"));
@@ -57,8 +60,17 @@ Playback::Playback(QObject* parent)
                 playIndex(m_current + 1);   // 自动下一首（内部会预跳灰歌）
                 return;
             }
+            // 阶段2a：起播前申请音频焦点（Android 15+ 需前台服务已在运行，本应用满足）
+            if (!KeepAlive::requestAudioFocus()) {
+                m_playing = false;
+                Q_EMIT playingChanged(false);
+                Q_EMIT playError(QString::fromUtf8(
+                    "其他应用正在使用音频，请稍后重试"));
+                return;
+            }
             AudioPlayer::instance()->playUrl(QString::number(songId), QUrl(url));
             m_playing = true;
+            m_positionMs = 0;
             m_errSkipRun = 0;   // 起播成功即中断"连续失败"链
             Q_EMIT playingChanged(true);
             NcmApi::instance().lyricAsync(songId);   // 歌词预取
@@ -115,8 +127,10 @@ void Playback::playIndex(int index)
     qDebug() << "[DIAG] playIndex req=" << index
              << "size=" << m_queue.size()
              << "resolving=" << m_resolving;
-    if (index < 0 || index >= m_queue.size())
+    if (index < 0 || index >= m_queue.size()) {
+        KeepAlive::abandonAudioFocus();
         return;   // 越界 = 队尾，自然停止
+    }
 
     // 灰歌：保留原 toast 提示；随后预跳到下一可播曲目（qlmusic 跳过语义）
     if (!m_queue.at(index).playable) {
@@ -124,6 +138,7 @@ void Playback::playIndex(int index)
         const int usable = firstPlayableAtOrAfter(index + 1);
         if (usable < 0) {
             m_playing = false;
+            KeepAlive::abandonAudioFocus();
             Q_EMIT playingChanged(false);
             return;
         }
@@ -138,6 +153,7 @@ void Playback::playIndex(int index)
     m_playing = false;
     Q_EMIT songChanged();
     Q_EMIT progressMsChanged(0);
+    m_positionMs = 0;
     Q_EMIT durationMsChanged(s.durationMs);
     LogModel::instance().append(LogModel::Info, "player",
         QString("play: %1 - %2").arg(s.name, s.artists));
@@ -154,17 +170,97 @@ int Playback::firstPlayableAtOrAfter(int from) const
 
 void Playback::togglePause()
 {
+    // 媒体键可能同时经 Qt 与 MediaSession 到达（部分 ROM 双发）：300ms 去重
+    if (m_toggleDebounce.isValid() && m_toggleDebounce.elapsed() < 300)
+        return;
+    m_toggleDebounce.start();
+
     auto* ap = AudioPlayer::instance();
     if (!ap->playingId().isEmpty()) {
-        ap->pause();
-        m_playing = false;
-        Q_EMIT playingChanged(false);
+        pause();
     } else if (!ap->pausedId().isEmpty()) {
-        ap->resume();
-        m_playing = true;
-        Q_EMIT playingChanged(true);
+        resume();
     } else if (m_current >= 0 && !m_resolving) {
         playIndex(m_current);   // 重播当前
+    }
+}
+
+void Playback::pause()
+{
+    auto* ap = AudioPlayer::instance();
+    if (!m_playing && ap->playingId().isEmpty())
+        return;
+    ap->pause();
+    m_playing = false;
+    m_resumeOnFocusGain = false;
+    Q_EMIT playingChanged(false);
+    qDebug() << "[ENV] playback paused";
+}
+
+void Playback::resume()
+{
+    auto* ap = AudioPlayer::instance();
+    if (m_playing)
+        return;
+    if (!ap->pausedId().isEmpty()) {
+        if (!KeepAlive::requestAudioFocus()) {
+            Q_EMIT playError(QString::fromUtf8("音频焦点被占用，无法恢复播放"));
+            return;
+        }
+        ap->resume();
+        m_playing = true;
+        m_resumeOnFocusGain = false;
+        Q_EMIT playingChanged(true);
+        qDebug() << "[ENV] playback resumed";
+    } else if (m_current >= 0 && !m_resolving) {
+        playIndex(m_current);
+    }
+}
+
+void Playback::handleFocusChange(int change)
+{
+    qDebug() << "[ENV] focus change=" << change
+             << "resumeFlag=" << m_resumeOnFocusGain;
+    switch (change) {
+    case 1:                                  // AUDIOFOCUS_GAIN
+        if (m_resumeOnFocusGain) {
+            m_resumeOnFocusGain = false;
+            resume();
+        }
+        break;
+    case -2: {                               // AUDIOFOCUS_LOSS_TRANSIENT
+        const bool wasPlaying = m_playing;
+        pause();
+        m_resumeOnFocusGain = wasPlaying;
+        LogModel::instance().append(LogModel::Info, "play",
+            QString::fromUtf8("焦点瞬时丢失，暂停（%1）")
+                .arg(wasPlaying ? QString::fromUtf8("结束后恢复")
+                                : QString::fromUtf8("保持暂停")));
+        break;
+    }
+    case -1:                                 // AUDIOFOCUS_LOSS
+        m_resumeOnFocusGain = false;
+        pause();
+        LogModel::instance().append(LogModel::Info, "play",
+            QString::fromUtf8("焦点永久丢失，已暂停"));
+        break;
+    case -3:                                 // CAN_DUCK：系统自动降音量，不处理
+        break;
+    default:
+        break;
+    }
+}
+
+void Playback::handleMediaCommand(int cmd)
+{
+    qDebug() << "[ENV] media command=" << cmd;
+    switch (cmd) {
+    case 1: resume(); break;
+    case 2: pause(); break;
+    case 3: next(); break;
+    case 4: prev(); break;
+    case 5: togglePause(); break;
+    default: break;
     }
 }
 
