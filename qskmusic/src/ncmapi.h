@@ -16,6 +16,8 @@ struct Song
     QString name;
     QString artists;
     QString album;
+    QString cover;      // 专辑封面 URL（libncm 歌曲 JSON 的 cover）
+    qint64 albumId = 0; // 专辑 id（兜底图标 seed / 去重预留）
     int durationMs = 0;
     bool playable = true;
 };

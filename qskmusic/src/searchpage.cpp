@@ -2,6 +2,8 @@
 #include "pagemanager.h"
 #include "playback.h"
 #include "statusline.h"
+#include "iconitem.h"
+#include "icongen.h"
 #include <private/qquicktaphandler_p.h>
 #include <QColor>
 #include <QskLinearBox.h>
@@ -127,6 +129,13 @@ void SearchPage::rebuildList()
         const auto& s = m_songs.at(i);
         auto* row = new QskLinearBox(Qt::Horizontal, m_rows);
         row->setPreferredHeight(44);
+
+        auto* icon = new IconItem(row);
+        icon->setPreferredSize(36, 36);
+        icon->setCornerRadius(6);
+        icon->setFallback(qximage::identicon(
+            s.albumId > 0 ? QString::number(s.albumId) : QString::number(s.id), 72));
+        icon->setSource(s.cover, 72);
 
         // 正在播放标识列（▶ / 空，14dp）
         auto* marker = new QskTextLabel(QString(), row);

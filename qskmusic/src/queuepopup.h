@@ -18,6 +18,8 @@ public:
     explicit QueuePopup(QQuickItem* parent = nullptr);
 
     void setTracks(const QStringList& titles);
+    // 封面与兜底 seed（与 titles 同序；可为空=不显示封面）
+    void setTrackCovers(const QStringList& covers, const QStringList& seeds);
     void setCurrentIndex(int idx);
 
 Q_SIGNALS:
@@ -34,6 +36,8 @@ private:
     QskLinearBox* m_layout = nullptr;
     QskLinearBox* m_rowsBox = nullptr;
     QStringList m_titles;
+    QStringList m_covers;
+    QStringList m_seeds;
     int m_currentIndex = -1;
 };
 

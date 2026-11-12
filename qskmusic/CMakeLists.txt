@@ -122,6 +122,10 @@ qt_add_executable(qskmusic
     src/androidutils.cpp
     src/envprobe.h
     src/envprobe.cpp
+    src/iconloader.h
+    src/iconloader.cpp
+    src/iconitem.h
+    src/iconitem.cpp
     src/version_config.h
     ${QSKCOMP_SOURCES}
     ${MUSICCOM_SOURCES}

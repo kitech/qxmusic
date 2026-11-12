@@ -1,4 +1,6 @@
 #include "queuepopup.h"
+#include "iconitem.h"
+#include "icongen.h"
 #include <QskBox.h>
 #include <QskBoxShapeMetrics.h>
 #include <QskLinearBox.h>
@@ -78,6 +80,12 @@ void QueuePopup::setCurrentIndex(int idx)
     rebuildRows();
 }
 
+void QueuePopup::setTrackCovers(const QStringList& covers, const QStringList& seeds)
+{
+    m_covers = covers;
+    m_seeds = seeds;
+}
+
 void QueuePopup::rebuildRows()
 {
     const auto children = m_rowsBox->childItems();
@@ -86,6 +94,15 @@ void QueuePopup::rebuildRows()
     for (int i = 0; i < m_titles.size(); ++i) {
         auto* row = new QskLinearBox(Qt::Horizontal, m_rowsBox);
         row->setPreferredHeight(40);
+
+        const QString cover = i < m_covers.size() ? m_covers.at(i) : QString();
+        const QString seed = i < m_seeds.size() ? m_seeds.at(i)
+                                                : QString::number(i);
+        auto* icon = new IconItem(row);
+        icon->setPreferredSize(32, 32);
+        icon->setCornerRadius(6);
+        icon->setFallback(qximage::identicon(seed, 64));
+        icon->setSource(cover, 64);
 
         // 当前播放行：序号前 ▶（蓝色标识列）
         auto* marker = new QskTextLabel(

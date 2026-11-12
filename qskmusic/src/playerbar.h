@@ -5,6 +5,7 @@
 
 class QskPushButton;
 class QskTextLabel;
+class IconItem;
 class ProgressLineItem;
 
 /*
@@ -22,6 +23,7 @@ public:
     explicit PlayerBar(QQuickItem* parent = nullptr);
 
     void setSongInfo(const QString& title, const QString& artist);
+    void setCover(const QString& url, const QString& seed);   // 专辑封面（无图用 identicon）
     void setProgressMs(int ms);
     void setDurationMs(int ms);
     void setPlaying(bool playing);
@@ -40,7 +42,7 @@ Q_SIGNALS:
 private:
     static QString fmtMs(int ms);
 
-    QskTextLabel* m_icon = nullptr;
+    IconItem* m_icon = nullptr;
     QskTextLabel* m_title = nullptr;
     QskTextLabel* m_artist = nullptr;
     QskPushButton* m_playBtn = nullptr;

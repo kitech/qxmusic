@@ -1,5 +1,7 @@
 #include "playerbar.h"
 #include "progressline.h"
+#include "iconitem.h"
+#include "icongen.h"
 #include <QskPushButton.h>
 #include <QskProgressBar.h>
 #include <QskTextLabel.h>
@@ -31,13 +33,11 @@ PlayerBar::PlayerBar(QQuickItem* parent)
     setMargins(6);
     setSpacing(8);
 
-    // ① icon（40×40，垂直居中于两行高）
-    m_icon = new QskTextLabel(QString::fromUtf8("♪"), this);
+    // ① icon（40×40，垂直居中于两行高；专辑封面，无图用 identicon）
+    m_icon = new IconItem(this);
     m_icon->setPreferredSize(40, 40);
-    m_icon->setPanel(true);
-    m_icon->setBoxShapeHint(QskTextLabel::Panel,
-        QskBoxShapeMetrics(8, Qt::AbsoluteSize));
-    m_icon->setAlignment(Qt::AlignCenter);
+    m_icon->setCornerRadius(8);
+    m_icon->setFallback(qximage::identicon(QStringLiteral("qskmusic"), 80));
 
     // ② 文本列：歌名 / 歌手（两行；左右横划切上下一首）
     auto* textCol = new QskLinearBox(Qt::Vertical, this);
@@ -121,6 +121,12 @@ QString PlayerBar::fmtMs(int ms)
     QString ss = QString::number(s);
     if (s < 10) ss = QString("0") + ss;
     return QString::number(m) + ":" + ss;
+}
+
+void PlayerBar::setCover(const QString& url, const QString& seed)
+{
+    m_icon->setFallback(qximage::identicon(seed, 80));
+    m_icon->setSource(url, 80);
 }
 
 void PlayerBar::setSongInfo(const QString& title, const QString& artist)

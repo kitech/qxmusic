@@ -28,6 +28,8 @@ Song parseSong(const QJsonObject& o)
     }
     s.artists = artists;
     s.album = o.value("album").toString();
+    s.cover = o.value("cover").toString();
+    s.albumId = o.value("album_id").toVariant().toLongLong();
     s.durationMs = o.value("duration_ms").toInt();
     s.playable = o.value("playable").toBool(true);
     return s;

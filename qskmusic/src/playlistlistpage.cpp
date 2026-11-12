@@ -1,6 +1,8 @@
 #include "playlistlistpage.h"
 #include "pagemanager.h"
 #include "statusline.h"
+#include "iconitem.h"
+#include "icongen.h"
 #include <private/qquicktaphandler_p.h>
 #include <QskLinearBox.h>
 #include <QskTextLabel.h>
@@ -148,6 +150,12 @@ void PlaylistListPage::rebuildCards()
         auto* row = new QskLinearBox(Qt::Horizontal, m_cardRows);
         row->setPreferredHeight(56);
         row->setSpacing(8);
+
+        auto* icon = new IconItem(row);
+        icon->setPreferredSize(48, 48);
+        icon->setCornerRadius(8);
+        icon->setFallback(qximage::identicon(QString::number(card.id), 96));
+        icon->setSource(card.cover, 96);
 
         auto* name = new QskTextLabel(elided(card.name, 16), row);
         name->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);

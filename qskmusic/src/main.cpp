@@ -37,6 +37,7 @@
 #include "networkmonitor.h"
 #include "androidutils.h"
 #include "envprobe.h"
+#include "iconloader.h"
 #include <QKeyEvent>
 #include <QElapsedTimer>
 #include <QTimer>
@@ -394,10 +395,16 @@ int main(int argc, char* argv[])
     });
     QObject::connect(playerBar, &PlayerBar::queueRequested, playerBar, [&pb, queuePopup]() {
         QStringList names;
-        for (const auto& s : pb.queue())
+        QStringList covers;
+        QStringList seeds;
+        for (const auto& s : pb.queue()) {
             names << (s.artists.isEmpty() ? s.name
                                           : QString("%1 - %2").arg(s.name, s.artists));
+            covers << s.cover;
+            seeds << QString::number(s.id);
+        }
         queuePopup->setTracks(names);
+        queuePopup->setTrackCovers(covers, seeds);
         queuePopup->setCurrentIndex(pb.currentIndex());
         if (!queuePopup->isOpen())
             queuePopup->open();
@@ -452,7 +459,10 @@ int main(int argc, char* argv[])
     // 当前歌名/歌手（qlmusic 播放条同款）+ 下载进度转发
     QObject::connect(&pb, &Playback::songChanged, playerBar, [&pb, playerBar]() {
         const Song* s = pb.currentSong();
-        if (s) playerBar->setSongInfo(s->name, s->artists);
+        if (s) {
+            playerBar->setSongInfo(s->name, s->artists);
+            playerBar->setCover(s->cover, QString::number(s->id));
+        }
     });
     QObject::connect(&DownloadService::instance(), &DownloadService::progress,
         playerBar, [playerBar](qint64, int pct) {
@@ -504,6 +514,7 @@ int main(int argc, char* argv[])
 
     // ── 运行环境探测：[ENV] 快照日志 + LogModel（App 内 Logs 页可见）──
     EnvProbe::instance().detect();
+    IconLoader::instance().trimCache();   // 启动后异步修剪封面缓存
 
     // ── Start with home page ── (window 已就绪，控件可正常解析 skin hint)
     pageManager->open("home");
