@@ -56,6 +56,7 @@ private:
     QMap<QString, QThread*> m_threads;
     QStringList m_queue;
     int m_active;
+    int m_done;        // 完成计数 → 每 50 次触发 trim
     QMutex m_mutex;
 };
 

@@ -154,9 +154,15 @@ public:
 
     void run() override
     {
-        const QByteArray bytes = httpGet(m_url);
+        QByteArray bytes = httpGet(m_url);
+        if (bytes.isEmpty()) {
+            iconLog(QString::fromLatin1("[ICON] retry url=") + m_url);
+            QThread::msleep(1000);        // 弱网重试一次
+            bytes = httpGet(m_url);
+        }
         if (!bytes.isEmpty()) {
-            qximage::write(m_url, bytes);
+            if (!qximage::write(m_url, bytes))
+                iconLog(QString::fromLatin1("[ICON] cache-write-failed url=") + m_url);
             iconLog(QString::fromLatin1("[ICON] hit=net url=") + m_url);
         } else {
             qximage::negativePut(m_url);
@@ -189,8 +195,10 @@ IconLoader& IconLoader::instance()
 }
 
 IconLoader::IconLoader(QObject* parent)
-    : QObject(parent), m_active(0)
+    : QObject(parent), m_active(0), m_done(0)
 {
+    /* 桌面：16MB 内存 LRU（与 qskmusic 一致） */
+    qximage::PixmapCache::instance().setMaxBytes(16LL * 1024 * 1024);
 }
 
 QPixmap IconLoader::cover(const QString& url, const QString& seed, int px)
@@ -209,6 +217,10 @@ QPixmap IconLoader::cover(const QString& url, const QString& seed, int px)
                 qximage::PixmapCache::instance().put(raw, px, pm);
                 return pm;
             }
+            /* 损坏/非图片：删掉 + 短期负缓存，避免每次重绘重复解码 */
+            qximage::remove(raw);
+            qximage::negativePut(raw);
+            iconLog(QString::fromLatin1("[ICON] corrupt-on-disk url=") + raw);
         }
 
         if (!qximage::negativeHit(raw))
@@ -319,6 +331,9 @@ void IconLoader::handleDone(const QString& url)
         thread->wait(5000);
         delete thread;
     }
+
+    if (++m_done % 50 == 0)
+        qximage::trim(400LL * 1024 * 1024);   // 长会话定期回收
 
     emit iconsReady();
 }

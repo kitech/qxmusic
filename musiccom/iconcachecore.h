@@ -25,6 +25,7 @@ QString pathForUrl(const QString& url);
 bool contains(const QString& url);
 QByteArray read(const QString& url);                    // 未命中返回空
 bool write(const QString& url, const QByteArray& data); // 原子写，不覆盖已有文件
+void remove(const QString& url);                        // 删除缓存（解码失败/损坏时）
 
 QString extensionForData(const QByteArray& data);       // 魔数判扩展名（诊断用）
 void trim(long long maxBytes);                          // 单目录容量上限（mtime LRU）

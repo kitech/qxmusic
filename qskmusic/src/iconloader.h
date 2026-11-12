@@ -54,6 +54,7 @@ private:
     QSet<QString> m_inFlight;
     QHash<QString, int> m_retry;
     int m_active = 0;
+    int m_netWrites = 0;      // 成功落盘计数 → 每 50 张触发一次 trim
 };
 
 #endif // ICON_LOADER_H

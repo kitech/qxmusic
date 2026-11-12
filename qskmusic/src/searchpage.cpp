@@ -134,8 +134,9 @@ void SearchPage::rebuildList()
         icon->setPreferredSize(36, 36);
         icon->setCornerRadius(6);
         icon->setFallback(qximage::identicon(
-            s.albumId > 0 ? QString::number(s.albumId) : QString::number(s.id), 72));
-        icon->setSource(s.cover, 72);
+            s.albumId > 0 ? QString::number(s.albumId) : QString::number(s.id),
+            IconItem::pxForDp(36)));
+        icon->setSource(s.cover, 36);
 
         // 正在播放标识列（▶ / 空，14dp）
         auto* marker = new QskTextLabel(QString(), row);

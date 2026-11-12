@@ -3,6 +3,8 @@
 
 #include <QskPaintedNode.h>
 #include <QskSizePolicy.h>
+#include <QGuiApplication>
+#include <QScreen>
 #include <QPainter>
 #include <QPainterPath>
 #include <QQuickWindow>
@@ -180,9 +182,17 @@ IconItem::IconItem(QQuickItem* parent)
     });
 }
 
-void IconItem::setSource(const QString& url, int px)
+int IconItem::pxForDp(int dp)
 {
-    m_paint->setSource(url, px);
+    qreal dpr = 1.0;
+    if (QGuiApplication::primaryScreen())
+        dpr = QGuiApplication::primaryScreen()->devicePixelRatio();
+    return qBound(1, qRound(dp * dpr), 256);
+}
+
+void IconItem::setSource(const QString& url, int dp)
+{
+    m_paint->setSource(url, pxForDp(dp));
 }
 
 void IconItem::setFallback(const QPixmap& pixmap)

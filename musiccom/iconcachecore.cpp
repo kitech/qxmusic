@@ -280,21 +280,33 @@ bool write(const QString& url, const QByteArray& data)
     const QString tmp = path + QString::fromLatin1(".part");
     QFile f(tmp);
 #ifdef QT3_BUILD
-    if (!f.open(IO_WriteOnly))
+    if (!f.open(IO_WriteOnly)) {
+        qxLog(QString::fromLatin1("[ICON] cache-open-failed ") + tmp);
         return false;
+    }
     const bool ok = (f.writeBlock(data) == (long)data.size());
 #else
-    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate))
+    if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+        qxLog(QString::fromLatin1("[ICON] cache-open-failed ") + tmp);
         return false;
+    }
     const bool ok = (f.write(data) == data.size());
 #endif
     f.close();
 
     if (!ok || !qxRename(tmp, path)) {
+        qxLog(QString::fromLatin1("[ICON] cache-write-failed ") + path);
         QFile::remove(tmp);
         return false;
     }
     return true;
+}
+
+void remove(const QString& url)
+{
+    const QString path = pathForUrl(url);
+    if (!path.isEmpty())
+        QFile::remove(path);
 }
 
 QString extensionForData(const QByteArray& d)
@@ -326,14 +338,28 @@ void trim(long long maxBytes)
     if (!infos)
         return;
 
+    const QDateTime now = QDateTime::currentDateTime();
+
+    // 先清理超 1 小时的 .part 残渣（崩溃/被杀进程遗留）
+    for (int i = 0; i < qxFileCount(infos); ++i) {
+        const QFileInfo& fi = qxFileAt(infos, i);
+        if (!fi.fileName().endsWith(QString::fromLatin1(".part")))
+            continue;
+        if (fi.lastModified().secsTo(now) >= 3600)
+            QFile::remove(fi.filePath());
+    }
+
     long long total = 0;
-    for (int i = 0; i < qxFileCount(infos); ++i)
-        total += (long long)qxFileAt(infos, i).size();
+    for (int i = 0; i < qxFileCount(infos); ++i) {
+        const QFileInfo& fi = qxFileAt(infos, i);
+        if (fi.fileName().endsWith(QString::fromLatin1(".part")))
+            continue;
+        total += (long long)fi.size();
+    }
 
     if (total <= maxBytes)
         return;
 
-    const QDateTime now = QDateTime::currentDateTime();
     int removed = 0;
     // QDir::Time：最新在前 → 从尾部（最旧）删除
     for (int i = qxFileCount(infos) - 1; i >= 0 && total > maxBytes; --i) {

@@ -21,7 +21,8 @@ public:
 
     explicit IconItem(QQuickItem* parent = nullptr);
 
-    void setSource(const QString& url, int px);
+    void setSource(const QString& url, int dp);      // dp = 逻辑尺寸（内部按 dpr 换算物理 px）
+    static int pxForDp(int dp);                      // 物理像素（按屏幕 dpr，clamp 256）
     void setFallback(const QPixmap& pixmap);
     void setShape(Shape shape);
     void setCornerRadius(qreal radius);

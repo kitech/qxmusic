@@ -37,7 +37,7 @@ PlayerBar::PlayerBar(QQuickItem* parent)
     m_icon = new IconItem(this);
     m_icon->setPreferredSize(40, 40);
     m_icon->setCornerRadius(8);
-    m_icon->setFallback(qximage::identicon(QStringLiteral("qskmusic"), 80));
+    m_icon->setFallback(qximage::identicon(QStringLiteral("qskmusic"), IconItem::pxForDp(40)));
 
     // ② 文本列：歌名 / 歌手（两行；左右横划切上下一首）
     auto* textCol = new QskLinearBox(Qt::Vertical, this);
@@ -139,15 +139,15 @@ void PlayerBar::setArtistAvatar(const QString& url, const QString& seed)
         m_artistAvatar->setVisible(false);
         return;
     }
-    m_artistAvatar->setFallback(qximage::letterAvatar(seed, 40, true));
-    m_artistAvatar->setSource(url, 40);
+    m_artistAvatar->setFallback(qximage::letterAvatar(seed, IconItem::pxForDp(20), true));
+    m_artistAvatar->setSource(url, 20);
     m_artistAvatar->setVisible(true);
 }
 
 void PlayerBar::setCover(const QString& url, const QString& seed)
 {
-    m_icon->setFallback(qximage::identicon(seed, 80));
-    m_icon->setSource(url, 80);
+    m_icon->setFallback(qximage::identicon(seed, IconItem::pxForDp(40)));
+    m_icon->setSource(url, 40);
 }
 
 void PlayerBar::setSongInfo(const QString& title, const QString& artist)

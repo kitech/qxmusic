@@ -39,6 +39,7 @@
 #include "androidutils.h"
 #include "envprobe.h"
 #include "iconloader.h"
+#include "iconmem.h"
 #include <QKeyEvent>
 #include <QElapsedTimer>
 #include <QTimer>
@@ -524,6 +525,11 @@ int main(int argc, char* argv[])
     // ── 运行环境探测：[ENV] 快照日志 + LogModel（App 内 Logs 页可见）──
     EnvProbe::instance().detect();
     IconLoader::instance().trimCache();   // 启动后异步修剪封面缓存
+#ifdef Q_OS_ANDROID
+    qximage::PixmapCache::instance().setMaxBytes(12LL * 1024 * 1024);
+#else
+    qximage::PixmapCache::instance().setMaxBytes(16LL * 1024 * 1024);
+#endif
 
     // ── Start with home page ── (window 已就绪，控件可正常解析 skin hint)
     pageManager->open("home");

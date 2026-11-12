@@ -154,8 +154,8 @@ void PlaylistListPage::rebuildCards()
         auto* icon = new IconItem(row);
         icon->setPreferredSize(48, 48);
         icon->setCornerRadius(8);
-        icon->setFallback(qximage::identicon(QString::number(card.id), 96));
-        icon->setSource(card.cover, 96);
+        icon->setFallback(qximage::identicon(QString::number(card.id), IconItem::pxForDp(48)));
+        icon->setSource(card.cover, 48);
 
         auto* name = new QskTextLabel(elided(card.name, 16), row);
         name->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);

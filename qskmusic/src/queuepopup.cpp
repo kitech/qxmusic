@@ -101,8 +101,8 @@ void QueuePopup::rebuildRows()
         auto* icon = new IconItem(row);
         icon->setPreferredSize(32, 32);
         icon->setCornerRadius(6);
-        icon->setFallback(qximage::identicon(seed, 64));
-        icon->setSource(cover, 64);
+        icon->setFallback(qximage::identicon(seed, IconItem::pxForDp(32)));
+        icon->setSource(cover, 32);
 
         // 当前播放行：序号前 ▶（蓝色标识列）
         auto* marker = new QskTextLabel(

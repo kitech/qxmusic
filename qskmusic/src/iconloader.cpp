@@ -180,8 +180,14 @@ QPixmap IconLoader::cached(const QString& url, int px)
         return QPixmap();
 
     const QImage image = readScaledCrop(bytes, px);
-    if (image.isNull())
+    if (image.isNull()) {
+        // 损坏/非图片文件：删掉并短期负缓存，避免永久兜底 + 每次重试解码
+        qximage::remove(raw);
+        qximage::negativePut(raw);
+        log(QStringLiteral("warn"),
+            QStringLiteral("corrupt-on-disk url=%1 px=%2").arg(raw).arg(px));
         return QPixmap();
+    }
 
     pixmap = QPixmap::fromImage(image);
     qximage::PixmapCache::instance().put(raw, px, pixmap);
@@ -241,6 +247,8 @@ void IconLoader::startDownload(const QString& url, int px)
 #else
     QNetworkRequest req{QUrl(url)};
     req.setRawHeader("Referer", "https://music.163.com");
+    req.setRawHeader("User-Agent", "qskmusic/0.1");
+    req.setTransferTimeout(15000);          // 15s 无响应即中止，避免占满并发槽
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                      QNetworkRequest::NoLessSafeRedirectPolicy);
 
@@ -269,7 +277,13 @@ void IconLoader::finishFetch(const QString& url, int px, const QByteArray& bytes
         --m_active;
 
     if (!bytes.isEmpty()) {
-        qximage::write(url, bytes);
+        if (!qximage::write(url, bytes)) {
+            log(QStringLiteral("error"),
+                QStringLiteral("cache-write-failed url=%1").arg(url));
+        }
+        ++m_netWrites;
+        if (m_netWrites % 50 == 0)
+            trimCache();                    // 长会话也不再无限增长
         log(QStringLiteral("info"),
             QStringLiteral("hit=net url=%1 px=%2").arg(url).arg(px));
         QThreadPool::globalInstance()->start(new DecodeTask(this, url, px, bytes));
@@ -297,13 +311,18 @@ void IconLoader::finishFetch(const QString& url, int px, const QByteArray& bytes
 
 void IconLoader::deliver(const QString& url, int px, const QImage& image)
 {
-    if (!image.isNull()) {
-        const QPixmap pixmap = QPixmap::fromImage(image);
-        qximage::PixmapCache::instance().put(url, px, pixmap);
-        Q_EMIT iconReady(url, px);
-        log(QStringLiteral("info"),
-            QStringLiteral("hit=mem url=%1 px=%2 (decoded)").arg(url).arg(px));
+    if (image.isNull()) {
+        qximage::remove(url);
+        qximage::negativePut(url);
+        log(QStringLiteral("error"),
+            QStringLiteral("decode-failed url=%1 px=%2").arg(url).arg(px));
+        return;
     }
+    const QPixmap pixmap = QPixmap::fromImage(image);
+    qximage::PixmapCache::instance().put(url, px, pixmap);
+    Q_EMIT iconReady(url, px);
+    log(QStringLiteral("info"),
+        QStringLiteral("hit=mem url=%1 px=%2 (decoded)").arg(url).arg(px));
 }
 
 void IconLoader::trimCache()
