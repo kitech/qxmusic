@@ -40,6 +40,7 @@ private:
 
     QskLinearBox* m_rows = nullptr;
     StatusLine* m_status = nullptr;
+    bool m_keepScreenOn = true;   // 屏幕常亮（默认开，QSettings 持久化）
     // chips 命中表：item → cat（TapHandler 用 mapRectToItem 测交，嵌套网格亦可）
     QList<QPair<QQuickItem*, QString>> m_chipCats;
 };

@@ -348,6 +348,9 @@ int main(int argc, char* argv[])
     auto* lyricPopup = new LyricPopup(rootBox);
     auto& pb = Playback::instance();
     QObject::connect(&pb, &Playback::playingChanged, playerBar, &PlayerBar::setPlaying);
+    // 播放状态 → Android 前台服务（WakeLock 熄屏不断播 / 通知文案）
+    QObject::connect(&pb, &Playback::playingChanged, playerBar,
+        [](bool playing) { KeepAlive::setPlaybackActive(playing); });
     QObject::connect(&pb, &Playback::progressMsChanged, playerBar, &PlayerBar::setProgressMs);
     QObject::connect(&pb, &Playback::durationMsChanged, playerBar, &PlayerBar::setDurationMs);
     QObject::connect(&pb, &Playback::playError, playerBar, [playerBar](const QString& msg) {

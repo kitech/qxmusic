@@ -9,19 +9,40 @@ import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
+import android.os.PowerManager;
 
 public class KeepAliveService extends Service {
     private static final int NOTIF_ID = 1001;
     private static final String CHANNEL_ID = "qskmusic_keepalive";
 
+    private static KeepAliveService sInstance = null;
+    private static PowerManager.WakeLock sWakeLock = null;
+    private static boolean sPlaying = false;
+
     @Override
     public void onCreate() {
         super.onCreate();
+        sInstance = this;
         createNotificationChannel();
     }
 
     @Override
+    public void onDestroy() {
+        releaseWakeLock();
+        sInstance = null;
+        super.onDestroy();
+    }
+
+    @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        startForeground(NOTIF_ID, buildNotification());
+        return START_NOT_STICKY;
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) { return null; }
+
+    private Notification buildNotification() {
         Intent launchIntent = getPackageManager()
             .getLaunchIntentForPackage(getPackageName());
         launchIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
@@ -29,19 +50,44 @@ public class KeepAliveService extends Service {
             this, 0, launchIntent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        Notification notif = new Notification.Builder(this, CHANNEL_ID)
+        return new Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("qskmusic")
-            .setContentText("Running in background")
+            .setContentText(sPlaying ? "正在播放" : "后台待命")
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setOngoing(true)
             .setContentIntent(pi)
             .build();
-        startForeground(NOTIF_ID, notif);
-        return START_NOT_STICKY;
     }
 
-    @Override
-    public IBinder onBind(Intent intent) { return null; }
+    /* C++ 侧（Playback::playingChanged）驱动：
+     * 播放中持 PARTIAL_WAKE_LOCK（熄屏不断播）；暂停释放；通知文案同步 */
+    public static void setPlaybackActive(Context ctx, boolean playing) {
+        sPlaying = playing;
+        PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
+        if (playing) {
+            if (sWakeLock == null) {
+                sWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
+                                           "qskmusic:playback");
+                sWakeLock.setReferenceCounted(false);
+            }
+            if (!sWakeLock.isHeld())
+                sWakeLock.acquire();
+        } else {
+            releaseWakeLock();
+        }
+        if (sInstance != null)
+            sInstance.updateNotification();
+    }
+
+    private static void releaseWakeLock() {
+        if (sWakeLock != null && sWakeLock.isHeld())
+            sWakeLock.release();
+    }
+
+    private void updateNotification() {
+        if (sInstance == null) return;
+        getSystemService(NotificationManager.class).notify(NOTIF_ID, buildNotification());
+    }
 
     private void createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

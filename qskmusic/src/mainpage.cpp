@@ -13,6 +13,9 @@
 #include <QskPopup.h>
 #include <QskBoxShapeMetrics.h>
 #include <private/qquicktaphandler_p.h>
+#include "androidutils.h"
+#include <QSettings>
+#include <QTimer>
 #include <QPointF>
 
 HomePage::HomePage(QQuickItem* parent)
@@ -89,6 +92,10 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
 
     // 启动即拉分类（qlmusic loadCategories 同口径）
     NcmCatalog::instance().loadCategoriesAsync();
+
+    // 屏幕常亮：默认开；延迟到窗口就绪后应用（anystik 同做法）
+    m_keepScreenOn = QSettings().value("keepScreenOn", true).toBool();
+    QTimer::singleShot(50, this, [this]() { setKeepScreenOn(m_keepScreenOn); });
 }
 
 void HomePage::showOptionsMenu(const QPointF& origin)
@@ -108,10 +115,13 @@ void HomePage::showOptionsMenu(const QPointF& origin)
     const int idxLog = menu->addOption(QskLabelData(tr("Logs")));
     const int idxSettings = menu->addOption(QskLabelData(tr("Settings")));
     const int idxAbout = menu->addOption(QskLabelData(tr("About")));
+    const int idxKeepOn = menu->addOption(QskLabelData(
+        m_keepScreenOn ? QString::fromUtf8("✓ Keep Screen On")
+                       : QString::fromUtf8("  Keep Screen On")));
     menu->setOrigin(origin);
 
     connect(menu, &QskMenu::triggered, this,
-        [this, idxSearch, idxLog, idxSettings, idxAbout](int index) {
+        [this, idxSearch, idxLog, idxSettings, idxAbout, idxKeepOn](int index) {
             if (auto* pm = pageManager()) {
                 if (index == idxSearch)
                     pm->open("search");
@@ -121,6 +131,11 @@ void HomePage::showOptionsMenu(const QPointF& origin)
                     pm->open("settings");
                 else if (index == idxAbout)
                     pm->open("about");
+            }
+            if (index == idxKeepOn) {
+                m_keepScreenOn = !m_keepScreenOn;
+                setKeepScreenOn(m_keepScreenOn);
+                QSettings().setValue("keepScreenOn", m_keepScreenOn);
             }
             if (auto* m = qobject_cast<QskMenu*>(sender()))
                 m->close();

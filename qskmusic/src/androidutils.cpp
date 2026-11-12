@@ -64,3 +64,23 @@ void showAndroidToast(const QString& message) {
 void showAndroidToast(const QString&) { }
 
 #endif
+
+void setKeepScreenOn(bool on)
+{
+#ifdef Q_OS_ANDROID
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([on]() {
+        QJniObject activity = QNativeInterface::QAndroidApplication::context();
+        if (!activity.isValid()) return;
+        QJniObject window = activity.callObjectMethod(
+            "getWindow", "()Landroid/view/Window;");
+        if (!window.isValid()) return;
+        constexpr int FLAG_KEEP_SCREEN_ON = 0x80;
+        if (on)
+            window.callMethod<void>("addFlags", "(I)V", FLAG_KEEP_SCREEN_ON);
+        else
+            window.callMethod<void>("clearFlags", "(I)V", FLAG_KEEP_SCREEN_ON);
+    }).waitForFinished();
+#else
+    Q_UNUSED(on)
+#endif
+}

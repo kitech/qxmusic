@@ -40,3 +40,19 @@ void KeepAlive::stop()
     });
 #endif
 }
+
+void KeepAlive::setPlaybackActive(bool playing)
+{
+#ifdef Q_OS_ANDROID
+    QNativeInterface::QAndroidApplication::runOnAndroidMainThread([playing]() {
+        auto ctx = QNativeInterface::QAndroidApplication::context();
+        QJniObject::callStaticMethod<void>(
+            "io/fedlet/mobutil/KeepAliveService",
+            "setPlaybackActive",
+            "(Landroid/content/Context;Z)V",
+            ctx.object(), jboolean(playing));
+    });
+#else
+    Q_UNUSED(playing)
+#endif
+}
