@@ -15,6 +15,7 @@ struct Song
     qint64 id = 0;
     QString name;
     QString artists;
+    QList<qint64> artistIds;   // 与 artists 同序（ar[].id）
     QString album;
     QString cover;      // 专辑封面 URL（libncm 歌曲 JSON 的 cover）
     qint64 albumId = 0; // 专辑 id（兜底图标 seed / 去重预留）
@@ -41,12 +42,14 @@ public:
     void resolveAsync(qint64 songId, int quality);
     void resolveForDownloadAsync(qint64 songId);   // 仅取 URL（不触发播放）
     void lyricAsync(qint64 songId);
+    void artistAsync(qint64 artistId);   // 艺人详情（头像 URL）
 
 Q_SIGNALS:
     void searchDone(const QList<Song>& songs, const QString& err);
     void resolveDone(qint64 songId, const QString& url, const QString& err);
     void downloadUrlDone(qint64 songId, const QString& url, const QString& err);
     void lyricDone(qint64 songId, const QString& lrc, const QString& err);
+    void artistDone(qint64 artistId, const QString& picUrl, const QString& err);
     void playFailReceived(qint64 songId, const QString& reason);
 
 private:

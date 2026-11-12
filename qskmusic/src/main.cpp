@@ -30,6 +30,7 @@
 #include "queuepopup.h"
 #include "lyricpopup.h"
 #include "playback.h"
+#include "ncmapi.h"
 #include "downloadservice.h"
 #include "toastpopup.h"
 #include "tabfocus.h"
@@ -40,7 +41,6 @@
 #include "iconloader.h"
 #include <QKeyEvent>
 #include <QElapsedTimer>
-#include <QTimer>
 #include <QTimer>
 #include <QQuickWindow>
 #include <QMouseEvent>
@@ -462,8 +462,17 @@ int main(int argc, char* argv[])
         if (s) {
             playerBar->setSongInfo(s->name, s->artists);
             playerBar->setCover(s->cover, QString::number(s->id));
+            // 歌手头像：先显示首字母兜底，再异步取真实头像
+            playerBar->setArtistAvatar(QString(), s->artists);
+            if (!s->artistIds.isEmpty())
+                NcmApi::instance().artistAsync(s->artistIds.first());
         }
     });
+    QObject::connect(&NcmApi::instance(), &NcmApi::artistDone, playerBar,
+        [playerBar](qint64, const QString& picUrl, const QString&) {
+            const Song* s = Playback::instance().currentSong();
+            playerBar->setArtistAvatar(picUrl, s ? s->artists : QString());
+        });
     QObject::connect(&DownloadService::instance(), &DownloadService::progress,
         playerBar, [playerBar](qint64, int pct) {
             playerBar->setDownloadProgress(pct);

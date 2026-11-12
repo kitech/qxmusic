@@ -20,13 +20,20 @@ Song parseSong(const QJsonObject& o)
     s.id = o.value("id").toVariant().toLongLong();
     s.name = o.value("name").toString();
     QString artists;
+    QList<qint64> ids;
     const auto arr = o.value("artists").toArray();
     for (const auto& a : arr) {
         if (!artists.isEmpty()) artists += QStringLiteral("/");
         artists += a.isObject() ? a.toObject().value("name").toString()
                                 : a.toString();
     }
+    const auto idArr = o.value("artist_ids").toArray();
+    for (const auto& v : idArr) {
+        const qint64 id = v.toVariant().toLongLong();
+        if (id > 0) ids.append(id);
+    }
     s.artists = artists;
+    s.artistIds = ids;
     s.album = o.value("album").toString();
     s.cover = o.value("cover").toString();
     s.albumId = o.value("album_id").toVariant().toLongLong();
@@ -147,6 +154,29 @@ void NcmApi::resolveForDownloadAsync(qint64 songId)
         qDebug() << "[qskmusic] ncm download url:" << songId
                  << (err.isEmpty() ? QStringLiteral("ok") : err);
         Q_EMIT downloadUrlDone(songId, url, err);
+    }).detach();
+}
+
+void NcmApi::artistAsync(qint64 artistId)
+{
+    if (artistId <= 0)
+        return;
+    std::thread([this, artistId]() {
+        std::string json;
+        const auto st = m_client.artist_detail(artistId, json);
+        QString pic, err;
+        if (st != ncm::Status::Ok) {
+            err = statusText(st);
+        } else {
+            const auto o = QJsonDocument::fromJson(
+                QByteArray::fromStdString(json)).object();
+            pic = o.value("pic_url").toString();
+            if (pic.isEmpty())
+                err = QStringLiteral("no pic");
+        }
+        qDebug() << "[qskmusic] ncm artist:" << artistId
+                 << (err.isEmpty() ? QStringLiteral("ok") : err);
+        Q_EMIT artistDone(artistId, pic, err);
     }).detach();
 }
 

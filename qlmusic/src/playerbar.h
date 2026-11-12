@@ -22,6 +22,7 @@ public:
     void setAutoSkip(bool on);
     void setVolume(int v);           /* 0-100；0=静音态（喇叭画斜杠） */
     void setDownloadState(qint64 songId, int pct);   /* 0-100 进度；-1=未定；-2=失败；100=完成即清 */
+    void setArtistAvatar(const QString& url, const QString& seed);  /* 当前歌手圆形头像（可空） */
     void nudgeAutoSkipTip();         /* 点击反馈：主动重弹 tooltip（B2/B3 点击零反馈修） */
     QString tipForPos(const QPoint& p) const;   /* tooltip 命中计算唯一点 */
     QRect tipRectFor(const QPoint& p) const;
@@ -95,6 +96,9 @@ private:
     bool m_dragging;
 
     QPixmap m_coverPixmap;          /* identicon 缓存（拖动高频重绘不再每帧生成） */
+    QPixmap m_artistAvatar;         /* 当前歌手圆形头像（可空） */
+    QString m_artistAvatarUrl;
+    QString m_artistAvatarSeed;
 
     /* NCM 下载指示（Material pie 圆环：一图标表达状态+进度） */
     qint64 m_dlSongId;              /* >0 才显示 */

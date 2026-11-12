@@ -47,6 +47,7 @@ type Song struct {
 	ID         int64    `json:"id"`
 	Name       string   `json:"name"`
 	Artists    []string `json:"artists"`
+	ArtistIDs  []int64  `json:"artist_ids"`
 	Album      string   `json:"album"`
 	AlbumID    int64    `json:"album_id"`
 	DurationMS int64    `json:"duration_ms"`
@@ -103,7 +104,8 @@ type rawSong struct {
 	ID   float64 `json:"id"`
 	Name string  `json:"name"`
 	Ar   []struct {
-		Name string `json:"name"`
+		ID   float64 `json:"id"`
+		Name string  `json:"name"`
 	} `json:"ar"`
 	Al struct {
 		ID     float64 `json:"id"`
@@ -136,6 +138,9 @@ func convSong(r rawSong) Song {
 	for _, a := range r.Ar {
 		if a.Name != "" {
 			s.Artists = append(s.Artists, a.Name)
+		}
+		if a.ID > 0 {
+			s.ArtistIDs = append(s.ArtistIDs, int64(a.ID))
 		}
 	}
 	return s
@@ -390,6 +395,49 @@ func SongDetail(ids string) (SongDetailResult, error) {
 		res.Songs = append(res.Songs, convSong(raw))
 	}
 	return res, nil
+}
+
+/* ---------------- 艺人详情（头像） ---------------- */
+
+// ArtistInfo 艺人基础信息（含头像 URL）。
+type ArtistInfo struct {
+	ID     int64  `json:"id"`
+	Name   string `json:"name"`
+	PicURL string `json:"pic_url"`
+}
+
+// ArtistDetail 取艺人详情（头像）。响应形状：
+// {"artist":{"id","name","picUrl","img1v1Url",...}}
+func ArtistDetail(id int64) (ArtistInfo, error) {
+	if id <= 0 {
+		return ArtistInfo{}, errs.ErrInvalidArg
+	}
+	idStr := strconv.FormatInt(id, 10)
+	svc := &nmsvc.ArtistsService{ID: idStr}
+	code, body := svc.Artists()
+	if err := opStatus("artist_detail", "/weapi/v1/artist/"+idStr, code, len(body)); err != nil {
+		return ArtistInfo{}, err
+	}
+	var env struct {
+		Artist struct {
+			ID        float64 `json:"id"`
+			Name      string  `json:"name"`
+			PicURL    string  `json:"picUrl"`
+			Img1v1URL string  `json:"img1v1Url"`
+		} `json:"artist"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return ArtistInfo{}, fmt.Errorf("%w: artist 解析失败: %v", errs.ErrBadResponse, err)
+	}
+	pic := env.Artist.PicURL
+	if pic == "" {
+		pic = env.Artist.Img1v1URL
+	}
+	return ArtistInfo{
+		ID:     int64(env.Artist.ID),
+		Name:   env.Artist.Name,
+		PicURL: pic,
+	}, nil
 }
 
 // Search 关键词搜索（type=1 单曲，匿名可用）。

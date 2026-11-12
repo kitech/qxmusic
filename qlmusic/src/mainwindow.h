@@ -89,6 +89,7 @@ private slots:
     void onNcmSource(int rc, const QString& json, qint64 songId);
     void onNcmFetched(int rc, const QString& json, qint64 songId);
     void onNcmLyric(qint64 songId, const QString& json);
+    void onNcmArtist(qint64 artistId, int rc, const QString& json);
     void onNcmAuthRequired(const QString& op);
 
 private:

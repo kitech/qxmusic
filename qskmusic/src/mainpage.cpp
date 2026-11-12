@@ -2,6 +2,8 @@
 #include "pagemanager.h"
 #include "menuoverlay.h"
 #include "statusline.h"
+#include "iconitem.h"
+#include "icongen.h"
 #include <QskLinearBox.h>
 #include <QskTextLabel.h>
 #include <QskPushButton.h>
@@ -182,11 +184,21 @@ void HomePage::rebuild(const QStringList& hot,
 void HomePage::addHotEntry()
 {
     // 整行高亮入口（保留 qlmusic 推荐位醒目性）
-    auto* lbl = new QskTextLabel(QString::fromUtf8("热门歌单"), m_rows);
-    lbl->setPreferredHeight(40);
+    auto* row = new QskLinearBox(Qt::Horizontal, m_rows);
+    row->setPreferredHeight(40);
+    row->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+    row->setSpacing(6);
+
+    auto* icon = new IconItem(row);
+    icon->setPreferredSize(22, 22);
+    icon->setCornerRadius(6);
+    icon->setFallback(qximage::categoryIcon(QString::fromUtf8("热门歌单"), 44));
+
+    auto* lbl = new QskTextLabel(QString::fromUtf8("热门歌单"), row);
     lbl->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
     lbl->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
-    m_chipCats.push_back({ lbl, QString() });   // 空串 = 热门哨兵
+
+    m_chipCats.push_back({ row, QString() });   // 空串 = 热门哨兵
 }
 
 QskLinearBox* HomePage::addSectionGrid()
@@ -200,10 +212,21 @@ QskLinearBox* HomePage::addSectionGrid()
 void HomePage::addChip(QskLinearBox* grid, const QString& label,
     const QString& cat)
 {
-    auto* chip = new QskTextLabel(label, grid);
+    auto* chip = new QskLinearBox(Qt::Horizontal, grid);
     chip->setPreferredHeight(32);   // 紧凑 chip（原 44dp 通栏按钮）
     chip->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
-    chip->setAlignment(Qt::AlignCenter);
+    chip->setSpacing(4);
+
+    // 分类图标（本地生成首字色块，无网络依赖；尺寸固定不参与伸缩）
+    auto* icon = new IconItem(chip);
+    icon->setPreferredSize(18, 18);
+    icon->setCornerRadius(5);
+    icon->setFallback(qximage::categoryIcon(label, 36));
+
+    auto* text = new QskTextLabel(label, chip);
+    text->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+    text->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+
     m_chipCats.push_back({ chip, cat });
 }
 

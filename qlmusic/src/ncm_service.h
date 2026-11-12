@@ -48,6 +48,7 @@ enum {
     NcmTaskSongDetail,
     NcmTaskFetch,      /* 远程 URL 本地化：curl 拉缓存 → file:// 回投 */
     NcmTaskLyric,      /* 歌词：ncm_lyric（go 侧 stub 期返回 NotImplemented → UI 落空态） */
+    NcmTaskArtist,     /* 艺人详情：ncm_artist_detail（头像 URL） */
     NcmTaskQuit,       /* 哨兵：worker 收到即退出线程 */
 };
 
@@ -97,6 +98,7 @@ public:
                      const QString& title, const QString& artist, const QString& album);
     void loadSongDetail(const QString& ids);
     void loadLyric(qint64 songId);   /* 歌词兜底（本地 .lrc 优先后的网络侧） */
+    void loadArtist(qint64 artistId); /* 艺人详情（头像 URL） */
 
     /* MainWindow::customEvent 转发进来 */
     void handleResult(NcmResultEvent* e);
@@ -114,6 +116,7 @@ signals:
     void fetched(int rc, const QString& json, qint64 songId);
     void songDetailLoaded(int rc, const QString& json, int sel);
     void lyricLoaded(qint64 songId, const QString& json);   /* raw json；UI 侧解析 */
+    void artistLoaded(qint64 artistId, int rc, const QString& json);
     void authRequired(const QString& op);
     /* 下载进度（worker curl 回调节流 200ms 投递；pct 0-100） */
     void downloadProgress(qint64 songId, int pct);

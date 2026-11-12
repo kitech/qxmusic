@@ -432,6 +432,8 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onNcmDownloadProgress(qint64, int)));
         QObject::connect(m_ncm, SIGNAL(lyricLoaded(qint64, const QString&)),
                          this, SLOT(onNcmLyric(qint64, const QString&)));
+        QObject::connect(m_ncm, SIGNAL(artistLoaded(qint64, int, const QString&)),
+                         this, SLOT(onNcmArtist(qint64, int, const QString&)));
         QObject::connect(m_ncm, SIGNAL(authRequired(const QString&)),
                          this, SLOT(onNcmAuthRequired(const QString&)));
         /* 启动即拉分类（侧栏），随后自动进入"推荐=热门歌单"视图，
@@ -920,6 +922,8 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
     queuePanel->setQueue(pl->tracks, trackIndex);
     sideNav->setCurrentPlaylist(playlistId);
     if (contentView) contentView->setPlayingTrackId(t.ncmId);   /* ▶ 标识 */
+    if (playerBar) playerBar->setArtistAvatar(QString(), t.artist);
+    if (t.artistNcmId > 0 && m_ncm) m_ncm->loadArtist(t.artistNcmId);
 
 #ifdef NCM_ENABLE
     /* NCM 远端曲目：cache-first（业界标准：本地命中即播，零网络）——
@@ -1520,6 +1524,17 @@ void MainWindow::onNcmLyric(qint64 songId, const QString& json)
     if (!text.isEmpty()) playerBar->setLyricsText(songId, text);
 }
 
+void MainWindow::onNcmArtist(qint64 artistId, int rc, const QString& json)
+{
+    if (rc != 0 || json.isEmpty() || !playerBar) return;
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) return;
+    const QString pic = cJSONStr(root, "pic_url", QString());
+    cJSON_Delete(root);
+    (void)artistId;
+    playerBar->setArtistAvatar(pic, QString());
+}
+
 static QStringList cJSONStrArray(cJSON* arr)
 {
     QStringList out;
@@ -1710,6 +1725,11 @@ void MainWindow::onNcmPlaylistTracks(int rc, const QString& json, int localId)
                                cJSONStr(it, "cover", ""),
                                cJSONInt(it, "album_id", 0));
         t.playable = cJSONBool(it, "playable", true);
+        cJSON* aids = cJSON_GetObjectItem(it, "artist_ids");
+        if (aids && cJSON_GetArraySize(aids) > 0) {
+            cJSON* a0 = cJSON_GetArrayItem(aids, 0);
+            if (a0) t.artistNcmId = (qint64)a0->valuedouble;
+        }
         p.tracks.push_back(t);
     }
     p.trackCount = p.trackCount > 0 ? p.trackCount : (int)p.tracks.size();

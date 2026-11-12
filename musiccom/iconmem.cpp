@@ -56,7 +56,7 @@ void PixmapCache::put(const QString& url, int px, const QPixmap& pixmap)
     QMap<QString, Entry>::iterator old = m_entries.find(key);
     if (old != m_entries.end()) {
         m_bytes -= QX_ENTRY(old).bytes;
-#if QT_VERSION >= 0x060000
+#if QT_VERSION >= 0x040000
         m_entries.erase(old);
 #else
         m_entries.remove(old);
@@ -78,7 +78,7 @@ void PixmapCache::put(const QString& url, int px, const QPixmap& pixmap)
                 victim = it;
         }
         m_bytes -= QX_ENTRY(victim).bytes;
-#if QT_VERSION >= 0x060000
+#if QT_VERSION >= 0x040000
         m_entries.erase(victim);
 #else
         m_entries.remove(victim);

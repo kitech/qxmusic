@@ -118,8 +118,10 @@ void qxLog(const QString& msg)
 {
 #ifdef QT3_BUILD
     qDebug(msg);                 // Qt3：qDebug(const QString&)
-#else
+#elif QT_VERSION >= 0x050400
     qDebug().noquote() << msg;
+#else
+    qDebug() << msg;             // Qt4：无 noquote
 #endif
 }
 
@@ -365,7 +367,7 @@ bool negativeHit(const QString& url)
     const unsigned int stamp = it.value();
 #endif
     if (qxNowSecs() - stamp > kNegativeTtlSec) {
-#if QT_VERSION >= 0x060000
+#if QT_VERSION >= 0x040000
         map.erase(it);
 #else
         map.remove(it);

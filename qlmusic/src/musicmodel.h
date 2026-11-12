@@ -16,6 +16,7 @@ struct Track {
     qint64 ncmId;
     qint64 albumId;
     QString coverUrl;
+    qint64 artistNcmId = 0;   /* 首位歌手 id（艺人头像查询） */
     bool playable;
 };
 

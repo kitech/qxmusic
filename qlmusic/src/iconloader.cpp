@@ -11,8 +11,10 @@
 #include <qevent.h>
 #ifdef QT3_BUILD
 #include <qapplication.h>
+#include <qglobal.h>        // Qt3: qDebug
 #else
 #include <qcoreapplication.h>
+#include <qdebug.h>
 #endif
 
 #include <curl/curl.h>
@@ -29,8 +31,10 @@ void iconLog(const QString& msg)
 {
 #ifdef QT3_BUILD
     qDebug(msg);
-#else
+#elif QT_VERSION >= 0x050400
     qDebug().noquote() << msg;
+#else
+    qDebug() << msg;
 #endif
 }
 
@@ -283,7 +287,7 @@ void IconLoader::handleDone(const QString& url)
         if (m_active > 0)
             --m_active;
         if (!m_queue.isEmpty()) {
-#if QT_VERSION >= 0x060000
+#if QT_VERSION >= 0x040000
             next = m_queue.takeFirst();
 #else
             next = m_queue.first();
@@ -304,7 +308,7 @@ void IconLoader::handleDone(const QString& url)
 #else
             thread = it.data();
 #endif
-#if QT_VERSION >= 0x060000
+#if QT_VERSION >= 0x040000
             m_threads.erase(it);
 #else
             m_threads.remove(it);

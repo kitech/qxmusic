@@ -250,6 +250,11 @@ public:
     return fetch([&](char **o) { return ncm_song_detail(h_, k.get(), o); }, out_json);
   }
 
+  /* out_json: {"id","name","pic_url"}（艺人头像，可能为空串） */
+  [[nodiscard]] Status artist_detail(int64_t id, std::string &out_json) {
+    return fetch([&](char **o) { return ncm_artist_detail(h_, id, o); }, out_json);
+  }
+
   /* out_json: {"song_id","playable","reason"} */
   [[nodiscard]] Status check_music(int64_t id, int32_t br, std::string &out_json) {
     return fetch([&](char **o) { return ncm_check_music(h_, id, br, o); }, out_json);

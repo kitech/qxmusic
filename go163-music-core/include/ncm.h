@@ -11,6 +11,7 @@
  *     ncm_album_tracks          专辑曲目
  *     ncm_search                搜索（type=1）
  *     ncm_song_detail           批量歌曲详情
+ *     ncm_artist_detail         艺人详情（头像 URL）
  *     ncm_lyric                 歌词
  *     ncm_check_music           可用性探测
  *     ncm_resolve_source        免费曲直链
@@ -184,6 +185,8 @@ NCM_API int32_t NCM_CALL ncm_top_playlists(ncm_client *client, NCM_CPARAM char *
 NCM_API int32_t NCM_CALL ncm_playlist_detail(ncm_client *client, int64_t id, char **out_json);
 /* 认证: 否。ids 为逗号分隔歌曲 id。出参: {"songs":[...]}（结构同 tracks 元素） */
 NCM_API int32_t NCM_CALL ncm_song_detail(ncm_client *client, NCM_CPARAM char *ids, char **out_json);
+/* 认证: 否。出参: {"id","name","pic_url"}（艺人头像，可能为空串） */
+NCM_API int32_t NCM_CALL ncm_artist_detail(ncm_client *client, int64_t id, char **out_json);
 /* 认证: 否。br 传 0 用默认 999000。出参: {"song_id","playable","reason"} */
 NCM_API int32_t NCM_CALL ncm_check_music(ncm_client *client, int64_t song_id, int32_t br, char **out_json);
 

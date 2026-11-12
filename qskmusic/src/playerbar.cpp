@@ -46,7 +46,17 @@ PlayerBar::PlayerBar(QQuickItem* parent)
 
     m_title = new QskTextLabel(textCol);
     m_title->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
-    m_artist = new QskTextLabel(QString::fromUtf8("左右横划切换上下一首"), textCol);
+
+    // 歌手行：20px 圆形头像 + 歌手文本（头像跟随当前播放曲目的首位歌手）
+    auto* artistRow = new QskLinearBox(Qt::Horizontal, textCol);
+    artistRow->setSpacing(4);
+
+    m_artistAvatar = new IconItem(artistRow);
+    m_artistAvatar->setPreferredSize(20, 20);
+    m_artistAvatar->setShape(IconItem::Circle);
+    m_artistAvatar->setVisible(false);
+
+    m_artist = new QskTextLabel(QString::fromUtf8("左右横划切换上下一首"), artistRow);
     m_artist->setFontRole(QskFontRole(QskFontRole::Caption, QskFontRole::Normal));
     m_artist->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
 
@@ -121,6 +131,17 @@ QString PlayerBar::fmtMs(int ms)
     QString ss = QString::number(s);
     if (s < 10) ss = QString("0") + ss;
     return QString::number(m) + ":" + ss;
+}
+
+void PlayerBar::setArtistAvatar(const QString& url, const QString& seed)
+{
+    if (url.isEmpty() && seed.isEmpty()) {
+        m_artistAvatar->setVisible(false);
+        return;
+    }
+    m_artistAvatar->setFallback(qximage::letterAvatar(seed, 40, true));
+    m_artistAvatar->setSource(url, 40);
+    m_artistAvatar->setVisible(true);
 }
 
 void PlayerBar::setCover(const QString& url, const QString& seed)

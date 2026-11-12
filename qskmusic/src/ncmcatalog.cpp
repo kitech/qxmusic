@@ -16,12 +16,18 @@ Song parseSong(const QJsonObject& o)
     s.id = o.value("id").toVariant().toLongLong();
     s.name = o.value("name").toString();
     QString artists;
+    QList<qint64> ids;
     for (const auto& a : o.value("artists").toArray()) {
         if (!artists.isEmpty()) artists += QStringLiteral("/");
         artists += a.isObject() ? a.toObject().value("name").toString()
                                 : a.toString();
     }
+    for (const auto& v : o.value("artist_ids").toArray()) {
+        const qint64 id = v.toVariant().toLongLong();
+        if (id > 0) ids.append(id);
+    }
     s.artists = artists;
+    s.artistIds = ids;
     s.album = o.value("album").toString();
     s.cover = o.value("cover").toString();
     s.albumId = o.value("album_id").toVariant().toLongLong();

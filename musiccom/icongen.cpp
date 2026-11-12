@@ -70,10 +70,10 @@ QString firstGlyph(const QString& name)
     const QString trimmed = qxTrimmed(name);
     if (trimmed.isEmpty())
         return QString::fromLatin1("?");
-#if QT_VERSION >= 0x060000
-    return trimmed.left(1).toUpper();
+#if QT_VERSION < 0x040000
+    return trimmed.left(1).upper();     // Qt3
 #else
-    return trimmed.left(1).upper();
+    return trimmed.left(1).toUpper();   // Qt4+
 #endif
 }
 

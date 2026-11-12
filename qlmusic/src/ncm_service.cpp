@@ -591,6 +591,16 @@ void NcmService::loadLyric(qint64 songId)
     m_worker->push(t);
 }
 
+void NcmService::loadArtist(qint64 artistId)
+{
+    if (artistId <= 0) return;
+    NcmTask t;
+    t.kind = NcmTaskArtist;
+    t.op = "artist_detail";
+    t.id = artistId;
+    m_worker->push(t);
+}
+
 void NcmService::execTask(const NcmTask& t)
 {
     if (!m_client) return;
@@ -657,6 +667,13 @@ void NcmService::execTask(const NcmTask& t)
         if (out) ncm_free_string(out);
         break;
     }
+    case NcmTaskArtist: {
+        char* out = 0;
+        rc = ncm_artist_detail(m_client, t.id, &out);
+        if (rc == NCM_OK && out) json = out;
+        if (out) ncm_free_string(out);
+        break;
+    }
     default:
         return;
     }
@@ -703,6 +720,10 @@ void NcmService::handleResult(NcmResultEvent* e)
     const QString op = qFromUtf8(e->op);
     if (op == qFromUtf8("song_lyric")) {
         emit lyricLoaded(e->id, qFromUtf8(e->json));
+        return;
+    }
+    if (op == qFromUtf8("artist_detail")) {
+        emit artistLoaded(e->id, e->rc, json);
         return;
     }
     if (op == qFromUtf8("playlist_categories")) {

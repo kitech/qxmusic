@@ -8,6 +8,7 @@
 #include <qpainter.h>
 #include <qevent.h>
 #include <qfontmetrics.h>
+#include <qbitmap.h>
 #include <qframe.h>
 #include <qcheckbox.h>
 #include <qapplication.h>
@@ -367,6 +368,28 @@ private:
 
 
 namespace {
+QPixmap makeCircularPixmap(const QPixmap& src, int size)
+{
+    QPixmap pm = src;
+    if (pm.width() != size || pm.height() != size) {
+#ifdef QT3_BUILD
+        pm.resize(size, size);        // Qt3：resize 会缩放位图
+#else
+        pm = pm.scaled(size, size, Qt::IgnoreAspectRatio,
+                       Qt::SmoothTransformation);
+#endif
+    }
+    QBitmap mask(size, size);
+    mask.fill(Qt::color0);
+    QPainter mp(&mask);
+    mp.setBrush(Qt::color1);
+    mp.setPen(Qt::NoPen);
+    mp.drawEllipse(0, 0, size, size);
+    mp.end();
+    pm.setMask(mask);
+    return pm;
+}
+
 QString fmtMs(int ms)
 {
     int total = ms / 1000;
@@ -452,6 +475,19 @@ void PlayerBar::setTrack(const Track& t)
     /* 真实封面优先；无图用 identicon。结果进内存 LRU，高频重绘不再重复生成 */
     m_coverPixmap = IconLoader::instance().cover(
         m_track.coverUrl, m_track.coverSeed, 52);
+    m_artistAvatarUrl = QString();
+    m_artistAvatarSeed = QString();
+    m_artistAvatar = QPixmap();
+    update();
+}
+
+void PlayerBar::setArtistAvatar(const QString& url, const QString& seed)
+{
+    m_artistAvatarUrl = url;
+    m_artistAvatarSeed = seed.isEmpty() && m_hasTrack ? m_track.artist : seed;
+    const QPixmap pm = IconLoader::instance().cover(
+        m_artistAvatarUrl, m_artistAvatarSeed, 20);
+    m_artistAvatar = pm.isNull() ? QPixmap() : makeCircularPixmap(pm, 20);
     update();
 }
 
@@ -461,6 +497,11 @@ void PlayerBar::refreshCover()
         return;
     m_coverPixmap = IconLoader::instance().cover(
         m_track.coverUrl, m_track.coverSeed, 52);
+    if (!m_artistAvatarUrl.isEmpty() || !m_artistAvatarSeed.isEmpty()) {
+        const QPixmap pm = IconLoader::instance().cover(
+            m_artistAvatarUrl, m_artistAvatarSeed, 20);
+        m_artistAvatar = pm.isNull() ? QPixmap() : makeCircularPixmap(pm, 20);
+    }
     update();
 }
 
@@ -750,7 +791,13 @@ void PlayerBar::paintEvent(QPaintEvent*)
         p.drawText(QRect(78, 18, width() / 2 - 100, 22), Qt::AlignVCenter | Qt::AlignLeft, m_track.title);
         p.setFont(small);
         p.setPen(pal.textMuted);
-        p.drawText(QRect(78, 42, width() / 2 - 100, 20), Qt::AlignVCenter | Qt::AlignLeft, m_track.artist);
+        int artistX = 78;
+        if (!m_artistAvatar.isNull()) {
+            p.drawPixmap(78, 42, m_artistAvatar);
+            artistX = 102;
+        }
+        p.drawText(QRect(artistX, 42, width() / 2 - (artistX - 78) - 100, 20),
+                   Qt::AlignVCenter | Qt::AlignLeft, m_track.artist);
     }
 
     QColor ctrl = (m_hover == HitPlay || m_hover == HitPrev || m_hover == HitNext
