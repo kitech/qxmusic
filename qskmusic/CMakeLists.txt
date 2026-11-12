@@ -119,6 +119,8 @@ qt_add_executable(qskmusic
     src/networkmonitor.cpp
     src/androidutils.h
     src/androidutils.cpp
+    src/envprobe.h
+    src/envprobe.cpp
     src/version_config.h
     ${QSKCOMP_SOURCES}
 )

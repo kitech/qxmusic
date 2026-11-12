@@ -10,14 +10,17 @@ import android.content.Intent;
 import android.os.Build;
 import android.os.IBinder;
 import android.os.PowerManager;
+import android.util.Log;
 
 public class KeepAliveService extends Service {
+    private static final String TAG = "qskmusic";
     private static final int NOTIF_ID = 1001;
     private static final String CHANNEL_ID = "qskmusic_keepalive";
 
     private static KeepAliveService sInstance = null;
     private static PowerManager.WakeLock sWakeLock = null;
     private static boolean sPlaying = false;
+    private static String sLastError = "";
 
     @Override
     public void onCreate() {
@@ -35,9 +38,19 @@ public class KeepAliveService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        startForeground(NOTIF_ID, buildNotification());
+        try {
+            startForeground(NOTIF_ID, buildNotification());
+            sLastError = "";
+            Log.i(TAG, "[ENV] fgs started type=mediaPlayback");
+        } catch (Exception ex) {
+            sLastError = "startForeground failed: " + ex;
+            Log.e(TAG, "[ENV] " + sLastError);
+        }
         return START_NOT_STICKY;
     }
+
+    /* C++ 侧可读取最近一次前台服务启动错误（供 [ENV] 诊断日志） */
+    public static String lastError() { return sLastError; }
 
     @Override
     public IBinder onBind(Intent intent) { return null; }
@@ -64,16 +77,23 @@ public class KeepAliveService extends Service {
     public static void setPlaybackActive(Context ctx, boolean playing) {
         sPlaying = playing;
         PowerManager pm = (PowerManager) ctx.getSystemService(Context.POWER_SERVICE);
-        if (playing) {
-            if (sWakeLock == null) {
-                sWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
-                                           "qskmusic:playback");
-                sWakeLock.setReferenceCounted(false);
+        try {
+            if (playing) {
+                if (sWakeLock == null) {
+                    sWakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
+                                               "qskmusic:playback");
+                    sWakeLock.setReferenceCounted(false);
+                }
+                if (!sWakeLock.isHeld())
+                    sWakeLock.acquire();
+                Log.i(TAG, "[ENV] wake lock acquired");
+            } else {
+                releaseWakeLock();
+                Log.i(TAG, "[ENV] wake lock released");
             }
-            if (!sWakeLock.isHeld())
-                sWakeLock.acquire();
-        } else {
-            releaseWakeLock();
+        } catch (Exception ex) {
+            sLastError = "wake lock failed: " + ex;
+            Log.e(TAG, "[ENV] " + sLastError);
         }
         if (sInstance != null)
             sInstance.updateNotification();

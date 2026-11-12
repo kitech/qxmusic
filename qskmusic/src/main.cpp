@@ -36,6 +36,7 @@
 #include "keepalive.h"
 #include "networkmonitor.h"
 #include "androidutils.h"
+#include "envprobe.h"
 #include <QKeyEvent>
 #include <QElapsedTimer>
 #include <QTimer>
@@ -472,6 +473,9 @@ int main(int argc, char* argv[])
     window.setPreferredSize({1024, 680});
     window.show();
 
+    // ── 运行环境探测：[ENV] 快照日志 + LogModel（App 内 Logs 页可见）──
+    EnvProbe::instance().detect();
+
     // ── Start with home page ── (window 已就绪，控件可正常解析 skin hint)
     pageManager->open("home");
 
@@ -489,6 +493,7 @@ int main(int argc, char* argv[])
             } else {
                 NetworkMonitor::setForeground(false);
             }
+            qDebug() << "[ENV] app-state ->" << state;
 #endif
         });
 
