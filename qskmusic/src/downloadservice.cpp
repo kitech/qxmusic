@@ -60,7 +60,9 @@ void DownloadService::startNext()
     const QString url = task.second.first;
     const QString dst = filePath(task.first, task.second.second);
 
-    auto* reply = m_nam->get(QNetworkRequest{ QUrl(url) });
+    QNetworkRequest req{ QUrl(url) };
+    req.setTransferTimeout(30000);   /* 30s 无数据流动即中止 → finished 走错误路径 */
+    auto* reply = m_nam->get(req);
     auto* f = new QFile(dst + QStringLiteral(".part"), this);
     f->open(QIODevice::WriteOnly | QIODevice::Truncate);
     Q_EMIT progress(m_activeId, -1);   // 未定态：播放条转圈
