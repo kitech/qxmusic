@@ -5,6 +5,7 @@
 #include <QskTextLabel.h>
 #include <QskPushButton.h>
 #include <QskComboBox.h>
+#include <QskLabelData.h>
 #include <QskSwitchButton.h>
 #include <QskSeparator.h>
 #include <QskFontRole.h>
@@ -83,9 +84,11 @@ void SettingsPage::buildUi()
         auto* row = addRow(tr("Skin"));
         m_skinCombo = new QskComboBox(row);
         m_skinCombo->setPreferredWidth(180);
-        m_skinCombo->addOption("Fusion", QString::number(0));
-        m_skinCombo->addOption("Fluent2", QString::number(1));
-        m_skinCombo->addOption("Material3", QString::number(2));
+        /* QskComboBox：addOption(iconSource, text) 不是 (text, value)；
+         * 选项值即索引，用 QskLabelData 重载显式给文本 */
+        m_skinCombo->addOption(QskLabelData(QStringLiteral("Fusion")));
+        m_skinCombo->addOption(QskLabelData(QStringLiteral("Fluent2")));
+        m_skinCombo->addOption(QskLabelData(QStringLiteral("Material3")));
         connect(m_skinCombo, &QskComboBox::currentIndexChanged, this, [this](int idx) {
             QSettings().setValue("skin", idx);
             auto* sm = QskSkinManager::instance();
@@ -110,10 +113,10 @@ void SettingsPage::buildUi()
         auto* row = addRow(tr("Transition"));
         m_transitionCombo = new QskComboBox(row);
         m_transitionCombo->setPreferredWidth(180);
-        m_transitionCombo->addOption(tr("None"), QString::number(0));
-        m_transitionCombo->addOption("Animator1", QString::number(1));
-        m_transitionCombo->addOption("Animator2", QString::number(2));
-        m_transitionCombo->addOption("Animator4 (default)", QString::number(3));
+        m_transitionCombo->addOption(QskLabelData(tr("None")));
+        m_transitionCombo->addOption(QskLabelData(QStringLiteral("Animator1")));
+        m_transitionCombo->addOption(QskLabelData(QStringLiteral("Animator2")));
+        m_transitionCombo->addOption(QskLabelData(tr("Animator4 (default)")));
         connect(m_transitionCombo, &QskComboBox::currentIndexChanged, this, [this](int idx) {
             QSettings().setValue("transition", idx);
         });
@@ -124,9 +127,9 @@ void SettingsPage::buildUi()
         auto* row = addRow(tr("Language"));
         m_langCombo = new QskComboBox(row);
         m_langCombo->setPreferredWidth(180);
-        m_langCombo->addOption(tr("English"), QString::number(0));
-        m_langCombo->addOption(QString::fromUtf8("简体中文"), QString::number(1));
-        m_langCombo->addOption(QString::fromUtf8("繁體中文"), QString::number(2));
+        m_langCombo->addOption(QskLabelData(tr("English")));
+        m_langCombo->addOption(QskLabelData(QString::fromUtf8("简体中文")));
+        m_langCombo->addOption(QskLabelData(QString::fromUtf8("繁體中文")));
         connect(m_langCombo, &QskComboBox::currentIndexChanged, this, [this](int idx) {
             Lang::instance().setLanguage(
                 idx == 0 ? "en" : (idx == 2 ? "zh-TW" : "zh-CN"));
