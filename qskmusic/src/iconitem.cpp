@@ -92,10 +92,12 @@ public:
 
         m_url = url;
         m_px = px;
+        /* lazy：这里只查内存/磁盘缓存；网络请求推迟到首帧绘制
+         * （updatePaintNode），离屏行永远不会发起下载 */
         m_pixmap = url.isEmpty() ? QPixmap()
                                  : IconLoader::instance().cached(url, px);
-        if (m_pixmap.isNull() && !url.isEmpty())
-            IconLoader::instance().request(url, px);
+        if (!m_pixmap.isNull() || url.isEmpty())
+            m_requested = true;      // 已有图/无 URL：不再懒请求
 
         m_dirty = true;
         update();
@@ -133,6 +135,13 @@ protected:
         if (!node)
             node = new IconNode();
 
+        /* 需要绘制 = 此刻真的要画这个 item（scene graph 只对可视 item 调
+         * updatePaintNode，离屏行自然被跳过）→ 首次绘制才发起网络请求 */
+        if (m_pixmap.isNull() && !m_url.isEmpty() && !m_requested) {
+            m_requested = true;
+            IconLoader::instance().request(m_url, m_px);
+        }
+
         const QPixmap& shown = m_pixmap.isNull() ? m_fallback : m_pixmap;
         if (m_dirty) {
             node->setData(shown, m_shape, m_radius);
@@ -162,6 +171,7 @@ private:
     qreal m_radius = 8;
     bool m_dirty = true;
     bool m_subscribed = false;
+    bool m_requested = false;      // 懒请求已发出（一次性）
 };
 
 /* ── 容器：负责首选尺寸，内嵌绘制项填满自身 ── */

@@ -53,16 +53,19 @@ void appendBytes(QByteArray& dst, const char* data, int size)
 class IconEvent : public QCustomEvent
 {
 public:
-    explicit IconEvent(const QString& u) : QCustomEvent(kIconEventType), url(u) {}
+    explicit IconEvent(const QString& u, bool ok)
+        : QCustomEvent(kIconEventType), url(u), success(ok) {}
     QString url;
+    bool success;
 };
 #else
 class IconEvent : public QEvent
 {
 public:
-    explicit IconEvent(const QString& u)
-        : QEvent(QEvent::Type(kIconEventType)), url(u) {}
+    explicit IconEvent(const QString& u, bool ok)
+        : QEvent(QEvent::Type(kIconEventType)), url(u), success(ok) {}
     QString url;
+    bool success;
 };
 #endif
 
@@ -150,7 +153,7 @@ QByteArray httpGet(const QString& url)
 class FetchThread : public QThread
 {
 public:
-    explicit FetchThread(const QString& url) : m_url(url) {}
+    explicit FetchThread(const QString& url) : m_url(url), m_ok(false) {}
 
     void run() override
     {
@@ -160,7 +163,8 @@ public:
             QThread::msleep(1000);        // 弱网重试一次
             bytes = httpGet(m_url);
         }
-        if (!bytes.isEmpty()) {
+        m_ok = !bytes.isEmpty();
+        if (m_ok) {
             if (!qximage::write(m_url, bytes))
                 iconLog(QString::fromLatin1("[ICON] cache-write-failed url=") + m_url);
             iconLog(QString::fromLatin1("[ICON] hit=net url=") + m_url);
@@ -168,11 +172,12 @@ public:
             qximage::negativePut(m_url);
             iconLog(QString::fromLatin1("[ICON] miss url=") + m_url);
         }
-        IconLoader::instance().postDone(m_url);
+        IconLoader::instance().postDone(m_url, m_ok);
     }
 
 private:
     QString m_url;
+    bool m_ok;
 };
 
 QPixmap pixmapFromImage(const QImage& img)
@@ -223,7 +228,8 @@ QPixmap IconLoader::cover(const QString& url, const QString& seed, int px)
             iconLog(QString::fromLatin1("[ICON] corrupt-on-disk url=") + raw);
         }
 
-        if (!qximage::negativeHit(raw))
+        /* 负缓存过期后也不再无限"每 5 分钟一轮"：会话内每 URL 最多 2 轮失败 */
+        if (!qximage::negativeHit(raw) && m_fails.value(raw, 0) < 2)
             requestDownload(raw);
     }
     return generated(seed, px);
@@ -262,12 +268,12 @@ void IconLoader::startFetch(const QString& url)
     thread->start();
 }
 
-void IconLoader::postDone(const QString& url)
+void IconLoader::postDone(const QString& url, bool ok)
 {
 #ifdef QT3_BUILD
-    QApplication::postEvent(this, new IconEvent(url));
+    QApplication::postEvent(this, new IconEvent(url, ok));
 #else
-    QCoreApplication::postEvent(this, new IconEvent(url));
+    QCoreApplication::postEvent(this, new IconEvent(url, ok));
 #endif
 }
 
@@ -287,10 +293,10 @@ void IconLoader::customEvent(QEvent* event)
     }
 
     IconEvent* iconEvent = static_cast<IconEvent*>(event);
-    handleDone(iconEvent->url);
+    handleDone(iconEvent->url, iconEvent->success);
 }
 
-void IconLoader::handleDone(const QString& url)
+void IconLoader::handleDone(const QString& url, bool ok)
 {
     QString next;
     {
@@ -334,6 +340,11 @@ void IconLoader::handleDone(const QString& url)
 
     if (++m_done % 50 == 0)
         qximage::trim(400LL * 1024 * 1024);   // 长会话定期回收
+
+    if (ok)
+        m_fails.remove(url);           // 成功清除失败计数
+    else
+        m_fails.insert(url, m_fails.value(url, 0) + 1);
 
     emit iconsReady();
 }

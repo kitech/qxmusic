@@ -33,7 +33,7 @@ public:
     void trimCache();
 
     // 工作线程调用：投递完成事件到 GUI 线程
-    void postDone(const QString& url);
+    void postDone(const QString& url, bool ok);
 
 signals:
     void iconsReady();
@@ -53,10 +53,11 @@ private:
 
     void requestDownload(const QString& url);
     void startFetch(const QString& url);   // 调用方需持有 m_mutex
-    void handleDone(const QString& url);
+    void handleDone(const QString& url, bool ok);
 
     QMap<QString, int> m_inFlight;
     QMap<QString, QThread*> m_threads;
+    QMap<QString, int> m_fails;    // 会话级失败计数（≥2 不再请求）
     QStringList m_queue;
     int m_active;
     int m_done;        // 完成计数 → 每 50 次触发 trim

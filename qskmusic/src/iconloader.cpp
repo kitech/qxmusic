@@ -25,7 +25,9 @@ const int kMaxConcurrent = 4;
 
 QString keyOf(const QString& url, int px)
 {
-    return url + QLatin1Char(':') + QString::number(px);
+    Q_UNUSED(px);
+    return url;   /* 同 URL 只发一次网络（跨 px 不重复下载）；
+                   * px 仅用于内存 LRU key 与解码尺寸 */
 }
 
 /* 读取 → 按 px 等比放大到覆盖 → 居中裁剪为正方形 */
