@@ -1978,6 +1978,11 @@ void MainWindow::onNavAction(int action)
         showNcmAuthToast(_("nav.mymusic"));
         return;
     }
+    if (action == 2) {
+        /* 本地音乐：暂缓（Phase 2 扫盘/导入） */
+        SharedStatusBar::instance()->showMessage(_("nav.local_coming"), 3000);
+        return;
+    }
 }
 
 void MainWindow::showNcmError(int rc, const QString& op)

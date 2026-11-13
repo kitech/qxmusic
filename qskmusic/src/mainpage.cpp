@@ -137,6 +137,10 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
                     ToastPopup::show(this, tr("Sign in required"));
                     return;
                 }
+                if (cat == QStringLiteral("__local__")) {
+                    ToastPopup::show(this, tr("Local music coming soon"));
+                    return;
+                }
                 openPlaylistList(cat, cat.isEmpty()
                     ? tr("Hot Playlists") : cat);
             });
@@ -233,8 +237,9 @@ void HomePage::rebuild(const QStringList& hot,
     // 首行 = 热门歌单（qlmusic __hot__ 哨兵；服务端 cat="全部"）
     addHotEntry();
     /* qlmusic SideNav 固定项顺序：推荐 → 排行榜 → 我的音乐（stub 同响应） */
-    addNavEntry(tr("Rankings"), QStringLiteral("__rank__"));
-    addNavEntry(tr("My Music"), QStringLiteral("__mymusic__"));
+    addNavEntry(tr("Rankings"), QStringLiteral("__rank__"), QStringLiteral("rank"));
+    addNavEntry(tr("My Music"), QStringLiteral("__mymusic__"), QStringLiteral("mymusic"));
+    addNavEntry(tr("Local Music"), QStringLiteral("__local__"), QStringLiteral("local"));
 
     auto addGroup = [&](const QString& title, const QStringList& cats) {
         if (cats.isEmpty()) return;
@@ -260,7 +265,7 @@ void HomePage::addHotEntry()
     auto* icon = new IconItem(row);
     icon->setPreferredSize(22, 22);
     icon->setCornerRadius(6);
-    icon->setFallback(qximage::categoryIcon(tr("Hot Playlists"), 44));
+    icon->setFallback(qximage::navIcon(QStringLiteral("hot"), 44));
 
     auto* lbl = new QskTextLabel(tr("Hot Playlists"), row);
     lbl->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
@@ -269,7 +274,8 @@ void HomePage::addHotEntry()
     m_chipCats.push_back({ row, QString() });   // 空串 = 热门哨兵
 }
 
-void HomePage::addNavEntry(const QString& label, const QString& key)
+void HomePage::addNavEntry(const QString& label, const QString& key,
+                           const QString& iconKind)
 {
     /* qlmusic SideNav 固定导航项同款行：图标 + 主文本，整行可点 */
     auto* row = new QskLinearBox(Qt::Horizontal, m_rows);
@@ -277,10 +283,10 @@ void HomePage::addNavEntry(const QString& label, const QString& key)
     row->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
     row->setSpacing(6);
 
-    auto* icon = new IconItem(row);
-    icon->setPreferredSize(22, 22);
-    icon->setCornerRadius(6);
-    icon->setFallback(qximage::categoryIcon(label, 44));
+    auto* iconItem = new IconItem(row);
+    iconItem->setPreferredSize(22, 22);
+    iconItem->setCornerRadius(6);
+    iconItem->setFallback(qximage::navIcon(iconKind, 44));
 
     auto* lbl = new QskTextLabel(label, row);
     lbl->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);

@@ -4,13 +4,15 @@
   "theme_light": "淺色主題",
   "nav": {
     "search": "搜尋",
-    "recommend": "推薦",
+    "recommend": "熱門歌單",
     "rank": "排行榜",
     "mymusic": "我的音樂",
     "created": "建立的歌單",
     "collected": "收藏的歌單",
     "categories": "分類",
     "favorites": "我的收藏",
+    "local_music": "本地音樂",
+    "local_coming": "本地音樂即將支援",
     "rank_coming": "排行榜即將支援"
   },
   "content": {

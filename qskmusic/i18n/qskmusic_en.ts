@@ -48,13 +48,13 @@
     <name>HomePage</name>
     <message>
         <location filename="../src/mainpage.cpp" line="51"/>
-        <location filename="../src/mainpage.cpp" line="393"/>
+        <location filename="../src/mainpage.cpp" line="401"/>
         <source>Not signed in</source>
         <translation>Not signed in</translation>
     </message>
     <message>
         <location filename="../src/mainpage.cpp" line="53"/>
-        <location filename="../src/mainpage.cpp" line="396"/>
+        <location filename="../src/mainpage.cpp" line="404"/>
         <source>Tap to sign in</source>
         <translation>Tap to sign in</translation>
     </message>
@@ -71,9 +71,9 @@
     </message>
     <message>
         <location filename="../src/mainpage.cpp" line="98"/>
-        <location filename="../src/mainpage.cpp" line="355"/>
-        <location filename="../src/mainpage.cpp" line="371"/>
-        <location filename="../src/mainpage.cpp" line="375"/>
+        <location filename="../src/mainpage.cpp" line="363"/>
+        <location filename="../src/mainpage.cpp" line="379"/>
+        <location filename="../src/mainpage.cpp" line="383"/>
         <source>163 Music</source>
         <translation>163 Music</translation>
     </message>
@@ -95,93 +95,102 @@
     </message>
     <message>
         <location filename="../src/mainpage.cpp" line="141"/>
-        <location filename="../src/mainpage.cpp" line="263"/>
-        <location filename="../src/mainpage.cpp" line="265"/>
+        <source>Local music coming soon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="145"/>
+        <location filename="../src/mainpage.cpp" line="270"/>
         <source>Hot Playlists</source>
         <translation>Hot Playlists</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="150"/>
+        <location filename="../src/mainpage.cpp" line="154"/>
         <source>Load failed: %1</source>
         <translation>Load failed: %1</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="177"/>
+        <location filename="../src/mainpage.cpp" line="181"/>
         <source>Search</source>
         <translation>Search</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="179"/>
+        <location filename="../src/mainpage.cpp" line="183"/>
         <source>My Favorites</source>
         <translation>My Favorites</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="180"/>
+        <location filename="../src/mainpage.cpp" line="184"/>
         <source>Logs</source>
         <translation>Logs</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="181"/>
+        <location filename="../src/mainpage.cpp" line="185"/>
         <source>Settings</source>
         <translation>Settings</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="182"/>
+        <location filename="../src/mainpage.cpp" line="186"/>
         <source>About</source>
         <translation>About</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="236"/>
+        <location filename="../src/mainpage.cpp" line="240"/>
         <source>Rankings</source>
         <translation>Rankings</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="237"/>
+        <location filename="../src/mainpage.cpp" line="241"/>
         <source>My Music</source>
         <translation>My Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="246"/>
+        <location filename="../src/mainpage.cpp" line="242"/>
+        <source>Local Music</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="251"/>
         <source>Hot Categories</source>
         <translation>Hot Categories</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="355"/>
+        <location filename="../src/mainpage.cpp" line="363"/>
         <source>QQ Music</source>
         <translation>QQ Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="355"/>
+        <location filename="../src/mainpage.cpp" line="363"/>
         <source>Baidu Music</source>
         <translation>Baidu Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="355"/>
+        <location filename="../src/mainpage.cpp" line="363"/>
         <source>Kugou Music</source>
         <translation>Kugou Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="356"/>
+        <location filename="../src/mainpage.cpp" line="364"/>
         <source>Kuwo Music</source>
         <translation>Kuwo Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="356"/>
+        <location filename="../src/mainpage.cpp" line="364"/>
         <source>Bilibili Music</source>
         <translation>Bilibili Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="356"/>
+        <location filename="../src/mainpage.cpp" line="364"/>
         <source>YouTube Music</source>
         <translation>YouTube Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="374"/>
+        <location filename="../src/mainpage.cpp" line="382"/>
         <source>This site is coming soon</source>
         <translation>This site is coming soon</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="395"/>
+        <location filename="../src/mainpage.cpp" line="403"/>
         <source>Signed in</source>
         <translation>Signed in</translation>
     </message>

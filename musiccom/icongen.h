@@ -15,6 +15,9 @@ namespace qximage {
 QPixmap identicon(const QString& seed, int size);
 QPixmap letterAvatar(const QString& name, int size, bool circular);
 QPixmap categoryIcon(const QString& name, int size);
+/* 固定导航图标：recommend / hot / rank / mymusic / local
+ * （纯 QPainter 基本图元绘制，Qt3/4/6 通用；未知 kind 回退火焰） */
+QPixmap navIcon(const QString& kind, int size);
 
 } // namespace qximage
 

@@ -4,13 +4,15 @@
   "theme_light": "Light Theme",
   "nav": {
     "search": "Search",
-    "recommend": "Recommended",
+    "recommend": "Hot Playlists",
     "rank": "Ranking",
     "mymusic": "My Music",
     "created": "Created Playlists",
     "collected": "Collected Playlists",
     "categories": "Categories",
     "favorites": "My Favorites",
+    "local_music": "Local Music",
+    "local_coming": "Local music coming soon",
     "rank_coming": "Rankings coming soon"
   },
   "content": {

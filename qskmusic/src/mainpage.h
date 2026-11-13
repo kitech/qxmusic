@@ -38,7 +38,8 @@ private:
     void showSiteMenu();
     void rebuild(const QStringList& hot, const QList<CategoryGroup>& groups);
     void addHotEntry();
-    void addNavEntry(const QString& label, const QString& key);
+    void addNavEntry(const QString& label, const QString& key,
+                     const QString& iconKind);
     QskLinearBox* addSectionGrid();
     void addChip(QskLinearBox* grid, const QString& label, const QString& cat);
     void openPlaylistList(const QString& cat, const QString& title);

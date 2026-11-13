@@ -56,6 +56,7 @@ private:
         NavHotPlaylists,/* 推荐 → 热门歌单 */
         NavRank,        /* 排行榜 → 暂缓提示 */
         NavMyMusic,     /* 我的音乐 → 需登录提示 */
+        NavLocalMusic,  /* 本地音乐 → 暂缓提示 */
     };
     struct NavItem {
         NavKind kind;
@@ -87,6 +88,7 @@ private:
     QString m_navRecommend;
     QString m_navRank;
     QString m_navMine;
+    QString m_navLocal;
     QString m_groupCreated;
     QString m_groupCollected;
     QString m_groupCategories;

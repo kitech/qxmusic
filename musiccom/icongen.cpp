@@ -5,6 +5,13 @@
 #include <qbitmap.h>
 #include <qcolor.h>
 #include <qrect.h>
+#if QT_VERSION < 0x040000
+#include <qpointarray.h>
+#else
+#include <qpolygon.h>
+#endif
+
+#include <cmath>
 
 namespace qximage {
 namespace {
@@ -174,6 +181,145 @@ QPixmap categoryIcon(const QString& name, int size)
     p.setFont(f);
     p.setPen(Qt::white);
     p.drawText(QRect(0, 0, size, size), Qt::AlignCenter, firstGlyph(name));
+    p.end();
+    return pm;
+}
+
+namespace {
+
+/* Qt3 无 QRectF/QPolygonF/QLatin1String/qMin：全部用整数 QRect + QPolygon */
+#if QT_VERSION < 0x040000
+typedef QPointArray NavPoly;
+#else
+typedef QPolygon NavPoly;
+#endif
+
+QColor navColor(const QString& kind)
+{
+    if (kind == QString("recommend")) return QColor(0xe8, 0xa3, 0x3d);
+    if (kind == QString("rank"))      return QColor(0x5b, 0x7c, 0xfa);
+    if (kind == QString("mymusic"))   return QColor(0x3a, 0xa9, 0x81);
+    if (kind == QString("local"))     return QColor(0x6b, 0x7a, 0x90);
+    return QColor(0xe2, 0x68, 0x3c);            // hot（默认火焰）
+}
+
+/* 五角星（推荐） */
+void drawStar(QPainter& p, const QRect& r)
+{
+    NavPoly poly;
+    const QPoint c = r.center();
+    const int side = r.width() < r.height() ? r.width() : r.height();
+    const double R = side * 0.46;
+    const double r2 = R * 0.45;
+    for (int i = 0; i < 10; ++i) {
+        const double a = -1.5707963 + i * 0.6283185;   // -90° 起步，每 36°
+        const double rad = (i % 2 == 0) ? R : r2;
+        poly.putPoints(i, 1, c.x() + (int)(rad * std::cos(a)),
+                       c.y() + (int)(rad * std::sin(a)));
+    }
+    p.drawPolygon(poly);
+}
+
+/* 火焰（热门歌单） */
+void drawFlame(QPainter& p, const QRect& r)
+{
+    const int w = r.width(), h = r.height();
+    const int x = r.left(), y = r.top();
+    NavPoly outer;
+    const int pts[6][2] = {
+        { x + w * 50 / 100, y + h * 10 / 100 },
+        { x + w * 78 / 100, y + h * 45 / 100 },
+        { x + w * 72 / 100, y + h * 80 / 100 },
+        { x + w * 50 / 100, y + h * 92 / 100 },
+        { x + w * 28 / 100, y + h * 80 / 100 },
+        { x + w * 22 / 100, y + h * 48 / 100 },
+    };
+    for (int i = 0; i < 6; ++i)
+        outer.putPoints(i, 1, pts[i][0], pts[i][1]);
+    p.drawPolygon(outer);
+}
+
+/* 柱状条（排行榜） */
+void drawBars(QPainter& p, const QRect& r)
+{
+    const int w = r.width(), h = r.height();
+    const int bw = w * 18 / 100;
+    const int gap = w * 12 / 100;
+    const int base = r.top() + h * 86 / 100;
+    const int hs[3] = { h * 38 / 100, h * 62 / 100, h * 50 / 100 };
+    int x = r.left() + w * 16 / 100;
+    for (int i = 0; i < 3; ++i) {
+        p.drawRect(QRect(x, base - hs[i], bw, hs[i]));
+        x += bw + gap;
+    }
+}
+
+/* 人形（我的音乐） */
+void drawPerson(QPainter& p, const QRect& r)
+{
+    const int w = r.width(), h = r.height();
+    const int head = w * 30 / 100;
+    p.drawEllipse(QRect(r.center().x() - head / 2, r.top() + h * 16 / 100,
+                        head, head));
+    p.drawChord(QRect(r.left() + w * 18 / 100, r.top() + h * 50 / 100,
+                      w * 64 / 100, h * 52 / 100), 0, 180 * 16);
+}
+
+/* 文件夹 + 音符（本地音乐） */
+void drawFolder(QPainter& p, const QRect& r)
+{
+    const int w = r.width(), h = r.height();
+    const int x = r.left(), y = r.top();
+    p.drawRect(QRect(x + w * 14 / 100, y + h * 40 / 100,
+                     w * 44 / 100, h * 10 / 100));   // 文件夹页签
+    p.drawRect(QRect(x + w * 14 / 100, y + h * 46 / 100,
+                     w * 72 / 100, h * 38 / 100));   // 文件夹主体
+    p.drawEllipse(QRect(x + w * 60 / 100, y + h * 30 / 100,
+                        w * 16 / 100, h * 13 / 100));  // 音符头
+    p.drawRect(QRect(x + w * 72 / 100, y + h * 16 / 100,
+                     w * 6 / 100, h * 20 / 100));    // 音符杆
+}
+
+} // namespace
+
+QPixmap navIcon(const QString& kind, int size)
+{
+    QPixmap pm(size, size);
+    const int radius = size / 4;
+#if QT_VERSION < 0x040000
+    /* Qt3 无 Qt::transparent 填充：用位图遮罩裁圆角 */
+    pm.fill(Qt::white);
+    QBitmap mask(size, size);
+    mask.fill(Qt::color0);
+    {
+        QPainter mp(&mask);
+        mp.setPen(Qt::NoPen);
+        mp.setBrush(Qt::color1);
+        mp.drawRoundRect(QRect(0, 0, size, size), radius, radius);
+    }
+    pm.setMask(mask);
+#else
+    pm.fill(Qt::transparent);
+#endif
+    QPainter p(&pm);
+#if QT_VERSION >= 0x040000
+    p.setRenderHint(QPainter::Antialiasing, true);
+#endif
+    p.setPen(Qt::NoPen);
+    p.setBrush(navColor(kind));
+#if QT_VERSION >= 0x060000
+    p.drawRoundedRect(QRect(0, 0, size, size), radius, radius);
+#else
+    p.drawRoundRect(QRect(0, 0, size, size), radius, radius);
+#endif
+    p.setBrush(Qt::white);
+    const QRect inner(size * 18 / 100, size * 18 / 100,
+                      size * 64 / 100, size * 64 / 100);
+    if (kind == QString("recommend"))      drawStar(p, inner);
+    else if (kind == QString("rank"))      drawBars(p, inner);
+    else if (kind == QString("mymusic"))   drawPerson(p, inner);
+    else if (kind == QString("local"))     drawFolder(p, inner);
+    else                                   drawFlame(p, inner);
     p.end();
     return pm;
 }
