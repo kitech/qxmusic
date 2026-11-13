@@ -45,8 +45,8 @@ Playback::Playback(QObject* parent)
             if (!err.isEmpty() || url.isEmpty()) {
                 // 对号只由列表数据（服务端 playable）决定；播放失败不改列表标记
                 Q_EMIT playError(err == QStringLiteral("NoResource")
-                    ? QString::fromUtf8("灰色歌曲，无可播资源")
-                    : QString::fromUtf8("获取播放链接失败：%1").arg(err));
+                    ? tr("Unavailable track, no playable source")
+                    : tr("Failed to resolve play URL: %1").arg(err));
                 // qlmusic MainWindow::skipOnError（:1153-1174）：
                 // 连续失败计数；未达阈值 → 自动跳下一首；达 99 → 停止连播
                 if (++m_errSkipRun >= 99) {
@@ -89,7 +89,7 @@ Playback::Playback(QObject* parent)
             Q_EMIT lyricReady(songId, lrc);   // 弹层据此实时刷新
         });
     connect(&ncm, &NcmApi::playFailReceived, this, [this](qint64, const QString& reason) {
-        Q_EMIT playError(QString::fromUtf8("播放失败：%1，切下一首").arg(reason));
+        Q_EMIT playError(tr("Playback failed: %1, skipping").arg(reason));
         playIndex(m_current + 1);
     });
 }
@@ -135,7 +135,7 @@ void Playback::playIndex(int index)
 
     // 灰歌：保留原 toast 提示；随后预跳到下一可播曲目（qlmusic 跳过语义）
     if (!m_queue.at(index).playable) {
-        Q_EMIT playError(QString::fromUtf8("灰色歌曲，无可播资源"));
+        Q_EMIT playError(tr("Unavailable track, no playable source"));
         const int usable = firstPlayableAtOrAfter(index + 1);
         if (usable < 0) {
             m_playing = false;
@@ -206,7 +206,7 @@ void Playback::resume()
         return;
     if (!ap->pausedId().isEmpty()) {
         if (!KeepAlive::requestAudioFocus()) {
-            Q_EMIT playError(QString::fromUtf8("音频焦点被占用，无法恢复播放"));
+            Q_EMIT playError(tr("Audio focus lost, cannot resume"));
             return;
         }
         ap->resume();

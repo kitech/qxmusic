@@ -57,7 +57,7 @@ PlayerBar::PlayerBar(QQuickItem* parent)
     m_artistAvatar->setShape(IconItem::Circle);
     m_artistAvatar->setVisible(false);
 
-    m_artist = new QskTextLabel(QString::fromUtf8("左右横划切换上下一首"), artistRow);
+    m_artist = new QskTextLabel(tr("Swipe to switch tracks"), artistRow);
     m_artist->setFontRole(QskFontRole(QskFontRole::Caption, QskFontRole::Normal));
 
     // resolve 中间态：慢网取播放链接可达数秒，期间歌手行显示提示（songChanged
@@ -65,7 +65,7 @@ PlayerBar::PlayerBar(QQuickItem* parent)
     connect(&Playback::instance(), &Playback::resolvingChanged, this,
         [this](bool resolving) {
             if (resolving)
-                m_artist->setText(QString::fromUtf8("正在获取播放链接…"));
+                m_artist->setText(tr("Resolving play URL…"));
             else if (!m_lastArtist.isEmpty())
                 m_artist->setText(m_lastArtist);
         });
@@ -101,7 +101,7 @@ PlayerBar::PlayerBar(QQuickItem* parent)
     m_timeDur->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
 
     // ⑤ 词按钮（歌词弹层入口，原入口恢复）+ 队列键
-    m_lyricBtn = new QskPushButton(QString::fromUtf8("词"), this);
+    m_lyricBtn = new QskPushButton(tr("Lyrics"), this);
     m_lyricBtn->setPreferredSize(36, 36);   // 提高触摸命中率
     connect(m_lyricBtn, &QskAbstractButton::clicked, this, [this]() {
         qDebug() << "[DIAG] lyricBtn clicked";
@@ -167,7 +167,7 @@ void PlayerBar::setSongInfo(const QString& title, const QString& artist)
     const QString a = elided(artist, 14);
     m_lastArtist = a;   // resolving 提示结束后由此恢复
     m_artist->setText(a.isEmpty()
-        ? QString::fromUtf8("左右横划切换上下一首")   // 无歌/无歌手提示
+        ? tr("Swipe to switch tracks")   // 无歌/无歌手提示
         : a);
 }
 

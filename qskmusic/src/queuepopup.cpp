@@ -48,7 +48,7 @@ QueuePopup::QueuePopup(QQuickItem* parent)
     auto* titleRow = new QskLinearBox(Qt::Horizontal, m_layout);
     titleRow->setSpacing(8);
 
-    auto* title = new QskTextLabel(QString::fromUtf8("播放队列"), titleRow);
+    auto* title = new QskTextLabel(tr("Play Queue"), titleRow);
     title->setFontRole(QskFontRole::Title);
     title->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
 

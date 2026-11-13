@@ -50,7 +50,7 @@ void FavoritesPage::onCreate(const QVariantMap&, const QVariantMap&)
         if (auto* pm = pageManager()) pm->back();
     });
 
-    auto* title = new QskTextLabel(QString::fromUtf8("我的收藏"), topBar);
+    auto* title = new QskTextLabel(tr("My Favorites"), topBar);
     title->setFontRole(QskFontRole(QskFontRole::Title, QskFontRole::Normal));
     title->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
     title->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
@@ -66,14 +66,14 @@ void FavoritesPage::onCreate(const QVariantMap&, const QVariantMap&)
     m_count->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
     m_count->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
 
-    auto* playAllBtn = new QskPushButton(QString::fromUtf8("▶ 播放全部"), infoRow);
+    auto* playAllBtn = new QskPushButton(tr("▶ Play All"), infoRow);
     playAllBtn->setPreferredHeight(34);
     connect(playAllBtn, &QskAbstractButton::clicked, this, [this]() {
         if (m_songs.isEmpty()) {
-            ToastPopup::show(this, QString::fromUtf8("收藏还是空的"));
+            ToastPopup::show(this, tr("No favorites yet"));
             return;
         }
-        ToastPopup::show(this, QString::fromUtf8("正在获取播放链接…"));
+        ToastPopup::show(this, tr("Resolving play URL…"));
         Playback::instance().setQueue(m_songs, 0);
     });
 
@@ -109,14 +109,14 @@ void FavoritesPage::onCreate(const QVariantMap&, const QVariantMap&)
             menu->setModal(true);
             menu->setPopupFlag(QskPopup::DeleteOnClose, false);
             const int idxUnfav = menu->addOption(
-                QskLabelData(QString::fromUtf8("取消收藏：%1")
+                QskLabelData(tr("Remove favorite: %1")
                     .arg(elided(m_songs.at(idx).name, 10))));
             menu->setOrigin(tap->point().position());
             const Song song = m_songs.at(idx);
             connect(menu, &QskMenu::triggered, this, [this, song, idxUnfav](int i) {
                 if (i == idxUnfav) {
                     Favorites::instance().toggle(song);
-                    ToastPopup::show(this, QString::fromUtf8("已取消收藏"));
+                    ToastPopup::show(this, tr("Removed from favorites"));
                 }
                 if (auto* m = qobject_cast<QskMenu*>(sender()))
                     m->close();
@@ -143,11 +143,11 @@ void FavoritesPage::reload()
     m_songs = Favorites::instance().songs();
     if (m_songs.isEmpty()) {
         m_status->setStatus(StatusLine::Info,
-            QString::fromUtf8("暂无收藏：长按歌曲选“收藏”"));
+            tr("No favorites yet: long-press a song to favorite it"));
         m_count->setText(QString());
     } else {
         m_status->clearStatus();
-        m_count->setText(QString::fromUtf8("共 %1 首").arg(m_songs.size()));
+        m_count->setText(tr("%1 tracks").arg(m_songs.size()));
     }
     buildRows();
 }
@@ -185,7 +185,7 @@ void FavoritesPage::buildRows()
             ? elided(s.name, 14)
             : elided(QString("%1 - %2").arg(s.name, s.artists), 20);
         if (Favorites::instance().isFromAccount(s.id))
-            label = QString::fromUtf8("☁ ") + label;   // 账号同步项标记
+            label = QString::fromUtf8("☁ ") + label;   // 账号同步项标记（图标，不上屏文案）
         auto* name = new QskTextLabel(label, row);
         name->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
         name->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);

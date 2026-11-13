@@ -110,7 +110,7 @@ void LyricPopup::parseAndBuild(const QString& lrcText)
     const QString text = lrcText.trimmed();
     if (text.isEmpty()) {
         // 空态：无歌词（不再永远"加载中"）
-        auto* lbl = new QskTextLabel(QString::fromUtf8("暂无歌词"), m_linesBox);
+        auto* lbl = new QskTextLabel(tr("No lyrics"), m_linesBox);
         lbl->setPreferredHeight(40);
         lbl->setAlignment(Qt::AlignCenter);
         m_linesBox->update();

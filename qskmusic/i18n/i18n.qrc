@@ -2,5 +2,6 @@
   <qresource prefix="/i18n">
     <file alias="qskmusic_en.qm">qskmusic_en.qm</file>
     <file alias="qskmusic_zh_CN.qm">qskmusic_zh_CN.qm</file>
+    <file alias="qskmusic_zh_TW.qm">qskmusic_zh_TW.qm</file>
   </qresource>
 </RCC>

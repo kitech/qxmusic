@@ -45,7 +45,7 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
     connect(backBtn, &QskAbstractButton::clicked, this, [this]() {
         if (auto* pm = pageManager()) pm->back();
     });
-    auto* title = new QskTextLabel(QString::fromUtf8("搜索"), topBar);
+    auto* title = new QskTextLabel(tr("Search"), topBar);
     title->setFontRole(QskFontRole(QskFontRole::Title, QskFontRole::Normal));
     title->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
     title->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
@@ -57,10 +57,10 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
     searchBar->setMargins(8, 8, 8, 0);
     searchBar->setSpacing(8);
     m_field = new QskTextField(searchBar);
-    m_field->setPlaceholderText(QStringLiteral("搜索歌曲、歌手…"));
+    m_field->setPlaceholderText(tr("Search songs, artists…"));
     m_field->setFixedHeight(30);   // QSkinny 输入框后半高字坑：必须锁死高
     m_field->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
-    auto* searchBtn = new QskPushButton(QStringLiteral("搜索"), searchBar);
+    auto* searchBtn = new QskPushButton(tr("Search"), searchBar);
     // 规则：首字符禁止空格（docs/空格键播控规则.md 配套 1）
     connect(m_field, &QskTextInput::textEdited, this,
         [this](const QString& text) {
@@ -69,7 +69,7 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
         });    connect(searchBtn, &QskAbstractButton::clicked, this, [this]() {
         const QString kw = m_field->text().trimmed();
         if (!kw.isEmpty()) {
-            m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在搜索…"));
+            m_status->setStatus(StatusLine::Loading, tr("Searching…"));
             NcmApi::instance().searchAsync(kw, 30);
         }
     });
@@ -98,19 +98,19 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
         [this](const QList<Song>& songs, const QString& err) {
             if (!err.isEmpty()) {
                 m_status->setStatus(StatusLine::Error,
-                    QString::fromUtf8("搜索失败：%1").arg(err));
+                    tr("Search failed: %1").arg(err));
                 return;
             }
             m_songs = songs;
             if (m_songs.isEmpty())
-                m_status->setStatus(StatusLine::Info, QString::fromUtf8("无结果"));
+                m_status->setStatus(StatusLine::Info, tr("No results"));
             else
                 m_status->clearStatus();
             rebuildList();
         });
 
     // 打开即搜默认词（保留原搜索自动行为，不占首屏）
-    m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在搜索…"));
+    m_status->setStatus(StatusLine::Loading, tr("Searching…"));
     NcmApi::instance().searchAsync(QStringLiteral("周杰伦"), 30);
 
     // 实锤灰歌…（保留原说明）

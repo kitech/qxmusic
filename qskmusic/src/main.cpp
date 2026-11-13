@@ -398,7 +398,8 @@ int main(int argc, char* argv[])
     QObject::connect(playerBar, &PlayerBar::prevRequested, &pb, &Playback::prev);
     QObject::connect(playerBar, &PlayerBar::nextRequested, &pb, &Playback::next);
     QObject::connect(playerBar, &PlayerBar::volumeClicked, playerBar, [playerBar]() {
-        ToastPopup::show(playerBar, QString::fromUtf8("音量弹层：下轮实装"));
+        ToastPopup::show(playerBar,
+            QCoreApplication::translate("main", "Volume panel: coming soon"));
     });
     QObject::connect(playerBar, &PlayerBar::queueRequested, playerBar, [&pb, queuePopup]() {
         QStringList names;
@@ -427,13 +428,15 @@ int main(int argc, char* argv[])
                  << "cached=" << pb.lyricCached(pb.currentSongId())
                  << "open=" << lyricPopup->isOpen();
         if (pb.currentSongId() == 0) {
-            ToastPopup::show(lyricPopup, QString::fromUtf8("先播放一首歌"));
+            ToastPopup::show(lyricPopup,
+                QCoreApplication::translate("main", "Play a song first"));
             return;
         }
         if (pb.lyricCached(pb.currentSongId())) {
             lyricPopup->setLyric(pb.currentTitle(), pb.lrcText());
         } else {
-            lyricPopup->setLyric(pb.currentTitle(), QString::fromUtf8("加载中…"));
+            lyricPopup->setLyric(pb.currentTitle(),
+                QCoreApplication::translate("main", "Loading…"));
             // 预取未到位/失败的兜底：立即再拉一次
             NcmApi::instance().lyricAsync(pb.currentSongId());
         }
@@ -447,7 +450,7 @@ int main(int argc, char* argv[])
         if (lyricPopup->isOpen()) {
             lyricPopup->setLyric(pb.currentTitle(),
                 pb.lyricCached(pb.currentSongId()) ? pb.lrcText()
-                    : QString::fromUtf8("加载中…"));
+                    : QCoreApplication::translate("main", "Loading…"));
         }
     });
 

@@ -48,9 +48,9 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
     auto* userCol = new QskLinearBox(Qt::Vertical, topBar);
     userCol->setSpacing(0);
     userCol->setPreferredWidth(96);
-    m_userName = new QskTextLabel(QString::fromUtf8("未登录"), userCol);
+    m_userName = new QskTextLabel(tr("Not signed in"), userCol);
     m_userName->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
-    m_userStatus = new QskTextLabel(QString::fromUtf8("点击登录"), userCol);
+    m_userStatus = new QskTextLabel(tr("Tap to sign in"), userCol);
     m_userStatus->setFontRole(QskFontRole(QskFontRole::Caption, QskFontRole::Normal));
     m_userStatus->setTextColor(QColor(0x9a, 0x9a, 0x9a));
     m_userStatus->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
@@ -60,12 +60,12 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
         auto* userTap = new QQuickTapHandler(m_userAvatar);
         connect(userTap, &QQuickTapHandler::singleTapped, this,
             [this](QEventPoint, Qt::MouseButton) {
-                ToastPopup::show(this, QString::fromUtf8("登录功能开发中"));
+                ToastPopup::show(this, tr("Sign-in is under development"));
             });
         auto* userTap2 = new QQuickTapHandler(m_userName);
         connect(userTap2, &QQuickTapHandler::singleTapped, this,
             [this](QEventPoint, Qt::MouseButton) {
-                ToastPopup::show(this, QString::fromUtf8("登录功能开发中"));
+                ToastPopup::show(this, tr("Sign-in is under development"));
             });
     }
 
@@ -91,11 +91,11 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
         siteRow->setPreferredHeight(34);
         siteRow->setSpacing(6);
 
-        auto* siteLbl = new QskTextLabel(QString::fromUtf8("音乐站点"), siteRow);
+        auto* siteLbl = new QskTextLabel(tr("Music Site"), siteRow);
         siteLbl->setPreferredWidth(68);
         siteLbl->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
 
-        m_siteBtn = new QskPushButton(QString::fromUtf8("163音乐"), siteRow);
+        m_siteBtn = new QskPushButton(tr("163 Music"), siteRow);
         m_siteBtn->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
         m_siteBtn->setPreferredHeight(28);
         connect(m_siteBtn, &QskAbstractButton::clicked, this,
@@ -106,9 +106,9 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
 
     // ── 分类树（qlmusic SideNav：动态加载）──
     m_status = new StatusLine(layout);
-    m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载分类…"));
+    m_status->setStatus(StatusLine::Loading, tr("Loading categories…"));
     connect(m_status, &StatusLine::retryClicked, this, [this]() {
-        m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载分类…"));
+        m_status->setStatus(StatusLine::Loading, tr("Loading categories…"));
         NcmCatalog::instance().loadCategoriesAsync();
     });
 
@@ -130,17 +130,15 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
                 if (!chipAt(point.position(), &cat)) return;
                 /* 固定导航项：与 qlmusic onNavAction(0/1) 同响应（stub） */
                 if (cat == QStringLiteral("__rank__")) {
-                    ToastPopup::show(this,
-                        QString::fromUtf8("排行榜即将支持"));
+                    ToastPopup::show(this, tr("Rankings coming soon"));
                     return;
                 }
                 if (cat == QStringLiteral("__mymusic__")) {
-                    ToastPopup::show(this,
-                        QString::fromUtf8("此操作需要登录，请先扫码登录"));
+                    ToastPopup::show(this, tr("Sign in required"));
                     return;
                 }
                 openPlaylistList(cat, cat.isEmpty()
-                    ? QString::fromUtf8("热门歌单") : cat);
+                    ? tr("Hot Playlists") : cat);
             });
     }
 
@@ -149,7 +147,7 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
                const QString& err) {
             if (!err.isEmpty()) {
                 m_status->setStatus(StatusLine::Error,
-                    QString::fromUtf8("加载失败：%1").arg(err));
+                    tr("Load failed: %1").arg(err));
                 return;
             }
             m_status->clearStatus();
@@ -176,9 +174,9 @@ void HomePage::showOptionsMenu(const QPointF& origin)
     menu->setModal(true);
     menu->setPopupFlag(QskPopup::DeleteOnClose, false);
 
-    const int idxSearch = menu->addOption(QskLabelData(QString::fromUtf8("搜索")));
+    const int idxSearch = menu->addOption(QskLabelData(tr("Search")));
     menu->addSeparator();
-    const int idxFav = menu->addOption(QskLabelData(QString::fromUtf8("我的收藏")));
+    const int idxFav = menu->addOption(QskLabelData(tr("My Favorites")));
     const int idxLog = menu->addOption(QskLabelData(tr("Logs")));
     const int idxSettings = menu->addOption(QskLabelData(tr("Settings")));
     const int idxAbout = menu->addOption(QskLabelData(tr("About")));
@@ -235,8 +233,8 @@ void HomePage::rebuild(const QStringList& hot,
     // 首行 = 热门歌单（qlmusic __hot__ 哨兵；服务端 cat="全部"）
     addHotEntry();
     /* qlmusic SideNav 固定项顺序：推荐 → 排行榜 → 我的音乐（stub 同响应） */
-    addNavEntry(QString::fromUtf8("排行榜"), QStringLiteral("__rank__"));
-    addNavEntry(QString::fromUtf8("我的音乐"), QStringLiteral("__mymusic__"));
+    addNavEntry(tr("Rankings"), QStringLiteral("__rank__"));
+    addNavEntry(tr("My Music"), QStringLiteral("__mymusic__"));
 
     auto addGroup = [&](const QString& title, const QStringList& cats) {
         if (cats.isEmpty()) return;
@@ -245,7 +243,7 @@ void HomePage::rebuild(const QStringList& hot,
         for (const auto& c : cats)
             addChip(grid, c, c);
     };
-    addGroup(QString::fromUtf8("热门分类"), hot);
+    addGroup(tr("Hot Categories"), hot);
     for (const auto& g : groups)
         addGroup(g.name, g.categories);
     m_rows->update();
@@ -262,9 +260,9 @@ void HomePage::addHotEntry()
     auto* icon = new IconItem(row);
     icon->setPreferredSize(22, 22);
     icon->setCornerRadius(6);
-    icon->setFallback(qximage::categoryIcon(QString::fromUtf8("热门歌单"), 44));
+    icon->setFallback(qximage::categoryIcon(tr("Hot Playlists"), 44));
 
-    auto* lbl = new QskTextLabel(QString::fromUtf8("热门歌单"), row);
+    auto* lbl = new QskTextLabel(tr("Hot Playlists"), row);
     lbl->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
     lbl->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
 
@@ -353,29 +351,28 @@ void HomePage::showSiteMenu()
     for (auto* old : findChildren<MenuOverlay*>())
         old->deleteLater();
 
-    static const char* const kSites[] = {
-        "163音乐", "qq音乐", "百度音乐", "酷狗音乐",
-        "酷我音乐", "bili音乐", "youtube音乐"
+    const QString kSites[7] = {
+        tr("163 Music"), tr("QQ Music"), tr("Baidu Music"), tr("Kugou Music"),
+        tr("Kuwo Music"), tr("Bilibili Music"), tr("YouTube Music")
     };
     auto* menu = new QskMenu(this);
     menu->setModal(true);
     menu->setPopupFlag(QskPopup::DeleteOnClose, false);
     QList<int> ids;
     for (int i = 0; i < 7; ++i) {
-        const QString label = QString::fromUtf8(kSites[i]);
         ids.append(menu->addOption(QskLabelData(
-            (i == 0 ? QString::fromUtf8("✓ ") : QString::fromUtf8("  ")) + label)));
+            (i == 0 ? QString::fromUtf8("✓ ") : QString::fromUtf8("  ")) + kSites[i])));
     }
     menu->setOrigin(m_siteBtn->mapToItem(this,
         QPointF(0, m_siteBtn->height())));
     connect(menu, &QskMenu::triggered, this, [this, ids](int index) {
         const int i = ids.indexOf(index);
         if (i <= 0) {
-            m_siteBtn->setText(QString::fromUtf8("163音乐"));
+            m_siteBtn->setText(tr("163 Music"));
         } else {
             qDebug() << "[SITE] switch pending:" << i;
-            ToastPopup::show(this, QString::fromUtf8("该站点即将支持"));
-            m_siteBtn->setText(QString::fromUtf8("163音乐"));
+            ToastPopup::show(this, tr("This site is coming soon"));
+            m_siteBtn->setText(tr("163 Music"));
         }
         if (auto* m = qobject_cast<QskMenu*>(sender()))
             m->close();
@@ -393,10 +390,10 @@ void HomePage::setLoggedIn(const QString& nickname, const QString& avatarSeed)
     m_loggedIn = !nickname.isEmpty();
     m_userNick = nickname;
     if (!m_userName) return;   // onCreate 之前调用则只记录状态
-    m_userName->setText(m_loggedIn ? nickname : QString::fromUtf8("未登录"));
+    m_userName->setText(m_loggedIn ? nickname : tr("Not signed in"));
     m_userStatus->setText(m_loggedIn
-        ? QString::fromUtf8("已登录")
-        : QString::fromUtf8("点击登录"));
+        ? tr("Signed in")
+        : tr("Tap to sign in"));
     m_userAvatar->setFallback(qximage::identicon(
         m_loggedIn ? avatarSeed : QStringLiteral("anonymous"),
         IconItem::pxForDp(28)));

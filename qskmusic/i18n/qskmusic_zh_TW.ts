@@ -1,0 +1,529 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE TS>
+<TS version="2.1" language="zh_TW">
+<context>
+    <name>FavoritesPage</name>
+    <message>
+        <location filename="../src/favoritespage.cpp" line="53"/>
+        <source>My Favorites</source>
+        <translation>我的收藏</translation>
+    </message>
+    <message>
+        <location filename="../src/favoritespage.cpp" line="69"/>
+        <source>▶ Play All</source>
+        <translation>▶ 播放全部</translation>
+    </message>
+    <message>
+        <location filename="../src/favoritespage.cpp" line="73"/>
+        <source>No favorites yet</source>
+        <translation>收藏還是空的</translation>
+    </message>
+    <message>
+        <location filename="../src/favoritespage.cpp" line="76"/>
+        <source>Resolving play URL…</source>
+        <translation>正在取得播放連結…</translation>
+    </message>
+    <message>
+        <location filename="../src/favoritespage.cpp" line="112"/>
+        <source>Remove favorite: %1</source>
+        <translation>取消收藏：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/favoritespage.cpp" line="119"/>
+        <source>Removed from favorites</source>
+        <translation>已取消收藏</translation>
+    </message>
+    <message>
+        <location filename="../src/favoritespage.cpp" line="146"/>
+        <source>No favorites yet: long-press a song to favorite it</source>
+        <translation>暫無收藏：長按歌曲選「收藏」</translation>
+    </message>
+    <message>
+        <location filename="../src/favoritespage.cpp" line="150"/>
+        <source>%1 tracks</source>
+        <translation>%1 首</translation>
+    </message>
+</context>
+<context>
+    <name>HomePage</name>
+    <message>
+        <location filename="../src/mainpage.cpp" line="51"/>
+        <location filename="../src/mainpage.cpp" line="393"/>
+        <source>Not signed in</source>
+        <translation>未登入</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="53"/>
+        <location filename="../src/mainpage.cpp" line="396"/>
+        <source>Tap to sign in</source>
+        <translation>點擊登入</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="63"/>
+        <location filename="../src/mainpage.cpp" line="68"/>
+        <source>Sign-in is under development</source>
+        <translation>登入功能開發中</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="94"/>
+        <source>Music Site</source>
+        <translation>音樂站點</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="98"/>
+        <location filename="../src/mainpage.cpp" line="355"/>
+        <location filename="../src/mainpage.cpp" line="371"/>
+        <location filename="../src/mainpage.cpp" line="375"/>
+        <source>163 Music</source>
+        <translation>163音樂</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="109"/>
+        <location filename="../src/mainpage.cpp" line="111"/>
+        <source>Loading categories…</source>
+        <translation>正在載入分類…</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="133"/>
+        <source>Rankings coming soon</source>
+        <translation>排行榜即將支援</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="137"/>
+        <source>Sign in required</source>
+        <translation>此操作需要登入，請先掃碼登入</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="141"/>
+        <location filename="../src/mainpage.cpp" line="263"/>
+        <location filename="../src/mainpage.cpp" line="265"/>
+        <source>Hot Playlists</source>
+        <translation>熱門歌單</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="150"/>
+        <source>Load failed: %1</source>
+        <translation>載入失敗：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="177"/>
+        <source>Search</source>
+        <translation>搜尋</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="179"/>
+        <source>My Favorites</source>
+        <translation>我的收藏</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="180"/>
+        <source>Logs</source>
+        <translation>日誌</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="181"/>
+        <source>Settings</source>
+        <translation>設定</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="182"/>
+        <source>About</source>
+        <translation>關於</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="236"/>
+        <source>Rankings</source>
+        <translation>排行榜</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="237"/>
+        <source>My Music</source>
+        <translation>我的音樂</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="246"/>
+        <source>Hot Categories</source>
+        <translation>熱門分類</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="355"/>
+        <source>QQ Music</source>
+        <translation>qq音樂</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="355"/>
+        <source>Baidu Music</source>
+        <translation>百度音樂</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="355"/>
+        <source>Kugou Music</source>
+        <translation>酷狗音樂</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="356"/>
+        <source>Kuwo Music</source>
+        <translation>酷我音樂</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="356"/>
+        <source>Bilibili Music</source>
+        <translation>bili音樂</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="356"/>
+        <source>YouTube Music</source>
+        <translation>youtube音樂</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="374"/>
+        <source>This site is coming soon</source>
+        <translation>該站點即將支援</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="395"/>
+        <source>Signed in</source>
+        <translation>已登入</translation>
+    </message>
+</context>
+<context>
+    <name>LyricPopup</name>
+    <message>
+        <location filename="../src/lyricpopup.cpp" line="113"/>
+        <source>No lyrics</source>
+        <translation>暫無歌詞</translation>
+    </message>
+</context>
+<context>
+    <name>NetworkMonitor</name>
+    <message>
+        <location filename="../src/networkmonitor.cpp" line="33"/>
+        <source>WiFi 已连接</source>
+        <translation>WiFi 已連線</translation>
+    </message>
+    <message>
+        <location filename="../src/networkmonitor.cpp" line="34"/>
+        <source>移动数据已连接</source>
+        <translation>行動數據已連線</translation>
+    </message>
+    <message>
+        <location filename="../src/networkmonitor.cpp" line="35"/>
+        <source>以太网已连接</source>
+        <translation>乙太網路已連線</translation>
+    </message>
+    <message>
+        <location filename="../src/networkmonitor.cpp" line="38"/>
+        <source>WiFi 已断开</source>
+        <translation>WiFi 已中斷</translation>
+    </message>
+    <message>
+        <location filename="../src/networkmonitor.cpp" line="39"/>
+        <source>移动数据已断开</source>
+        <translation>行動數據已中斷</translation>
+    </message>
+    <message>
+        <location filename="../src/networkmonitor.cpp" line="40"/>
+        <source>以太网已断开</source>
+        <translation>乙太網路已中斷</translation>
+    </message>
+    <message>
+        <location filename="../src/networkmonitor.cpp" line="126"/>
+        <location filename="../src/networkmonitor.cpp" line="178"/>
+        <location filename="../src/networkmonitor.cpp" line="223"/>
+        <source>网络已连接</source>
+        <translation>網路已連線</translation>
+    </message>
+    <message>
+        <location filename="../src/networkmonitor.cpp" line="128"/>
+        <location filename="../src/networkmonitor.cpp" line="180"/>
+        <location filename="../src/networkmonitor.cpp" line="225"/>
+        <source>网络已断开</source>
+        <translation>網路已中斷</translation>
+    </message>
+    <message>
+        <location filename="../src/networkmonitor.cpp" line="130"/>
+        <location filename="../src/networkmonitor.cpp" line="182"/>
+        <location filename="../src/networkmonitor.cpp" line="227"/>
+        <source>网络状态未知</source>
+        <translation>網路狀態未知</translation>
+    </message>
+</context>
+<context>
+    <name>Playback</name>
+    <message>
+        <location filename="../src/playback.cpp" line="48"/>
+        <location filename="../src/playback.cpp" line="138"/>
+        <source>Unavailable track, no playable source</source>
+        <translation>灰色歌曲，無可播資源</translation>
+    </message>
+    <message>
+        <location filename="../src/playback.cpp" line="49"/>
+        <source>Failed to resolve play URL: %1</source>
+        <translation>取得播放連結失敗：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/playback.cpp" line="92"/>
+        <source>Playback failed: %1, skipping</source>
+        <translation>播放失敗：%1，切換下一首</translation>
+    </message>
+    <message>
+        <location filename="../src/playback.cpp" line="209"/>
+        <source>Audio focus lost, cannot resume</source>
+        <translation>音訊焦點被佔用，無法恢復播放</translation>
+    </message>
+</context>
+<context>
+    <name>PlayerBar</name>
+    <message>
+        <location filename="../src/playerbar.cpp" line="60"/>
+        <location filename="../src/playerbar.cpp" line="170"/>
+        <source>Swipe to switch tracks</source>
+        <translation>左右橫劃切換上下一首</translation>
+    </message>
+    <message>
+        <location filename="../src/playerbar.cpp" line="68"/>
+        <source>Resolving play URL…</source>
+        <translation>正在取得播放連結…</translation>
+    </message>
+    <message>
+        <location filename="../src/playerbar.cpp" line="104"/>
+        <source>Lyrics</source>
+        <translation>歌詞</translation>
+    </message>
+</context>
+<context>
+    <name>PlaylistListPage</name>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="20"/>
+        <source>%1B</source>
+        <translation>%1億</translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="23"/>
+        <source>%1K</source>
+        <translation>%1萬</translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="48"/>
+        <source>Hot Playlists</source>
+        <translation>熱門歌單</translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="101"/>
+        <source>Load more</source>
+        <translation>載入更多</translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="114"/>
+        <source>Load failed: %1</source>
+        <translation>載入失敗：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="121"/>
+        <source>No playlists</source>
+        <translation>暫無歌單</translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="135"/>
+        <source>Loading playlists…</source>
+        <translation>正在載入歌單…</translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="142"/>
+        <source>All</source>
+        <translation>全部</translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="170"/>
+        <source>%1 tracks</source>
+        <translation>%1 首</translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="171"/>
+        <source> · %1 plays</source>
+        <translation> · %1 次播放</translation>
+    </message>
+</context>
+<context>
+    <name>PlaylistTracksPage</name>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="85"/>
+        <source>▶ Play All</source>
+        <translation>▶ 播放全部</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="90"/>
+        <source>Playlist not loaded yet</source>
+        <translation>歌單尚未載入</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="93"/>
+        <source>Resolving play URL…</source>
+        <translation>正在取得播放連結…</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="98"/>
+        <location filename="../src/playlisttrackspage.cpp" line="100"/>
+        <source>Loading playlist…</source>
+        <translation>正在載入歌單…</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="137"/>
+        <source>Remove favorite: %1</source>
+        <translation>取消收藏：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="138"/>
+        <source>Add favorite: %1</source>
+        <translation>收藏：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="141"/>
+        <source>Download: %1</source>
+        <translation>下載：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="150"/>
+        <source>Added to favorites</source>
+        <translation>已收藏</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="151"/>
+        <source>Removed from favorites</source>
+        <translation>已取消收藏</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="172"/>
+        <source>Load failed: %1</source>
+        <translation>載入失敗：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="187"/>
+        <source>Playlist is empty</source>
+        <translation>歌單暫無曲目</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="191"/>
+        <source>%1 tracks</source>
+        <translation>%1 首</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="204"/>
+        <source>Failed to get download URL: %1</source>
+        <translation>取得下載連結失敗：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="211"/>
+        <source>Added to downloads</source>
+        <translation>已加入下載</translation>
+    </message>
+    <message>
+        <location filename="../src/playlisttrackspage.cpp" line="307"/>
+        <source>Already cached</source>
+        <translation>已快取，無需下載</translation>
+    </message>
+</context>
+<context>
+    <name>QueuePopup</name>
+    <message>
+        <location filename="../src/queuepopup.cpp" line="51"/>
+        <source>Play Queue</source>
+        <translation>播放佇列</translation>
+    </message>
+</context>
+<context>
+    <name>SearchPage</name>
+    <message>
+        <location filename="../src/searchpage.cpp" line="48"/>
+        <location filename="../src/searchpage.cpp" line="63"/>
+        <source>Search</source>
+        <translation>搜尋</translation>
+    </message>
+    <message>
+        <location filename="../src/searchpage.cpp" line="60"/>
+        <source>Search songs, artists…</source>
+        <translation>搜尋歌曲、歌手…</translation>
+    </message>
+    <message>
+        <location filename="../src/searchpage.cpp" line="72"/>
+        <location filename="../src/searchpage.cpp" line="113"/>
+        <source>Searching…</source>
+        <translation>正在搜尋…</translation>
+    </message>
+    <message>
+        <location filename="../src/searchpage.cpp" line="101"/>
+        <source>Search failed: %1</source>
+        <translation>搜尋失敗：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/searchpage.cpp" line="106"/>
+        <source>No results</source>
+        <translation>無結果</translation>
+    </message>
+</context>
+<context>
+    <name>SettingsPage</name>
+    <message>
+        <location filename="../src/settingspage.cpp" line="62"/>
+        <source>Settings</source>
+        <translation>設定</translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="83"/>
+        <source>Skin</source>
+        <translation>面板</translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="98"/>
+        <source>Dark mode</source>
+        <translation>深色模式</translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="110"/>
+        <source>Transition</source>
+        <translation>轉場動畫</translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="113"/>
+        <source>None</source>
+        <translation>無</translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="124"/>
+        <source>Language</source>
+        <translation>語言</translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="127"/>
+        <source>English</source>
+        <translation>English</translation>
+    </message>
+</context>
+<context>
+    <name>StatusLine</name>
+    <message>
+        <location filename="../src/statusline.cpp" line="22"/>
+        <source>Retry</source>
+        <translation>重試</translation>
+    </message>
+</context>
+<context>
+    <name>main</name>
+    <message>
+        <location filename="../src/main.cpp" line="402"/>
+        <source>Volume panel: coming soon</source>
+        <translation>音量彈層：下輪實裝</translation>
+    </message>
+    <message>
+        <location filename="../src/main.cpp" line="432"/>
+        <source>Play a song first</source>
+        <translation>先播放一首歌</translation>
+    </message>
+    <message>
+        <location filename="../src/main.cpp" line="439"/>
+        <location filename="../src/main.cpp" line="453"/>
+        <source>Loading…</source>
+        <translation>載入中…</translation>
+    </message>
+</context>
+</TS>

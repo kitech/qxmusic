@@ -126,8 +126,10 @@ void SettingsPage::buildUi()
         m_langCombo->setPreferredWidth(180);
         m_langCombo->addOption(tr("English"), QString::number(0));
         m_langCombo->addOption(QString::fromUtf8("简体中文"), QString::number(1));
+        m_langCombo->addOption(QString::fromUtf8("繁體中文"), QString::number(2));
         connect(m_langCombo, &QskComboBox::currentIndexChanged, this, [this](int idx) {
-            Lang::instance().setLanguage(idx == 0 ? "en" : "zh-CN");
+            Lang::instance().setLanguage(
+                idx == 0 ? "en" : (idx == 2 ? "zh-TW" : "zh-CN"));
         });
     }
 
@@ -151,5 +153,7 @@ void SettingsPage::applySettings()
     if (m_transitionCombo) m_transitionCombo->setCurrentIndex(qBound(0, transIdx, 3));
 
     const QString lang = Lang::instance().code();
-    if (m_langCombo) m_langCombo->setCurrentIndex(lang == "en" ? 0 : 1);
+    if (m_langCombo)
+        m_langCombo->setCurrentIndex(
+            lang == "en" ? 0 : (lang == "zh-TW" ? 2 : 1));
 }

@@ -15,10 +15,13 @@ namespace {
 
 QString fmtCount(qint64 n)
 {
+    /* 计数单位走翻译：简中「亿/万」、英文「B/K」（QString::arg 直译占位） */
     if (n >= 100000000)
-        return QString("%1亿").arg(double(n) / 100000000.0, 0, 'f', 1);
+        return QCoreApplication::translate("PlaylistListPage", "%1B")
+            .arg(double(n) / 100000000.0, 0, 'f', 1);
     if (n >= 10000)
-        return QString("%1万").arg(double(n) / 10000.0, 0, 'f', 1);
+        return QCoreApplication::translate("PlaylistListPage", "%1K")
+            .arg(double(n) / 10000.0, 0, 'f', 1);
     return QString::number(n);
 }
 
@@ -42,7 +45,7 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
     m_cat = launchArgs.value("cat").toString();
     m_title = launchArgs.value("title").toString();
     if (m_title.isEmpty())
-        m_title = m_cat.isEmpty() ? QString::fromUtf8("热门歌单") : m_cat;
+        m_title = m_cat.isEmpty() ? tr("Hot Playlists") : m_cat;
 
     setAutoLayoutChildren(true);
     auto* layout = new QskLinearBox(Qt::Vertical, this);
@@ -95,7 +98,7 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
     connect(m_status, &StatusLine::retryClicked, this, [this]() {
         requestPage(0);
     });
-    m_moreBtn = new QskPushButton(QString::fromUtf8("加载更多"), layout);
+    m_moreBtn = new QskPushButton(tr("Load more"), layout);
     m_moreBtn->setPreferredHeight(44);
     m_moreBtn->setVisible(false);
     connect(m_moreBtn, &QskAbstractButton::clicked, this, [this]() {
@@ -108,14 +111,14 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
             m_loading = false;
             if (!err.isEmpty()) {
                 m_status->setStatus(StatusLine::Error,
-                    QString::fromUtf8("加载失败：%1").arg(err));
+                    tr("Load failed: %1").arg(err));
                 m_moreBtn->setVisible(m_more);
                 return;
             }
             m_cards += cards;
             m_more = more;
             if (m_cards.isEmpty())
-                m_status->setStatus(StatusLine::Info, QString::fromUtf8("暂无歌单"));
+                m_status->setStatus(StatusLine::Info, tr("No playlists"));
             else
                 m_status->clearStatus();
             m_moreBtn->setVisible(m_more);
@@ -129,14 +132,14 @@ void PlaylistListPage::requestPage(int offset)
 {
     if (m_loading) return;
     m_loading = true;
-    m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载歌单…"));
+    m_status->setStatus(StatusLine::Loading, tr("Loading playlists…"));
     m_moreBtn->setVisible(false);
     if (offset == 0) {
         m_cards.clear();
         m_more = false;
     }
     // 热门哨兵：服务端 cat="全部"（qlmusic 同口径）
-    const QString cat = m_cat.isEmpty() ? QString::fromUtf8("全部") : m_cat;
+    const QString cat = m_cat.isEmpty() ? tr("All") : m_cat;
     NcmCatalog::instance().loadTopPlaylistsAsync(cat, QStringLiteral("hot"),
                                                  30, offset);
 }
@@ -164,8 +167,8 @@ void PlaylistListPage::rebuildCards()
         QString sub;
         if (!card.creator.isEmpty())
             sub = elided(card.creator, 8) + QString::fromUtf8(" · ");
-        sub += QString::fromUtf8("%1 首").arg(card.trackCount);
-        sub += QString::fromUtf8(" · 播放 %1").arg(fmtCount(card.playCount));
+        sub += tr("%1 tracks").arg(card.trackCount);
+        sub += tr(" · %1 plays").arg(fmtCount(card.playCount));
         auto* subLbl = new QskTextLabel(sub, row);
         subLbl->setPreferredWidth(120);
         subLbl->setSizePolicy(QskSizePolicy::Preferred, QskSizePolicy::Preferred);

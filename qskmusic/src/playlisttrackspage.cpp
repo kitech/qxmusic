@@ -82,22 +82,22 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
     m_count->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
     m_count->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
 
-    auto* playAllBtn = new QskPushButton(QString::fromUtf8("▶ 播放全部"), infoRow);
+    auto* playAllBtn = new QskPushButton(tr("▶ Play All"), infoRow);
     playAllBtn->setPreferredHeight(34);
     connect(playAllBtn, &QskAbstractButton::clicked, this, [this]() {
         qDebug() << "[DIAG] playAll clicked songs=" << m_songs.size();
         if (m_songs.isEmpty()) {
-            ToastPopup::show(this, QString::fromUtf8("歌单尚未加载"));
+            ToastPopup::show(this, tr("Playlist not loaded yet"));
             return;
         }
-        ToastPopup::show(this, QString::fromUtf8("正在获取播放链接…"));
+        ToastPopup::show(this, tr("Resolving play URL…"));
         Playback::instance().setQueue(m_songs, 0);
     });
 
     m_status = new StatusLine(layout);
-    m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载歌单…"));
+    m_status->setStatus(StatusLine::Loading, tr("Loading playlist…"));
     connect(m_status, &StatusLine::retryClicked, this, [this]() {
-        m_status->setStatus(StatusLine::Loading, QString::fromUtf8("正在加载歌单…"));
+        m_status->setStatus(StatusLine::Loading, tr("Loading playlist…"));
         NcmCatalog::instance().loadPlaylistTracksAsync(m_playlistId);
     });
 
@@ -134,10 +134,11 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
             menu->setPopupFlag(QskPopup::DeleteOnClose, false);
             const bool faved = Favorites::instance().contains(m_songs.at(idx).id);
             const int idxFav = menu->addOption(
-                QskLabelData(QString::fromUtf8(faved ? "取消收藏：%1" : "收藏：%1")
+                QskLabelData((faved ? tr("Remove favorite: %1")
+                                    : tr("Add favorite: %1"))
                     .arg(elided(m_songs.at(idx).name, 10))));
             const int idxDl = menu->addOption(
-                QskLabelData(QString::fromUtf8("下载：%1")
+                QskLabelData(tr("Download: %1")
                     .arg(elided(m_songs.at(idx).name, 10))));
             menu->setOrigin(tap->point().position());
             const Song song = m_songs.at(idx);
@@ -146,8 +147,8 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
                     Favorites::instance().toggle(song);
                     ToastPopup::show(this,
                         Favorites::instance().contains(song.id)
-                            ? QString::fromUtf8("已收藏")
-                            : QString::fromUtf8("已取消收藏"));
+                            ? tr("Added to favorites")
+                            : tr("Removed from favorites"));
                 }
                 if (i == idxDl)
                     requestDownload(idx);
@@ -168,7 +169,7 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
             if (info.id != m_playlistId) return;
             if (!err.isEmpty()) {
                 m_status->setStatus(StatusLine::Error,
-                    QString::fromUtf8("加载失败：%1").arg(err));
+                    tr("Load failed: %1").arg(err));
                 return;
             }
             m_songs = info.songs;
@@ -183,11 +184,11 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
                 m_plCover->setVisible(true);
             }
             if (m_songs.isEmpty()) {
-                m_status->setStatus(StatusLine::Info, QString::fromUtf8("歌单暂无曲目"));
+                m_status->setStatus(StatusLine::Info, tr("Playlist is empty"));
                 m_count->setText(QString());
             } else {
                 m_status->clearStatus();
-                m_count->setText(QString::fromUtf8("共 %1 首").arg(m_songs.size()));
+                m_count->setText(tr("%1 tracks").arg(m_songs.size()));
             }
             buildRows();
         });
@@ -200,14 +201,14 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
             if (id != m_pendingDlId) return;
             m_pendingDlId = 0;
             if (!err.isEmpty() || url.isEmpty()) {
-                ToastPopup::show(this, QString::fromUtf8("获取下载链接失败：%1").arg(err));
+                ToastPopup::show(this, tr("Failed to get download URL: %1").arg(err));
                 return;
             }
             QString suffix = QUrl(url).path().section(QLatin1Char('.'), -1);
             if (suffix.isEmpty() || suffix.size() > 5)
                 suffix = QStringLiteral("mp3");
             DownloadService::instance().enqueue(id, url, suffix);
-            ToastPopup::show(this, QString::fromUtf8("已加入下载"));
+            ToastPopup::show(this, tr("Added to downloads"));
         });
 
     // 对号只由列表数据（服务端 playable）决定；播放失败不改列表标记
@@ -303,7 +304,7 @@ void PlaylistTracksPage::requestDownload(int index)
     if (index < 0 || index >= m_songs.size()) return;
     const qint64 id = m_songs.at(index).id;
     if (DownloadService::instance().isCached(id, QStringLiteral("mp3"))) {
-        ToastPopup::show(this, QString::fromUtf8("已缓存，无需下载"));
+        ToastPopup::show(this, tr("Already cached"));
         return;
     }
     m_pendingDlId = id;

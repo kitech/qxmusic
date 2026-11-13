@@ -19,7 +19,7 @@ StatusLine::StatusLine(QQuickItem* parent)
     m_text->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
     m_text->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
 
-    m_retry = new QskPushButton(QString::fromUtf8("重试"), this);
+    m_retry = new QskPushButton(tr("Retry"), this);
     m_retry->setPreferredHeight(26);
     connect(m_retry, &QskAbstractButton::clicked,
             this, &StatusLine::retryClicked);
