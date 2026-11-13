@@ -9,6 +9,8 @@
 #include <qmutex.h>
 #include <qdatetime.h>
 #include <qevent.h>
+#include <qpainter.h>
+#include <qbitmap.h>
 #ifdef QT3_BUILD
 #include <qapplication.h>
 #include <qglobal.h>        // Qt3: qDebug
@@ -19,6 +21,21 @@
 
 #include <curl/curl.h>
 #include <cstring>
+
+namespace {
+
+/* Qt3 无 QMap::value(key, def)：两端兼容的取值（GUI 线程专用，调用方已持语义） */
+inline int qxMapGetInt(const QMap<QString, int>& m, const QString& k, int def)
+{
+#if QT_VERSION >= 0x040000
+    return m.value(k, def);
+#else
+    QMap<QString, int>::ConstIterator it = m.find(k);
+    return it != m.end() ? *it : def;
+#endif
+}
+
+} // namespace
 
 namespace {
 
@@ -231,7 +248,7 @@ QPixmap IconLoader::cover(const QString& url, const QString& seed, int px)
         }
 
         /* 负缓存过期后也不再无限"每 5 分钟一轮"：会话内每 URL 最多 2 轮失败 */
-        if (!qximage::negativeHit(raw) && m_fails.value(raw, 0) < 2)
+        if (!qximage::negativeHit(raw) && qxMapGetInt(m_fails, raw, 0) < 2)
             requestDownload(raw);
     }
     return generated(seed, px);
@@ -346,7 +363,7 @@ void IconLoader::handleDone(const QString& url, bool ok)
     if (ok)
         m_fails.remove(url);           // 成功清除失败计数
     else
-        m_fails.insert(url, m_fails.value(url, 0) + 1);
+        m_fails.insert(url, qxMapGetInt(m_fails, url, 0) + 1);
 
     emit iconsReady();
 }
@@ -359,10 +376,16 @@ QPixmap IconLoader::rounded(const QPixmap& src, int px, int radius)
     QPixmap mask(px, px);
     mask.fill(Qt::black);
     QPainter m(&mask);
+#if QT_VERSION >= 0x040000
     m.setRenderHint(QPainter::Antialiasing);
+#endif
     m.setBrush(Qt::white);
     m.setPen(Qt::NoPen);
+#if QT_VERSION >= 0x040000
     m.drawRoundedRect(0, 0, px, px, radius, radius);
+#else
+    m.drawRoundRect(0, 0, px, px, radius, radius);   // Qt3 同义（整型半径）
+#endif
     m.end();
     pm.setMask(mask.createHeuristicMask(false));
     return pm;
