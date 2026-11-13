@@ -36,6 +36,19 @@ fi
 QT_TRANS=$("$QMAKE" -query QT_INSTALL_TRANSLATIONS)
 cp -f "$QT_TRANS/qt_zh_CN.qm" "$QT_TRANS/qt_zh_TW.qm" qlmusic.app/Contents/Resources/ 2>/dev/null || true
 cp -f lang/*.json qlmusic.app/Contents/Resources/lang/ 2>/dev/null || true
+# imageformats 运行时插件（Qt4 的 jpeg/gif/tiff 不内置；缺 libqjpeg → 所有 jpg 封面解码失败）
+QT_PLUGDIR=$("$QMAKE" -query QT_INSTALL_PLUGINS)
+if [ -d "$QT_PLUGDIR/imageformats" ]; then
+    mkdir -p qlmusic.app/Contents/PlugIns/imageformats
+    cp -f "$QT_PLUGDIR/imageformats/"* qlmusic.app/Contents/PlugIns/imageformats/ 2>/dev/null || true
+    # 插件自身的 Qt 依赖改指 bundle 内 Frameworks（Qt4 插件常带 @rpath 前缀）
+    for p in qlmusic.app/Contents/PlugIns/imageformats/*; do
+        install_name_tool -change @rpath/QtCore.framework/Versions/4/QtCore \
+            @executable_path/../Frameworks/QtCore.framework/Versions/4/QtCore "$p" 2>/dev/null || true
+        install_name_tool -change @rpath/QtGui.framework/Versions/4/QtGui \
+            @executable_path/../Frameworks/QtGui.framework/Versions/4/QtGui "$p" 2>/dev/null || true
+    done
+fi
 tar zcf ../qlmusic-qt4-osx-x64.tar.gz qlmusic.app/
 ls -lh ../qlmusic-*.gz
 ls -lh qlmusic.app/Contents/MacOS/

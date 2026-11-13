@@ -11,6 +11,10 @@
 #include <qevent.h>
 #include <qpainter.h>
 #include <qbitmap.h>
+#if QT_VERSION >= 0x040000
+#include <qimagereader.h>
+#include <qbuffer.h>
+#endif
 #ifdef QT3_BUILD
 #include <qapplication.h>
 #include <qglobal.h>        // Qt3: qDebug
@@ -223,6 +227,11 @@ IconLoader::IconLoader(QObject* parent)
 {
     /* 桌面：16MB 内存 LRU（与 qskmusic 一致） */
     qximage::PixmapCache::instance().setMaxBytes(16LL * 1024 * 1024);
+#if QT_VERSION >= 0x040000
+    /* 启动期格式能力清单：缺 jpeg 插件一眼可见（Qt4 部署经典坑） */
+    qDebug() << "[ICON] decodable formats:"
+             << QImageReader::supportedImageFormats();
+#endif
 }
 
 QPixmap IconLoader::cover(const QString& url, const QString& seed, int px)
@@ -241,10 +250,32 @@ QPixmap IconLoader::cover(const QString& url, const QString& seed, int px)
                 qximage::PixmapCache::instance().put(raw, px, pm);
                 return pm;
             }
-            /* 损坏/非图片：删掉 + 短期负缓存，避免每次重绘重复解码 */
+            /* 损坏/非图片：删掉 + 短期负缓存，避免每次重绘重复解码。
+             * 分层诊断：size/head=文件层证据；head 合法（FFD8 等）仍失败
+             * → Qt 插件层缺格式（如 mac Qt4 未部署 libqjpeg） */
+            QString head;
+            for (int i = 0; i < (8 < (int)bytes.size() ? 8 : (int)bytes.size()); ++i) {
+                const QString h = QString::number((int)(unsigned char)bytes[i], 16);
+                head += h.length() < 2 ? QString(QChar('0')) + h : h;
+            }
+#if QT_VERSION >= 0x040000
+            {
+                QBuffer buf;
+                buf.setData(bytes);
+                buf.open(QIODevice::ReadOnly);
+                QImageReader r(&buf);
+                r.read();
+                iconLog(QString::fromLatin1(
+                            "[ICON] corrupt-on-disk url=%1 size=%2 head=%3 err=%4")
+                            .arg(raw).arg((int)bytes.size()).arg(head)
+                            .arg(r.errorString()));
+            }
+#else
+            iconLog(QString::fromLatin1("[ICON] corrupt-on-disk url=%1 size=%2 head=%3")
+                        .arg(raw).arg((int)bytes.size()).arg(head));
+#endif
             qximage::remove(raw);
             qximage::negativePut(raw);
-            iconLog(QString::fromLatin1("[ICON] corrupt-on-disk url=") + raw);
         }
 
         /* 负缓存过期后也不再无限"每 5 分钟一轮"：会话内每 URL 最多 2 轮失败 */

@@ -76,6 +76,15 @@ int main(int argc, char* argv[]) {
 #ifndef QT3_BUILD
     app.setApplicationVersion(APP_VERSION);
 #endif
+#if defined(__APPLE__) && QT_VERSION >= 0x040000
+    /* Qt4 的 jpeg/gif 等是运行时 imageformats 插件：bundle 内没有 → 所有 jpg
+     * 解码失败（封面 corrupt-on-disk 刷屏）。两处补搜：bundle 内 PlugIns +
+     * macports Qt4 插件目录（build 目录直跑时的兜底）。 */
+    QCoreApplication::addLibraryPath(
+        QCoreApplication::applicationDirPath() + QString::fromUtf8("/../PlugIns"));
+    QCoreApplication::addLibraryPath(
+        QString::fromUtf8("/opt/local/libexec/qt4/share/qt4/plugins"));
+#endif
 
     if (showVersion) {
         printf("qlmusic %s\n", APP_VERSION);

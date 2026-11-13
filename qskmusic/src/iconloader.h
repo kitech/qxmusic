@@ -32,7 +32,8 @@ public:
     void deliver(const QString& url, int px, const QImage& image);
 
     /* 下载完成回投（Android Java 线程 / QNetworkReply → GUI 线程） */
-    void finishFetch(const QString& url, int px, const QByteArray& bytes);
+    void finishFetch(const QString& url, int px, const QByteArray& bytes,
+                     const QString& contentType = QString());
 
 Q_SIGNALS:
     void iconReady(const QString& url, int px);

@@ -154,6 +154,9 @@ IconLoader::IconLoader(QObject* parent)
 #ifndef Q_OS_ANDROID
     m_nam = new QNetworkAccessManager(this);
 #endif
+    /* 启动期格式能力清单：缺 jpeg 插件一眼可见（Qt4 部署经典坑） */
+    qDebug().noquote() << "[ICON] decodable formats:"
+                       << QImageReader::supportedImageFormats().join(' ');
     if (QThreadPool::globalInstance()->maxThreadCount() < 4)
         QThreadPool::globalInstance()->setMaxThreadCount(4);
 }
@@ -185,11 +188,17 @@ QPixmap IconLoader::cached(const QString& url, int px)
 
     const QImage image = readScaledCrop(bytes, px);
     if (image.isNull()) {
-        // 损坏/非图片文件：删掉并短期负缓存，避免永久兜底 + 每次重试解码
+        // 分层诊断：size/head=文件层证据；若 head 是合法魔数（FFD8 等）
+        // 且仍解码失败 → Qt 插件层缺格式（如 mac Qt4 缺 libqjpeg）
+        QString head;
+        for (int i = 0; i < qMin(8, bytes.size()); ++i)
+            head += QString::fromLatin1("%1").arg(
+                (uint)(quint8)bytes[i], 2, 16, QLatin1Char('0'));
         qximage::remove(raw);
         qximage::negativePut(raw);
         log(QStringLiteral("warn"),
-            QStringLiteral("corrupt-on-disk url=%1 px=%2").arg(raw).arg(px));
+            QStringLiteral("corrupt-on-disk url=%1 px=%2 size=%3 head=%4")
+                .arg(raw).arg(px).arg(bytes.size()).arg(head));
         return QPixmap();
     }
 
@@ -272,12 +281,14 @@ void IconLoader::startDownload(const QString& url, int px)
             log(QStringLiteral("warn"),
                 QStringLiteral("net-fail url=%1 status=%2 err=%3")
                     .arg(url).arg(status).arg(reply->errorString()));
-        finishFetch(url, px, bytes);
+        finishFetch(url, px, bytes,
+            reply->header(QNetworkRequest::ContentTypeHeader).toString());
     });
 #endif
 }
 
-void IconLoader::finishFetch(const QString& url, int px, const QByteArray& bytes)
+void IconLoader::finishFetch(const QString& url, int px, const QByteArray& bytes,
+                             const QString& contentType)
 {
     m_inFlight.remove(keyOf(url, px));
     if (m_active > 0)
@@ -292,7 +303,8 @@ void IconLoader::finishFetch(const QString& url, int px, const QByteArray& bytes
         if (m_netWrites % 50 == 0)
             trimCache();                    // 长会话也不再无限增长
         log(QStringLiteral("info"),
-            QStringLiteral("hit=net url=%1 px=%2").arg(url).arg(px));
+            QStringLiteral("hit=net url=%1 px=%2 ct=%3")
+                .arg(url).arg(px).arg(contentType));
         QThreadPool::globalInstance()->start(new DecodeTask(this, url, px, bytes));
     } else {
         const int tries = m_retry.value(url, 0);
