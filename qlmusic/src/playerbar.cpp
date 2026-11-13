@@ -473,8 +473,9 @@ void PlayerBar::setTrack(const Track& t)
     m_progressMs = 0;
     m_durationMs = t.durationMs;
     /* 真实封面优先；无图用 identicon。结果进内存 LRU，高频重绘不再重复生成 */
-    m_coverPixmap = IconLoader::instance().cover(
-        m_track.coverUrl, m_track.coverSeed, 52);
+    m_coverPixmap = IconLoader::instance().rounded(
+        IconLoader::instance().cover(m_track.coverUrl, m_track.coverSeed, 52),
+        52, 8);
     m_artistAvatarUrl = QString();
     m_artistAvatarSeed = QString();
     m_artistAvatar = QPixmap();
@@ -495,8 +496,9 @@ void PlayerBar::refreshCover()
 {
     if (!m_hasTrack)
         return;
-    m_coverPixmap = IconLoader::instance().cover(
-        m_track.coverUrl, m_track.coverSeed, 52);
+    m_coverPixmap = IconLoader::instance().rounded(
+        IconLoader::instance().cover(m_track.coverUrl, m_track.coverSeed, 52),
+        52, 8);
     if (!m_artistAvatarUrl.isEmpty() || !m_artistAvatarSeed.isEmpty()) {
         const QPixmap pm = IconLoader::instance().cover(
             m_artistAvatarUrl, m_artistAvatarSeed, 20);

@@ -8,6 +8,7 @@
 class QskLinearBox;
 class QskTextLabel;
 class StatusLine;
+class IconItem;
 
 /*
  * 歌单曲目页（qlmusic onNcmPlaylistTracks + playAll 移植）：
@@ -39,6 +40,7 @@ private:
     QList<QPair<qint64, QskTextLabel*>> m_playingMarkers;   // songId → 标识列
     QskLinearBox* m_rows = nullptr;
     QskTextLabel* m_header = nullptr;
+    IconItem* m_plCover = nullptr;      // 歌单封面（顶栏 48dp）
     QskTextLabel* m_count = nullptr;
     StatusLine* m_status = nullptr;
 };

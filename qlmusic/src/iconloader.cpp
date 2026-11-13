@@ -338,6 +338,23 @@ void IconLoader::handleDone(const QString& url)
     emit iconsReady();
 }
 
+QPixmap IconLoader::rounded(const QPixmap& src, int px, int radius)
+{
+    if (src.isNull() || radius <= 0 || px <= 0)
+        return src;
+    QPixmap pm = src;
+    QPixmap mask(px, px);
+    mask.fill(Qt::black);
+    QPainter m(&mask);
+    m.setRenderHint(QPainter::Antialiasing);
+    m.setBrush(Qt::white);
+    m.setPen(Qt::NoPen);
+    m.drawRoundedRect(0, 0, px, px, radius, radius);
+    m.end();
+    pm.setMask(mask.createHeuristicMask(false));
+    return pm;
+}
+
 void IconLoader::trimCache()
 {
     QTimer::singleShot(3000, this, SLOT(trimLater()));

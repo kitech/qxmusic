@@ -26,6 +26,9 @@ public:
     static IconLoader& instance();
 
     QPixmap cover(const QString& url, const QString& seed, int px);
+
+    /* 圆角封面：两端视觉一致（qsk 圆角 6–8px）。Qt3/4/6 通用（mask 方案）。 */
+    QPixmap rounded(const QPixmap& src, int px, int radius);
     QPixmap generated(const QString& seed, int px);   // identicon（带内存缓存）
     void trimCache();
 

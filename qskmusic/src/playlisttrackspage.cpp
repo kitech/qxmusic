@@ -57,6 +57,13 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
     connect(backBtn, &QskAbstractButton::clicked, this, [this]() {
         if (auto* pm = pageManager()) pm->back();
     });
+
+    // 歌单封面（48dp 圆角，数据到了再显示）
+    m_plCover = new IconItem(topBar);
+    m_plCover->setPreferredSize(48, 48);
+    m_plCover->setCornerRadius(8);
+    m_plCover->setVisible(false);
+
     m_header = new QskTextLabel(elided(m_title, 12), topBar);
     m_header->setFontRole(QskFontRole(QskFontRole::Title, QskFontRole::Normal));
     m_header->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
@@ -154,6 +161,12 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
             if (!info.name.isEmpty()) {
                 m_title = info.name;
                 m_header->setText(elided(m_title, 12));
+            }
+            if (!info.cover.isEmpty()) {
+                m_plCover->setFallback(qximage::identicon(
+                    QString::number(info.id), IconItem::pxForDp(48)));
+                m_plCover->setSource(info.cover, 48);
+                m_plCover->setVisible(true);
             }
             if (m_songs.isEmpty()) {
                 m_status->setStatus(StatusLine::Info, QString::fromUtf8("歌单暂无曲目"));

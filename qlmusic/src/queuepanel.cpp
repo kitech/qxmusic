@@ -111,8 +111,10 @@ void QueuePanel::paintEvent(QPaintEvent*)
     int y = 46;
     if (m_hasCurrent) {
         int coverSize = qMin(width() - 48, 150);
-        QPixmap cover = IconLoader::instance().cover(
-            m_current.coverUrl, m_current.coverSeed, coverSize);
+        QPixmap cover = IconLoader::instance().rounded(
+            IconLoader::instance().cover(
+                m_current.coverUrl, m_current.coverSeed, coverSize),
+            coverSize, 10);
         int cx = (width() - coverSize) / 2;
         p.drawPixmap(cx, y, cover);
         y += coverSize + 12;

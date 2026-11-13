@@ -300,7 +300,20 @@ void ContentView::paintEvent(QPaintEvent*)
         if (m_pl) title += QString::fromUtf8(" %1 首").arg((int)m_pl->tracks.size());
         p.setFont(titleFont);
         p.setPen(pal.textPrimary);
-        p.drawText(QRect(20, 4, width() - 40, 30), Qt::AlignVCenter | Qt::AlignLeft, title);
+        /* 歌单封面（40px 圆角 8）：标题右移留位 */
+        int tx = 20;
+        if (m_pl && m_pl->ncmId > 0 && !m_pl->coverUrl.isEmpty()) {
+            const int cs = 40;
+            QPixmap c = IconLoader::instance().rounded(
+                IconLoader::instance().cover(
+                    m_pl->coverUrl, QString::number((long long)m_pl->ncmId), cs),
+                cs, 8);
+            if (!c.isNull()) {
+                p.drawPixmap(20, 4, c);
+                tx = 20 + cs + 10;
+            }
+        }
+        p.drawText(QRect(tx, 4, width() - tx - 20, 30), Qt::AlignVCenter | Qt::AlignLeft, title);
 
         QRect pa = playAllRect();
         p.setPen(Qt::NoPen);
@@ -362,7 +375,8 @@ void ContentView::paintEvent(QPaintEvent*)
                 p.drawText(QRect(16, y, 28, row.h), Qt::AlignVCenter | Qt::AlignRight,
                            QString::number(row.index + 1));
 
-                QPixmap cover = IconLoader::instance().cover(t.coverUrl, t.coverSeed, 36);
+                QPixmap cover = IconLoader::instance().rounded(
+                    IconLoader::instance().cover(t.coverUrl, t.coverSeed, 36), 36, 6);
                 p.drawPixmap(56, y + (row.h - 36) / 2, cover);
 
                 p.setFont(selected ? bold : normal);
@@ -403,8 +417,9 @@ void ContentView::paintEvent(QPaintEvent*)
             p.drawText(QRect(16, y, 28, row.h), Qt::AlignVCenter | Qt::AlignRight,
                        QString::number(row.index + 1));
 
-            QPixmap cover = IconLoader::instance().cover(
-                c.coverUrl, QString::number((long long)c.id), 40);
+            QPixmap cover = IconLoader::instance().rounded(
+                IconLoader::instance().cover(
+                    c.coverUrl, QString::number((long long)c.id), 40), 40, 6);
             p.drawPixmap(56, y + (row.h - 40) / 2, cover);
 
             p.setFont(bold);

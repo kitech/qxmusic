@@ -156,9 +156,11 @@ IconLoader::IconLoader(QObject* parent)
         QThreadPool::globalInstance()->setMaxThreadCount(4);
 }
 
-void IconLoader::log(const QString& level, const QString& message)
+void IconLoader::log(const QString& level, const QString& message, bool toLogModel)
 {
     qDebug().noquote() << "[ICON]" << message;
+    if (!toLogModel)
+        return;   // 高频命中只走 qDebug，不占用 Logs 页
     LogModel::Level lv = LogModel::Info;
     if (level == QLatin1String("warn"))
         lv = LogModel::Warn;
@@ -192,7 +194,8 @@ QPixmap IconLoader::cached(const QString& url, int px)
     pixmap = QPixmap::fromImage(image);
     qximage::PixmapCache::instance().put(raw, px, pixmap);
     log(QStringLiteral("info"),
-        QStringLiteral("hit=disk url=%1 px=%2").arg(raw).arg(px));
+        QStringLiteral("hit=disk url=%1 px=%2").arg(raw).arg(px),
+        false);   // 高频命中：仅 qDebug，不刷 LogModel
     return pixmap;
 }
 
@@ -322,7 +325,8 @@ void IconLoader::deliver(const QString& url, int px, const QImage& image)
     qximage::PixmapCache::instance().put(url, px, pixmap);
     Q_EMIT iconReady(url, px);
     log(QStringLiteral("info"),
-        QStringLiteral("hit=mem url=%1 px=%2 (decoded)").arg(url).arg(px));
+        QStringLiteral("hit=mem url=%1 px=%2 (decoded)").arg(url).arg(px),
+        false);   // 高频命中：仅 qDebug，不刷 LogModel
 }
 
 void IconLoader::trimCache()

@@ -42,7 +42,8 @@ private:
 
     void startDownload(const QString& url, int px);
     void pump();
-    void log(const QString& level, const QString& message);
+    void log(const QString& level, const QString& message,
+             bool toLogModel = true);   // false = 仅 qDebug（高频命中降噪）
 
     struct Pending {
         QString url;
