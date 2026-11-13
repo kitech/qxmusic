@@ -21,9 +21,20 @@
     "categories": "分类"
   },
   "fav": {
+    "toggle": "收藏 / 取消收藏",
     "local_only": "本地曲目无法收藏（仅线上歌曲）",
     "done": "已收藏",
     "removed": "已取消收藏"
+  },
+  "site": {
+    "label": "音乐站点",
+    "163": "163音乐",
+    "qq": "qq音乐",
+    "baidu": "百度音乐",
+    "kugou": "酷狗音乐",
+    "kuwo": "酷我音乐",
+    "bili": "bili音乐",
+    "youtube": "youtube音乐"
   },
   "ncm": {
     "auth_required": "此操作需要登录，请先扫码登录",

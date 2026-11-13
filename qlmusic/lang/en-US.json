@@ -21,9 +21,20 @@
     "categories": "Categories"
   },
   "fav": {
+    "toggle": "Favorite / Unfavorite",
     "local_only": "Local tracks can't be favorited (online songs only)",
     "done": "Added to favorites",
     "removed": "Removed from favorites"
+  },
+  "site": {
+    "label": "Music Site",
+    "163": "163 Music",
+    "qq": "QQ Music",
+    "baidu": "Baidu Music",
+    "kugou": "Kugou Music",
+    "kuwo": "Kuwo Music",
+    "bili": "Bilibili Music",
+    "youtube": "YouTube Music"
   },
   "ncm": {
     "auth_required": "This action requires login — please scan the QR code first",

@@ -35,15 +35,18 @@ SideNav::SideNav(QWidget* parent)
     m_user = new UserInfoPanel(this);
     connect(m_user, SIGNAL(loginRequested()), this, SIGNAL(loginRequested()));
     m_search = new SearchLineEdit(this);
-    m_siteLabel = new QLabel(QString::fromUtf8("音乐站点"), this);
+    m_siteLabel = new QLabel(_("site.label"), this);
     m_site = new QComboBox(this);
-    static const char* kSites[] = {"163音乐", "qq音乐", "百度音乐", "酷狗音乐",
-                                   "酷我音乐", "bili音乐", "youtube音乐"};
-    for (size_t i = 0; i < sizeof(kSites) / sizeof(kSites[0]); ++i) {
+    /* 站点名走 key（Phase 2 多源接入直接复用；现仅 UI 占位） */
+    static const char* kSiteKeys[] = {"site.163", "site.qq", "site.baidu",
+                                      "site.kugou", "site.kuwo",
+                                      "site.bili", "site.youtube"};
+    for (size_t i = 0; i < sizeof(kSiteKeys) / sizeof(kSiteKeys[0]); ++i) {
+        const QString label = _(kSiteKeys[i]);
 #ifdef QT3_BUILD
-        m_site->insertItem(QString::fromUtf8(kSites[i]));
+        m_site->insertItem(label);
 #else
-        m_site->addItem(QString::fromUtf8(kSites[i]));
+        m_site->addItem(label);
 #endif
     }
     connect(m_site, SIGNAL(currentIndexChanged(const QString&)),

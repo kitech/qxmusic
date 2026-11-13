@@ -490,7 +490,7 @@ void ContentView::contextMenuEvent(QContextMenuEvent* e)
         return;
     const int trackIndex = m_rows[idx].index;
     /* 文案固定双态合并（状态由 MainWindow 查 FavoriteStore 决定，菜单只发意图） */
-    const QString favText = QString::fromUtf8("收藏 / 取消收藏");
+    const QString favText = _("fav.toggle");
 #ifdef QT3_BUILD
     QPopupMenu menu(this);
     const int idFav = menu.insertItem(favText);
