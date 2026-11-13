@@ -317,6 +317,15 @@ int main(int argc, char* argv[])
     stackBox->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Expanding);
     auto* defaultAnimator = new QskStackBoxAnimator4(stackBox);
     stackBox->setAnimator(defaultAnimator);
+    /* 恢复转场选择（anystik 同口径：0=Slide 1=2D 2=3D 3=Perspective） */
+    {
+        const int t = QSettings().value("transition", 3).toInt();
+        QskStackBoxAnimator* a = nullptr;
+        if (t == 0) a = new QskStackBoxAnimator1(stackBox);
+        else if (t == 1) a = new QskStackBoxAnimator2(stackBox);
+        else if (t == 2) a = new QskStackBoxAnimator3(stackBox);
+        if (a) stackBox->setAnimator(a);
+    }
 
     // ── PageManager ──
     auto* pageManager = new PageManager(stackBox);

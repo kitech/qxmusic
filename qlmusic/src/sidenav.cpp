@@ -22,6 +22,14 @@ const int kItemH = 30;
 const int kGroupH = 26;
 /* 热门歌单视图的哨兵 key（与分类名不冲突） */
 const char* kHotViewKey = "__hot__";
+
+/* i18n 文本兜底：key 未命中时返回中文原文，避免把翻译键画到界面上 */
+static QString siteText(const char* key, const char* fallback)
+{
+    const QString v = _(key);
+    const QString k = qFromUtf8(key);
+    return (v.isEmpty() || v == k) ? qFromUtf8(fallback) : v;
+}
 }
 
 SideNav::SideNav(QWidget* parent)
@@ -35,14 +43,18 @@ SideNav::SideNav(QWidget* parent)
     m_user = new UserInfoPanel(this);
     connect(m_user, SIGNAL(loginRequested()), this, SIGNAL(loginRequested()));
     m_search = new SearchLineEdit(this);
-    m_siteLabel = new QLabel(_("site.label"), this);
+    m_siteLabel = new QLabel(siteText("site.label", "音乐站点"), this);
     m_site = new QComboBox(this);
-    /* 站点名走 key（Phase 2 多源接入直接复用；现仅 UI 占位） */
+    /* 站点名走 key（Phase 2 多源接入直接复用；现仅 UI 占位）；
+     * 缺译时用中文兜底，绝不把 key 画到界面上 */
     static const char* kSiteKeys[] = {"site.163", "site.qq", "site.baidu",
                                       "site.kugou", "site.kuwo",
                                       "site.bili", "site.youtube"};
+    static const char* kSiteFallback[] = {"163音乐", "qq音乐", "百度音乐",
+                                          "酷狗音乐", "酷我音乐",
+                                          "bili音乐", "youtube音乐"};
     for (size_t i = 0; i < sizeof(kSiteKeys) / sizeof(kSiteKeys[0]); ++i) {
-        const QString label = _(kSiteKeys[i]);
+        const QString label = siteText(kSiteKeys[i], kSiteFallback[i]);
 #ifdef QT3_BUILD
         m_site->insertItem(label);
 #else

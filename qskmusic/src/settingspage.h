@@ -24,6 +24,7 @@ protected:
 private:
     void buildUi();
     void applySettings();
+    void applyTransition(int idx);   // 即时切换 StackBox 动画（anystik 同口径）
 
     QskComboBox* m_skinCombo = nullptr;
     QskComboBox* m_transitionCombo = nullptr;

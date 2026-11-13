@@ -464,49 +464,63 @@
 <context>
     <name>SettingsPage</name>
     <message>
-        <location filename="../src/settingspage.cpp" line="63"/>
+        <location filename="../src/settingspage.cpp" line="66"/>
         <source>Settings</source>
         <translation>Settings</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="84"/>
+        <location filename="../src/settingspage.cpp" line="87"/>
         <source>Skin</source>
         <translation>Skin</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="101"/>
+        <location filename="../src/settingspage.cpp" line="106"/>
         <source>Dark mode</source>
         <translation>Dark mode</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="113"/>
+        <location filename="../src/settingspage.cpp" line="118"/>
         <source>Transition</source>
         <translation>Transition</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="116"/>
-        <source>None</source>
-        <translation>None</translation>
-    </message>
-    <message>
-        <location filename="../src/settingspage.cpp" line="119"/>
-        <source>Animator4 (default)</source>
+        <location filename="../src/settingspage.cpp" line="123"/>
+        <source>Slide</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="127"/>
+        <location filename="../src/settingspage.cpp" line="123"/>
+        <source>2D</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="124"/>
+        <source>3D</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="124"/>
+        <source>Perspective</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>None</source>
+        <translation type="vanished">None</translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="135"/>
         <source>Language</source>
         <translation>Language</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="131"/>
-        <source>System default</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <location filename="../src/settingspage.cpp" line="132"/>
+        <location filename="../src/settingspage.cpp" line="139"/>
         <source>English</source>
         <translation>English</translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="139"/>
+        <source>System default</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -520,18 +534,18 @@
 <context>
     <name>main</name>
     <message>
-        <location filename="../src/main.cpp" line="402"/>
+        <location filename="../src/main.cpp" line="411"/>
         <source>Volume panel: coming soon</source>
         <translation>Volume panel: coming soon</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="432"/>
+        <location filename="../src/main.cpp" line="441"/>
         <source>Play a song first</source>
         <translation>Play a song first</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="439"/>
-        <location filename="../src/main.cpp" line="453"/>
+        <location filename="../src/main.cpp" line="448"/>
+        <location filename="../src/main.cpp" line="462"/>
         <source>Loading…</source>
         <translation>Loading…</translation>
     </message>

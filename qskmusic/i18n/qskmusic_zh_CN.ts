@@ -464,47 +464,65 @@
 <context>
     <name>SettingsPage</name>
     <message>
-        <location filename="../src/settingspage.cpp" line="63"/>
+        <location filename="../src/settingspage.cpp" line="66"/>
         <source>Settings</source>
         <translation>设置</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="84"/>
+        <location filename="../src/settingspage.cpp" line="87"/>
         <source>Skin</source>
         <translation>皮肤</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="101"/>
+        <location filename="../src/settingspage.cpp" line="106"/>
         <source>Dark mode</source>
         <translation>深色模式</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="113"/>
+        <location filename="../src/settingspage.cpp" line="118"/>
         <source>Transition</source>
         <translation>转场动画</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="116"/>
+        <location filename="../src/settingspage.cpp" line="123"/>
+        <source>Slide</source>
+        <translation>滑动</translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="123"/>
+        <source>2D</source>
+        <translation>2D</translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="124"/>
+        <source>3D</source>
+        <translation>3D</translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="124"/>
+        <source>Perspective</source>
+        <translation>透视</translation>
+    </message>
+    <message>
         <source>None</source>
-        <translation>无</translation>
+        <translation type="vanished">无</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="119"/>
         <source>Animator4 (default)</source>
-        <translation>默认</translation>
+        <translation type="vanished">默认</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="127"/>
+        <location filename="../src/settingspage.cpp" line="135"/>
         <source>Language</source>
         <translation>语言</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="131"/>
+        <location filename="../src/settingspage.cpp" line="139"/>
         <source>System default</source>
         <translation>跟随系统</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="132"/>
+        <location filename="../src/settingspage.cpp" line="139"/>
         <source>English</source>
         <translation>English</translation>
     </message>
@@ -520,18 +538,18 @@
 <context>
     <name>main</name>
     <message>
-        <location filename="../src/main.cpp" line="402"/>
+        <location filename="../src/main.cpp" line="411"/>
         <source>Volume panel: coming soon</source>
         <translation>音量弹层：下轮实装</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="432"/>
+        <location filename="../src/main.cpp" line="441"/>
         <source>Play a song first</source>
         <translation>先播放一首歌</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="439"/>
-        <location filename="../src/main.cpp" line="453"/>
+        <location filename="../src/main.cpp" line="448"/>
+        <location filename="../src/main.cpp" line="462"/>
         <source>Loading…</source>
         <translation>加载中…</translation>
     </message>
