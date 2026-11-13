@@ -15,6 +15,7 @@ public:
     static Lang& instance();
     QString code() const { return m_code; }
     void setLanguage(const QString& code);   // swap qm + QSettings 保存 + 广播
+    void useSystemLanguage();                // 跟随系统（清除保存值 + 重新检测）
     void registerRetranslatable(QObject* page); // 需存在槽 retranslateUi()
     void unregister(QObject* page);
 
@@ -23,6 +24,7 @@ signals:
 
 private:
     Lang();
+    static QString detectSystem();   // 系统语言 → 受支持 code
     void applyTranslator();
     QString m_code;
     QVector<QObject*> m_pages;

@@ -11,20 +11,43 @@ Lang& Lang::instance() {
 
 Lang::Lang() {
     const QString saved = QSettings().value("language", QString()).toString();
-    if (saved.isEmpty()) {
-        const QLocale sys = QLocale::system();
-        if (sys.language() == QLocale::English) {
-            m_code = "en";
-        } else if (sys.language() == QLocale::Chinese) {
-            m_code = (sys.script() == QLocale::TraditionalChineseScript)
-                         ? "zh-TW" : "zh-CN";
-        } else {
-            m_code = "zh-CN";
-        }
-    } else {
-        m_code = saved;
-    }
+    m_code = saved.isEmpty() ? detectSystem() : saved;
     applyTranslator();
+}
+
+/* 系统语言检测（构造与「跟随系统」共用）：
+ *  - 中文按 script/territory 判简繁（zh-Hant / TW / HK / MO → 繁）
+ *  - 英文 → en
+ *  - 其它语言：再看 uiLanguages 里是否有中/英
+ *  - 都没有 → en（国际默认；与 qsktox 一致）
+ * Android/iOS/桌面 同一套：Qt 各平台 QLocale::system() 均读系统区域设置，
+ * Android 上为 Java Locale → Qt 映射，无需 JNI 特判。 */
+QString Lang::detectSystem()
+{
+    const QLocale sys = QLocale::system();
+    if (sys.language() == QLocale::Chinese) {
+        const bool trad = sys.script() == QLocale::TraditionalChineseScript
+            || sys.territory() == QLocale::Taiwan
+            || sys.territory() == QLocale::HongKong
+            || sys.territory() == QLocale::Macao;
+        return trad ? "zh-TW" : "zh-CN";
+    }
+    if (sys.language() == QLocale::English)
+        return "en";
+    const QStringList ui = sys.uiLanguages();
+    for (const QString& tag : ui) {
+        const QLocale l(tag);
+        if (l.language() == QLocale::Chinese) {
+            return (l.script() == QLocale::TraditionalChineseScript
+                    || l.territory() == QLocale::Taiwan
+                    || l.territory() == QLocale::HongKong
+                    || l.territory() == QLocale::Macao)
+                       ? "zh-TW" : "zh-CN";
+        }
+        if (l.language() == QLocale::English)
+            return "en";
+    }
+    return "en";
 }
 
 void Lang::applyTranslator() {
@@ -61,6 +84,16 @@ void Lang::setLanguage(const QString& code) {
     for (QObject* p : std::as_const(m_pages)) {
         p->metaObject()->invokeMethod(p, "retranslateUi", Qt::DirectConnection);
     }
+    emit languageChanged();
+}
+
+void Lang::useSystemLanguage()
+{
+    m_code = detectSystem();
+    applyTranslator();
+    QSettings().remove("language");   // 清除保存值 → 下次启动仍跟随系统
+    for (QObject* p : std::as_const(m_pages))
+        p->metaObject()->invokeMethod(p, "retranslateUi", Qt::DirectConnection);
     emit languageChanged();
 }
 

@@ -464,37 +464,47 @@
 <context>
     <name>SettingsPage</name>
     <message>
-        <location filename="../src/settingspage.cpp" line="62"/>
+        <location filename="../src/settingspage.cpp" line="63"/>
         <source>Settings</source>
         <translation>設定</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="83"/>
+        <location filename="../src/settingspage.cpp" line="84"/>
         <source>Skin</source>
         <translation>面板</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="98"/>
+        <location filename="../src/settingspage.cpp" line="101"/>
         <source>Dark mode</source>
         <translation>深色模式</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="110"/>
+        <location filename="../src/settingspage.cpp" line="113"/>
         <source>Transition</source>
         <translation>轉場動畫</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="113"/>
+        <location filename="../src/settingspage.cpp" line="116"/>
         <source>None</source>
         <translation>無</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="124"/>
+        <location filename="../src/settingspage.cpp" line="119"/>
+        <source>Animator4 (default)</source>
+        <translation>預設</translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="127"/>
         <source>Language</source>
         <translation>語言</translation>
     </message>
     <message>
-        <location filename="../src/settingspage.cpp" line="127"/>
+        <location filename="../src/settingspage.cpp" line="131"/>
+        <source>System default</source>
+        <translation>跟隨系統</translation>
+    </message>
+    <message>
+        <location filename="../src/settingspage.cpp" line="132"/>
         <source>English</source>
         <translation>English</translation>
     </message>
