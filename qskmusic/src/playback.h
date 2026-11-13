@@ -47,6 +47,8 @@ public:
 Q_SIGNALS:
     void songChanged();
     void playingChanged(bool playing);
+    // resolve 链接期间 true（慢网可达数秒）→ PlayerBar 显示"获取中"
+    void resolvingChanged(bool resolving);
     void progressMsChanged(int ms);
     void durationMsChanged(int ms);
     void playError(const QString& message);

@@ -55,6 +55,7 @@ private:
     QskPushButton* m_volumeBtn = nullptr;   // 仅桌面创建；Android 为 nullptr
     ProgressLineItem* m_line = nullptr;
     ProgressLineItem* m_dlLine = nullptr;   // 下载进度线（播放条下方，常显）
+    QString m_lastArtist;                   // resolve 完成后恢复歌手行显示
     int m_progressMs = 0;
     int m_durationMs = 0;
     bool m_playing = false;

@@ -39,6 +39,7 @@ Playback::Playback(QObject* parent)
     connect(&ncm, &NcmApi::resolveDone, this,
         [this](qint64 songId, const QString& url, const QString& err) {
             m_resolving = false;
+            Q_EMIT resolvingChanged(false);
             qDebug() << "[DIAG] resolveDone id=" << songId << "err=" << err;
             if (songId != currentSongId()) return;   // 期间已切曲，丢弃
             if (!err.isEmpty() || url.isEmpty()) {
@@ -152,6 +153,7 @@ void Playback::playIndex(int index)
     m_resolving = true;
     m_playing = false;
     Q_EMIT songChanged();
+    Q_EMIT resolvingChanged(true);
     Q_EMIT progressMsChanged(0);
     m_positionMs = 0;
     Q_EMIT durationMsChanged(s.durationMs);

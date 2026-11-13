@@ -937,7 +937,7 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
         }
         m_ncmSrcPlaylist = playlistId;
         m_ncmSrcTrack = trackIndex;
-        SharedStatusBar::instance()->showMessage(_("ncm.loading"), 3000);
+        SharedStatusBar::instance()->showMessage(_("ncm.loading"), 0);
         m_ncm->resolveSource(t.ncmId, m_ncmQuality);
         return;
     }
@@ -1671,7 +1671,8 @@ void MainWindow::onNcmPlaylistActivated(qint64 ncmPlaylistId)
     }
     if (m_ncmBusy) return;
     m_ncmBusy = true;
-    SharedStatusBar::instance()->showMessage(_("ncm.loading"), 8000);
+    /* 常驻直到 onNcmPlaylistTracks 完成/失败（0 = 不自动消失） */
+    SharedStatusBar::instance()->showMessage(_("ncm.loading"), 0);
 
     /* 新分配一个不与现有本地歌单冲突的 id 给这个远端歌单 */
     int localId = 1;
@@ -1683,6 +1684,7 @@ void MainWindow::onNcmPlaylistActivated(qint64 ncmPlaylistId)
 void MainWindow::onNcmPlaylistTracks(int rc, const QString& json, int localId)
 {
     m_ncmBusy = false;
+    SharedStatusBar::instance()->clearMessage();   // 常驻"加载中"收尾（含失败分支）
     if (rc != NCM_OK) {
         showNcmError(rc, _("nav.recommend"));
         return;
@@ -1744,6 +1746,7 @@ void MainWindow::onNcmPlaylistTracks(int rc, const QString& json, int localId)
 
 void MainWindow::playNcmResolved(const QString& url, const QString& level)
 {
+    SharedStatusBar::instance()->clearMessage();   // cache-first 命中时清掉可能的常驻提示
     ensureEngine();
     audioEngine->open(url);
     audioEngine->play();
@@ -1804,6 +1807,8 @@ void MainWindow::onOpenCacheDir()
 
 void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
 {
+    /* resolve 已出结果：无论成败先收掉常驻"加载中" */
+    SharedStatusBar::instance()->clearMessage();
     if (rc != NCM_OK) {
         /* resolve 实锤不可播（灰歌 -6 / 试听 -7 / geo 版权 -5）→
          * 反馈摘对号（列表阶段服务端 playable 判定的实时兜底）；
@@ -1998,6 +2003,9 @@ void MainWindow::showNcmAuthToast(const QString& op)
 
 void MainWindow::onNcmAuthRequired(const QString& /*op*/)
 {
+    /* auth-required 事件吞掉了原 op 的结果信号 → busy 在此复位，
+     * 否则此后所有点击被 m_ncmBusy 静默拦截（无提示无请求） */
+    m_ncmBusy = false;
     showNcmAuthToast(_("nav.recommend"));
 }
 

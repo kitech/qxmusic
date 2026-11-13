@@ -89,6 +89,7 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
             ToastPopup::show(this, QString::fromUtf8("歌单尚未加载"));
             return;
         }
+        ToastPopup::show(this, QString::fromUtf8("正在获取播放链接…"));
         Playback::instance().setQueue(m_songs, 0);
     });
 
