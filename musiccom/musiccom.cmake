@@ -10,6 +10,8 @@ set(MUSICCOM_SOURCES
     ${MUSICCOM_DIR}/icongen.cpp
     ${MUSICCOM_DIR}/favoritestore.h
     ${MUSICCOM_DIR}/favoritestore.cpp
+    ${MUSICCOM_DIR}/vinylpaint.h
+    ${MUSICCOM_DIR}/vinylpaint.cpp
 )
 
 set(MUSICCOM_INCLUDE_DIRS ${MUSICCOM_DIR})

@@ -112,6 +112,8 @@ qt_add_executable(qskmusic
     src/favorites.cpp
     src/favoritespage.h
     src/favoritespage.cpp
+    src/vinylitem.h
+    src/vinylitem.cpp
     src/statusline.h
     src/statusline.cpp
     src/downloadservice.h

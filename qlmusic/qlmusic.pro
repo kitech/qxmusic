@@ -23,6 +23,7 @@ SOURCES = src/main.cpp src/mainwindow.cpp src/appearance.cpp src/config.cpp \
           src/sticker_db.cpp \
           src/sidenav.cpp src/contentview.cpp src/queuepanel.cpp src/playerbar.cpp \
           src/ncm_service.cpp src/userinfopanel.cpp src/iconloader.cpp \
+          src/vinylwidget.cpp \
           ../qlappcom/eventpoller.cpp
 
 HEADERS = src/mainwindow.h src/appearance.h src/config.h src/globaluiutil.h \
@@ -32,6 +33,7 @@ HEADERS = src/mainwindow.h src/appearance.h src/config.h src/globaluiutil.h \
           src/musicmodel.h src/musicstyle.h \
           src/sidenav.h src/contentview.h src/queuepanel.h src/playerbar.h \
           src/ncm_service.h src/userinfopanel.h src/iconloader.h \
+          src/vinylwidget.h \
           ../qlappcom/eventpoller.h
 
 # ---- NCM (go163-music-core / libncm) ----
