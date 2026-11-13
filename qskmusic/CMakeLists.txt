@@ -108,6 +108,10 @@ qt_add_executable(qskmusic
     src/playlistlistpage.cpp
     src/playlisttrackspage.h
     src/playlisttrackspage.cpp
+    src/favorites.h
+    src/favorites.cpp
+    src/favoritespage.h
+    src/favoritespage.cpp
     src/statusline.h
     src/statusline.cpp
     src/downloadservice.h
@@ -129,6 +133,7 @@ qt_add_executable(qskmusic
     src/version_config.h
     ${QSKCOMP_SOURCES}
     ${MUSICCOM_SOURCES}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../qlcomp/cJSON.c
 )
 
 # ── i18n：.qm 经 .qrc 内嵌（先跑 build 脚本里的 lrelease） ──
@@ -140,6 +145,7 @@ target_include_directories(qskmusic PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../go163-music-core/out/include
     ${QSKCOMP_INCLUDE_DIRS}
     ${MUSICCOM_INCLUDE_DIRS}
+    ${CMAKE_CURRENT_SOURCE_DIR}/../qlcomp
 )
 
 target_link_libraries(qskmusic PRIVATE Qsk::QSkinny Qt6::Core Qt6::Gui Qt6::Quick Qt6::Network Qt6::Multimedia Qt6::QuickPrivate ncm)

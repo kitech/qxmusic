@@ -49,6 +49,8 @@ enum {
     NcmTaskFetch,      /* 远程 URL 本地化：curl 拉缓存 → file:// 回投 */
     NcmTaskLyric,      /* 歌词：ncm_lyric（go 侧 stub 期返回 NotImplemented → UI 落空态） */
     NcmTaskArtist,     /* 艺人详情：ncm_artist_detail（头像 URL） */
+    NcmTaskLikeList,   /* 账号"喜欢的音乐" id 列表（需登录） */
+    NcmTaskLike,       /* 收藏/取消收藏 ncm_like */
     NcmTaskQuit,       /* 哨兵：worker 收到即退出线程 */
 };
 
@@ -99,6 +101,8 @@ public:
     void loadSongDetail(const QString& ids);
     void loadLyric(qint64 songId);   /* 歌词兜底（本地 .lrc 优先后的网络侧） */
     void loadArtist(qint64 artistId); /* 艺人详情（头像 URL） */
+    void likeList();                  /* 账号"喜欢的音乐" id 列表（需登录） */
+    void like(qint64 songId, bool on); /* 收藏/取消收藏（需登录） */
 
     /* MainWindow::customEvent 转发进来 */
     void handleResult(NcmResultEvent* e);
@@ -117,6 +121,8 @@ signals:
     void songDetailLoaded(int rc, const QString& json, int sel);
     void lyricLoaded(qint64 songId, const QString& json);   /* raw json；UI 侧解析 */
     void artistLoaded(qint64 artistId, int rc, const QString& json);
+    void likeListLoaded(int rc, const QString& json);
+    void likeDone(qint64 songId, bool on, int rc);
     void authRequired(const QString& op);
     /* 下载进度（worker curl 回调节流 200ms 投递；pct 0-100） */
     void downloadProgress(qint64 songId, int pct);

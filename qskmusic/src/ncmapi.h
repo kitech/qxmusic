@@ -43,6 +43,9 @@ public:
     void resolveForDownloadAsync(qint64 songId);   // 仅取 URL（不触发播放）
     void lyricAsync(qint64 songId);
     void artistAsync(qint64 artistId);   // 艺人详情（头像 URL）
+    void likeListAsync();                // 账号"喜欢的音乐" id 列表（需登录）
+    void likeAsync(qint64 songId, bool on);   // 收藏/取消收藏（需登录）
+    void songDetailAsync(const QString& ids); // 批量歌曲详情（逗号分隔 id）
 
 Q_SIGNALS:
     void searchDone(const QList<Song>& songs, const QString& err);
@@ -50,6 +53,9 @@ Q_SIGNALS:
     void downloadUrlDone(qint64 songId, const QString& url, const QString& err);
     void lyricDone(qint64 songId, const QString& lrc, const QString& err);
     void artistDone(qint64 artistId, const QString& picUrl, const QString& err);
+    void likeListDone(const QList<qint64>& ids, const QString& err);
+    void likeDone(qint64 songId, bool on, const QString& err);
+    void songDetailDone(const QList<Song>& songs, const QString& err);
     void playFailReceived(qint64 songId, const QString& reason);
 
 private:

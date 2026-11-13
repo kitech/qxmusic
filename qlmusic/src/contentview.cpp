@@ -9,6 +9,11 @@
 #include <qpainter.h>
 #include <qevent.h>
 #include <qfontmetrics.h>
+#ifdef QT3_BUILD
+#include <qpopupmenu.h>
+#else
+#include <qmenu.h>
+#endif
 
 namespace {
 QString fmtMs(int ms)
@@ -473,6 +478,32 @@ void ContentView::paintEvent(QPaintEvent*)
             p.drawText(cr, Qt::AlignCenter, m_gridCats[row.index]);
         }
     }
+}
+
+void ContentView::contextMenuEvent(QContextMenuEvent* e)
+{
+    /* TracksMode 曲目行右键：收藏/取消收藏（收藏状态由 MainWindow 维护） */
+    if (m_mode != TracksMode || !m_pl)
+        return;
+    const int idx = rowAt(e->pos());
+    if (idx < 0 || idx >= (int)m_rows.size())
+        return;
+    const int trackIndex = m_rows[idx].index;
+    /* 文案固定双态合并（状态由 MainWindow 查 FavoriteStore 决定，菜单只发意图） */
+    const QString favText = QString::fromUtf8("收藏 / 取消收藏");
+#ifdef QT3_BUILD
+    QPopupMenu menu(this);
+    const int idFav = menu.insertItem(favText);
+    const int chosen = menu.exec(e->globalPos());
+    if (chosen == idFav)
+        emit favToggled(m_playlistId, trackIndex);
+#else
+    QMenu menu(this);
+    QAction* actFav = menu.addAction(favText);
+    QAction* chosen = menu.exec(e->globalPos());
+    if (chosen == actFav)
+        emit favToggled(m_playlistId, trackIndex);
+#endif
 }
 
 void ContentView::mousePressEvent(QMouseEvent* e)

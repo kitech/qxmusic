@@ -1,6 +1,7 @@
 #include "playlisttrackspage.h"
 #include "pagemanager.h"
 #include "playback.h"
+#include "favorites.h"
 #include "ncmcatalog.h"
 #include "ncmapi.h"
 #include "downloadservice.h"
@@ -131,11 +132,23 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
             auto* menu = new QskMenu(this);
             menu->setModal(true);
             menu->setPopupFlag(QskPopup::DeleteOnClose, false);
+            const bool faved = Favorites::instance().contains(m_songs.at(idx).id);
+            const int idxFav = menu->addOption(
+                QskLabelData(QString::fromUtf8(faved ? "取消收藏：%1" : "收藏：%1")
+                    .arg(elided(m_songs.at(idx).name, 10))));
             const int idxDl = menu->addOption(
                 QskLabelData(QString::fromUtf8("下载：%1")
                     .arg(elided(m_songs.at(idx).name, 10))));
             menu->setOrigin(tap->point().position());
-            connect(menu, &QskMenu::triggered, this, [this, idx, idxDl](int i) {
+            const Song song = m_songs.at(idx);
+            connect(menu, &QskMenu::triggered, this, [this, idx, song, idxFav, idxDl](int i) {
+                if (i == idxFav) {
+                    Favorites::instance().toggle(song);
+                    ToastPopup::show(this,
+                        Favorites::instance().contains(song.id)
+                            ? QString::fromUtf8("已收藏")
+                            : QString::fromUtf8("已取消收藏"));
+                }
                 if (i == idxDl)
                     requestDownload(idx);
                 if (auto* m = qobject_cast<QskMenu*>(sender()))

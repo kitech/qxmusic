@@ -110,19 +110,8 @@ inline std::vector<Playlist> buildTestLibrary()
     p2.trackCount = (int)p2.tracks.size();
     lib.push_back(p2);
 
-    Playlist p3;
-    p3.id = 3;
-    p3.name = qFromUtf8("我喜欢的音乐");
-    p3.coverSeed = "pl-like";
-    p3.tracks.push_back(makeTrack(31, "晴天", "周杰伦", "叶惠美", 269, "t-31"));
-    p3.tracks.push_back(makeTrack(32, "七里香", "周杰伦", "七里香", 299, "t-32"));
-    p3.tracks.push_back(makeTrack(33, "稻香", "周杰伦", "魔杰座", 223, "t-33"));
-    p3.tracks.push_back(makeTrack(34, "青花瓷", "周杰伦", "我很忙", 239, "t-34"));
-    p3.ncmId = 0;
-    p3.creator = QString();
-    p3.coverUrl = QString();
-    p3.trackCount = (int)p3.tracks.size();
-    lib.push_back(p3);
+    /* 旧测试假歌单"我喜欢的音乐"已移除：改为真实收藏歌单
+     * （MainWindow::refreshFavPlaylist 从 favorites.json 构建，id=1000） */
 
     Playlist p4;
     p4.id = 4;

@@ -190,6 +190,13 @@ NCM_API int32_t NCM_CALL ncm_artist_detail(ncm_client *client, int64_t id, char 
 /* 认证: 否。br 传 0 用默认 999000。出参: {"song_id","playable","reason"} */
 NCM_API int32_t NCM_CALL ncm_check_music(ncm_client *client, int64_t song_id, int32_t br, char **out_json);
 
+/* ---- 收藏（与账号"喜欢的音乐"互通） ---- */
+
+/* 认证: 是（未登录返回 301）。出参: {"ids":[123,456,...]}（账号喜欢的全量歌曲 id，顺序=收藏顺序） */
+NCM_API int32_t NCM_CALL ncm_like_list(ncm_client *client, char **out_json);
+/* 认证: 是。like 非 0 = 收藏，0 = 取消。出参: {"song_id","liked"} */
+NCM_API int32_t NCM_CALL ncm_like(ncm_client *client, int64_t song_id, int32_t like, char **out_json);
+
 /* ---- 播放 ---- */
 
 /* 认证: 免费曲否；VIP 音质/无版权 301 或空 url。出参: {"song_id","url","source","quality","format","size","expires_ms","level"} */

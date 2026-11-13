@@ -114,6 +114,7 @@ void HomePage::showOptionsMenu(const QPointF& origin)
 
     const int idxSearch = menu->addOption(QskLabelData(QString::fromUtf8("搜索")));
     menu->addSeparator();
+    const int idxFav = menu->addOption(QskLabelData(QString::fromUtf8("我的收藏")));
     const int idxLog = menu->addOption(QskLabelData(tr("Logs")));
     const int idxSettings = menu->addOption(QskLabelData(tr("Settings")));
     const int idxAbout = menu->addOption(QskLabelData(tr("About")));
@@ -123,10 +124,12 @@ void HomePage::showOptionsMenu(const QPointF& origin)
     menu->setOrigin(origin);
 
     connect(menu, &QskMenu::triggered, this,
-        [this, idxSearch, idxLog, idxSettings, idxAbout, idxKeepOn](int index) {
+        [this, idxSearch, idxFav, idxLog, idxSettings, idxAbout, idxKeepOn](int index) {
             if (auto* pm = pageManager()) {
                 if (index == idxSearch)
                     pm->open("search");
+                else if (index == idxFav)
+                    pm->open("favorites");
                 else if (index == idxLog)
                     pm->open("logs");
                 else if (index == idxSettings)

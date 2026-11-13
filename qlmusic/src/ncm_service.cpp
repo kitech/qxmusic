@@ -608,6 +608,25 @@ void NcmService::loadArtist(qint64 artistId)
     m_worker->push(t);
 }
 
+void NcmService::likeList()
+{
+    NcmTask t;
+    t.kind = NcmTaskLikeList;
+    t.op = "like_list";
+    m_worker->push(t);
+}
+
+void NcmService::like(qint64 songId, bool on)
+{
+    if (songId <= 0) return;
+    NcmTask t;
+    t.kind = NcmTaskLike;
+    t.op = "like";
+    t.id = songId;
+    t.sel = on ? 1 : 0;
+    m_worker->push(t);
+}
+
 void NcmService::execTask(const NcmTask& t)
 {
     if (!m_client) return;
@@ -681,6 +700,20 @@ void NcmService::execTask(const NcmTask& t)
         if (out) ncm_free_string(out);
         break;
     }
+    case NcmTaskLikeList: {
+        char* out = 0;
+        rc = ncm_like_list(m_client, &out);
+        if (rc == NCM_OK && out) json = out;
+        if (out) ncm_free_string(out);
+        break;
+    }
+    case NcmTaskLike: {
+        char* out = 0;
+        rc = ncm_like(m_client, t.id, t.sel, &out);
+        if (rc == NCM_OK && out) json = out;
+        if (out) ncm_free_string(out);
+        break;
+    }
     default:
         return;
     }
@@ -731,6 +764,14 @@ void NcmService::handleResult(NcmResultEvent* e)
     }
     if (op == qFromUtf8("artist_detail")) {
         emit artistLoaded(e->id, e->rc, json);
+        return;
+    }
+    if (op == qFromUtf8("like_list")) {
+        emit likeListLoaded(e->rc, json);
+        return;
+    }
+    if (op == qFromUtf8("like")) {
+        emit likeDone(e->id, e->sel != 0, e->rc);
         return;
     }
     if (op == qFromUtf8("playlist_categories")) {

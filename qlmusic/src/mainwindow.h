@@ -23,6 +23,7 @@ class PlayerBar;
 class AudioEngineAdapter;
 class QSplitter;
 class QTimer;
+namespace musiccom { class FavoriteStore; }
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -91,6 +92,11 @@ private slots:
     void onNcmLyric(qint64 songId, const QString& json);
     void onNcmArtist(qint64 artistId, int rc, const QString& json);
     void onNcmAuthRequired(const QString& op);
+    /* 收藏：本地（favorites.json）+ 账号双向 */
+    void onFavToggled(int playlistId, int trackIndex);
+    void onNcmLikeList(int rc, const QString& json);
+    void onNcmSongDetail(int rc, const QString& json, int sel);
+    void onNcmLikeDone(qint64 songId, bool on, int rc);
 
 private:
     struct MenuItemRef {
@@ -118,6 +124,8 @@ private:
     void buildAppearanceMenus();
     void buildBackendMenu(void* toolMenu);
     void buildTray();
+    /* 收藏：从 FavoriteStore 重建"我的收藏"歌单并刷新两端视图 */
+    void refreshFavPlaylist();
 
     void ensureEngine();
     void playTrack(int playlistId, int trackIndex);
@@ -161,6 +169,8 @@ private:
     PlayerBar* playerBar;
     QSplitter* bodySplitter;
     std::vector<Playlist> m_library;
+    musiccom::FavoriteStore* m_favs;
+    QStringList m_favPendingDetailIds;   /* 账号同步缺快照的 id（批量 song_detail） */
     AudioEngineAdapter* audioEngine;
     int m_curPlaylistId;
     int m_curTrackIndex;

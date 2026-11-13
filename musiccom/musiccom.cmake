@@ -8,6 +8,8 @@ set(MUSICCOM_SOURCES
     ${MUSICCOM_DIR}/iconmem.cpp
     ${MUSICCOM_DIR}/icongen.h
     ${MUSICCOM_DIR}/icongen.cpp
+    ${MUSICCOM_DIR}/favoritestore.h
+    ${MUSICCOM_DIR}/favoritestore.cpp
 )
 
 set(MUSICCOM_INCLUDE_DIRS ${MUSICCOM_DIR})

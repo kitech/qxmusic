@@ -20,6 +20,8 @@
 #include "mainpage.h"
 #include "playlistlistpage.h"
 #include "playlisttrackspage.h"
+#include "favoritespage.h"
+#include "favorites.h"
 #include "searchpage.h"
 #include "logpage.h"
 #include "settingspage.h"
@@ -319,6 +321,10 @@ int main(int argc, char* argv[])
     // ── PageManager ──
     auto* pageManager = new PageManager(stackBox);
 
+    // 本地收藏（favorites.json）+ 登录态双向同步（失败静默）
+    Favorites::instance().init(QStandardPaths::writableLocation(
+        QStandardPaths::AppLocalDataLocation));
+
     // ── 全局唯一播放条 + 队列/歌词弹层（qlmusic 主窗体底部播放条正統）──
     auto* playerBar = new PlayerBar(rootBox);
     // 全宽细线进度（贴播放条上沿，业界 mini-player 惯例）：
@@ -490,6 +496,10 @@ int main(int argc, char* argv[])
 
     pageManager->registerPage("tracks", []() -> Page* {
         return new PlaylistTracksPage();
+    }, {CachePolicy::Transient, LaunchMode::Standard});
+
+    pageManager->registerPage("favorites", []() -> Page* {
+        return new FavoritesPage();
     }, {CachePolicy::Transient, LaunchMode::Standard});
 
     pageManager->registerPage("search", []() -> Page* {

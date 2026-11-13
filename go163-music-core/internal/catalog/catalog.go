@@ -11,6 +11,7 @@ import (
 
 	nmsvc "github.com/go-musicfox/netease-music/service"
 
+	"qx163/ncm/internal/auth"
 	"qx163/ncm/internal/errs"
 )
 
@@ -404,6 +405,75 @@ type ArtistInfo struct {
 	ID     int64  `json:"id"`
 	Name   string `json:"name"`
 	PicURL string `json:"pic_url"`
+}
+
+// LikeListResult 账号"喜欢的音乐"全量 id（顺序=服务端收藏顺序）。
+type LikeListResult struct {
+	IDs []int64 `json:"ids"`
+}
+
+// LikeResult 收藏/取消收藏回执。
+type LikeResult struct {
+	SongID int64 `json:"song_id"`
+	Liked  bool  `json:"liked"`
+}
+
+// LikeList 拉取当前登录账号喜欢的歌曲 id（weapi/song/like/get，需登录）。
+// uid 取自 auth.Account()——与 ncm_account 同一会话，未登录返回 ErrNotLogin。
+func LikeList() (LikeListResult, error) {
+	acc, err := (&auth.Service{}).Account()
+	if err != nil {
+		return LikeListResult{}, err
+	}
+	uid := acc.Profile.UserID
+	if uid == 0 {
+		uid = acc.Account.UserID
+	}
+	if uid == 0 {
+		return LikeListResult{}, errs.ErrNotLogin
+	}
+	svc := &nmsvc.LikeListService{UID: strconv.FormatInt(uid, 10)}
+	code, body := svc.LikeList()
+	if err := opStatus("like_list", "/weapi/song/like/get", code, len(body)); err != nil {
+		return LikeListResult{}, err
+	}
+	var env struct {
+		IDs []float64 `json:"ids"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return LikeListResult{}, fmt.Errorf("%w: like_list 解析失败: %v", errs.ErrBadResponse, err)
+	}
+	res := LikeListResult{IDs: make([]int64, 0, len(env.IDs))}
+	for _, v := range env.IDs {
+		if v > 0 {
+			res.IDs = append(res.IDs, int64(v))
+		}
+	}
+	return res, nil
+}
+
+// Like 收藏（on=true）或取消收藏一首歌（api/radio/like，需登录）。
+func Like(songID int64, on bool) (LikeResult, error) {
+	if songID <= 0 {
+		return LikeResult{}, errs.ErrInvalidArg
+	}
+	l := "false"
+	if on {
+		l = "true"
+	}
+	svc := &nmsvc.LikeService{ID: strconv.FormatInt(songID, 10), L: l}
+	code, body := svc.Like()
+	if err := opStatus("like", "/api/radio/like", code, len(body)); err != nil {
+		return LikeResult{}, err
+	}
+	var env struct {
+		Code   float64 `json:"code"`
+		SongID float64 `json:"songId"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return LikeResult{}, fmt.Errorf("%w: like 解析失败: %v", errs.ErrBadResponse, err)
+	}
+	return LikeResult{SongID: songID, Liked: on}, nil
 }
 
 // ArtistDetail 取艺人详情（头像）。响应形状：

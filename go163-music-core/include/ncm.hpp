@@ -260,6 +260,17 @@ public:
     return fetch([&](char **o) { return ncm_check_music(h_, id, br, o); }, out_json);
   }
 
+  /* 收藏：需登录。out_json: {"ids":[...]} */
+  [[nodiscard]] Status like_list(std::string &out_json) {
+    return fetch([&](char **o) { return ncm_like_list(h_, o); }, out_json);
+  }
+
+  /* 收藏/取消收藏：需登录。out_json: {"song_id","liked"} */
+  [[nodiscard]] Status like(int64_t song_id, bool on, std::string &out_json) {
+    return fetch([&](char **o) { return ncm_like(h_, song_id, on ? 1 : 0, o); },
+                 out_json);
+  }
+
   [[nodiscard]] Status daily_recommend(std::string &out_json) {
     return fetch([&](char **o) { return ncm_daily_recommend(h_, o); }, out_json);
   }

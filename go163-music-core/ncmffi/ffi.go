@@ -519,6 +519,38 @@ func ncm_artist_detail(h *C.ncm_client, id C.int64_t, out **C.char) C.int32_t {
 	})
 }
 
+//export ncm_like_list
+func ncm_like_list(h *C.ncm_client, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := catalog.LikeList()
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_like
+func ncm_like(h *C.ncm_client, songID C.int64_t, like C.int32_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := catalog.Like(int64(songID), like != 0)
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
 //export ncm_check_music
 func ncm_check_music(h *C.ncm_client, songID C.int64_t, br C.int32_t, out **C.char) C.int32_t {
 	apiMu.Lock()

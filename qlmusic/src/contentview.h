@@ -43,6 +43,8 @@ public slots:
 
 signals:
     void trackActivated(int playlistId, int trackIndex);
+    /* TracksMode 右键菜单"收藏/取消收藏"（MainWindow 落 FavoriteStore） */
+    void favToggled(int playlistId, int trackIndex);
     void playlistActivated(qint64 ncmPlaylistId);
     void categoryActivated(const QString& cat);
     void loadMoreRequested();
@@ -51,6 +53,7 @@ signals:
 protected:
     void paintEvent(QPaintEvent* e);
     void mousePressEvent(QMouseEvent* e);
+    void contextMenuEvent(QContextMenuEvent* e);
     void mouseMoveEvent(QMouseEvent* e);
     void wheelEvent(QWheelEvent* e);
     void resizeEvent(QResizeEvent* e);

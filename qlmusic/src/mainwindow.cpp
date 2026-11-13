@@ -24,6 +24,7 @@
 #include "audio/AudioEngineAdapter.h"
 #include "toastwidget.h"
 #include "userinfopanel.h"
+#include "favoritestore.h"   /* musiccom：本地收藏 JSON 存储（Qt 版本无关） */
 
 #ifdef NCM_ENABLE
 #include "ncm.h"
@@ -43,6 +44,13 @@
 
 #include <cstdlib>
 #include <cmath>
+
+/* QString → std::string（Qt3 无 toStdString；UTF-8 中转，Qt3/4/6 通吃） */
+static std::string qToStdString(const QString& s)
+{
+    const QByteArray b = qToUtf8(s);
+    return std::string(b.data(), (size_t)b.size());
+}
 #include <fstream>
 
 #include "app_icon.xpm"
@@ -402,10 +410,21 @@ void MainWindow::buildCentralWidget()
     sideNav->setLibrary(m_library);
     contentView->setLibrary(m_library);
 
+    /* 收藏存储（本地 favorites.json，未登录/离线可用） */
+    {
+        QString favDir = qGetHomePath() + "/.local/share/qlmusic";
+        qMkdir(favDir, true);
+        m_favs = new musiccom::FavoriteStore(qToStdString(favDir));
+        m_favs->load();
+    }
+    refreshFavPlaylist();
+
     QObject::connect(sideNav, SIGNAL(playlistSelected(int)),
                      contentView, SLOT(showPlaylist(int)));
     QObject::connect(contentView, SIGNAL(trackActivated(int, int)),
                      this, SLOT(onTrackActivated(int, int)));
+    QObject::connect(contentView, SIGNAL(favToggled(int, int)),
+                     this, SLOT(onFavToggled(int, int)));
 
 #ifdef NCM_ENABLE
     m_ncm = new NcmService(this);
@@ -436,8 +455,14 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onNcmArtist(qint64, int, const QString&)));
         QObject::connect(m_ncm, SIGNAL(authRequired(const QString&)),
                          this, SLOT(onNcmAuthRequired(const QString&)));
-        /* 启动即拉分类（侧栏），随后自动进入"推荐=热门歌单"视图，
-         * 内容区直接展示网络歌单列表，无需手点 */
+        QObject::connect(m_ncm, SIGNAL(likeListLoaded(int, const QString&)),
+                         this, SLOT(onNcmLikeList(int, const QString&)));
+        QObject::connect(m_ncm, SIGNAL(songDetailLoaded(int, const QString&, int)),
+                         this, SLOT(onNcmSongDetail(int, const QString&, int)));
+        QObject::connect(m_ncm, SIGNAL(likeDone(qint64, bool, int)),
+                         this, SLOT(onNcmLikeDone(qint64, bool, int)));
+        /* 登录态启动即做收藏双向合并（未登录静默跳过，本地功能不受影响） */
+        m_ncm->likeList();
         m_ncm->loadCategories();
         m_ncmListTitle = _("nav.recommend");
         sideNav->setCurrentCategory(QString("__hot__"));
@@ -2009,6 +2034,99 @@ void MainWindow::onNcmAuthRequired(const QString& /*op*/)
     showNcmAuthToast(_("nav.recommend"));
 }
 
+/* ================= 收藏（本地 favorites.json + 账号双向同步） ================= */
+
+void MainWindow::onNcmLikeList(int rc, const QString& json)
+{
+    if (rc != NCM_OK || !m_favs) return;   // 未登录/网络失败：本地功能不受影响
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) return;
+    cJSON* ids = cJSON_GetObjectItem(root, "ids");
+    if (!ids) { cJSON_Delete(root); return; }
+
+    /* 收集账号 id 集合 */
+    std::vector<qint64> account;
+    for (int i = 0; i < cJSON_GetArraySize(ids); ++i) {
+        cJSON* it = cJSON_GetArrayItem(ids, i);
+        if (it && it->type == cJSON_Number && it->valuedouble > 0)
+            account.push_back((qint64)it->valuedouble);
+    }
+    cJSON_Delete(root);
+
+    /* 本地有、账号无 → 推送（只推用户主动收藏项，账号并入项不回推） */
+    bool dirty = false;
+    for (size_t i = 0; i < m_favs->all().size(); ++i) {
+        const musiccom::FavItem& f = m_favs->all()[i];
+        bool inAccount = false;
+        for (size_t k = 0; k < account.size(); ++k)
+            if (account[k] == f.ncmId) { inAccount = true; break; }
+        if (!inAccount && !f.fromAccount)
+            m_ncm->like(f.ncmId, true);
+    }
+    /* 账号有、本地无 → 标记来源 / 收集缺快照 id 批量拉详情 */
+    QStringList missing;
+    for (size_t k = 0; k < account.size(); ++k) {
+        if (m_favs->contains(account[k])) {
+            m_favs->setFromAccount(account[k], true);
+            dirty = true;
+        } else {
+            missing << QString::number(account[k]);
+        }
+    }
+    if (dirty) m_favs->save();
+    if (!missing.isEmpty()) {
+        m_favPendingDetailIds = missing;
+        m_ncm->loadSongDetail(missing.join(","));
+    } else {
+        refreshFavPlaylist();
+    }
+}
+
+void MainWindow::onNcmSongDetail(int rc, const QString& json, int /*sel*/)
+{
+    if (rc != NCM_OK || !m_favs) return;
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) return;
+    cJSON* songs = cJSON_GetObjectItem(root, "songs");
+    bool dirty = false;
+    for (int i = 0; songs && i < cJSON_GetArraySize(songs); ++i) {
+        cJSON* it = cJSON_GetArrayItem(songs, i);
+        if (!it) continue;
+        const qint64 id = cJSONInt(it, "id", 0);
+        if (id <= 0 || m_favs->contains(id)) continue;
+        musiccom::FavItem f;
+        f.ncmId = id;
+        f.name = qToStdString(cJSONStr(it, "name", ""));
+        QString artists;
+        cJSON* art = cJSON_GetObjectItem(it, "artists");
+        for (int a = 0; art && a < cJSON_GetArraySize(art); ++a) {
+            cJSON* ai = cJSON_GetArrayItem(art, a);
+            if (ai && ai->type == cJSON_String && ai->valuestring) {
+                if (!artists.isEmpty()) artists += qFromUtf8("/");
+                artists += qFromUtf8(ai->valuestring);
+            }
+        }
+        f.artists = qToStdString(artists);
+        f.album = qToStdString(cJSONStr(it, "album", ""));
+        f.coverUrl = qToStdString(cJSONStr(it, "cover", ""));
+        f.durationMs = (long long)cJSONInt(it, "duration_ms", 0);
+        f.playable = cJSONBool(it, "playable", true) ? 1 : 0;
+        f.fromAccount = 1;
+        if (m_favs->add(f)) dirty = true;
+    }
+    cJSON_Delete(root);
+    if (dirty) m_favs->save();
+    m_favPendingDetailIds.clear();
+    refreshFavPlaylist();
+}
+
+void MainWindow::onNcmLikeDone(qint64 /*songId*/, bool /*on*/, int rc)
+{
+    /* 双写失败只记日志：本地已生效，账号侧下次启动同步会重试 */
+    if (rc != NCM_OK)
+        ALOG_WARN(qFromUtf8("NCM like fail rc=%1").arg(rc));
+}
+
 #else /* !NCM_ENABLE：libncm 不可用，仅保留符号满足 moc */
 
 void MainWindow::onNcmCategorySelected(const QString&) {}
@@ -2023,3 +2141,91 @@ void MainWindow::onNcmSource(int, const QString&, qint64) {}
 void MainWindow::onNcmAuthRequired(const QString&) {}
 
 #endif /* NCM_ENABLE */
+
+/* ================= 收藏（本地 favorites.json + 账号双向同步） ================= */
+/* 置于 NCM 条件编译之外：未链接 libncm 的构建（Qt3/mac）本地收藏照常可用 */
+
+namespace { const int kFavPlaylistId = 1000; }
+
+void MainWindow::refreshFavPlaylist()
+{
+    if (!m_favs) return;
+    std::vector<Track> tracks;
+    const std::vector<musiccom::FavItem>& items = m_favs->all();
+    for (size_t i = 0; i < items.size(); ++i) {
+        const musiccom::FavItem& f = items[i];
+        Track t;
+        t.id = kFavPlaylistId * 100000 + (int)(f.ncmId % 100000);
+        t.title = qFromUtf8(f.name.c_str());
+        t.artist = qFromUtf8(f.artists.c_str());
+        t.album = qFromUtf8(f.album.c_str());
+        t.durationMs = (int)f.durationMs;
+        t.coverSeed = QString::number(f.ncmId);
+        t.coverUrl = qFromUtf8(f.coverUrl.c_str());
+        t.ncmId = f.ncmId;
+        t.playable = f.playable != 0;
+        tracks.push_back(t);
+    }
+
+    bool found = false;
+    for (size_t i = 0; i < m_library.size(); ++i) {
+        if (m_library[i].id == kFavPlaylistId) {
+            m_library[i].tracks = tracks;
+            m_library[i].trackCount = (int)tracks.size();
+            found = true;
+            break;
+        }
+    }
+    if (!found) {
+        Playlist p;
+        p.id = kFavPlaylistId;
+        p.name = _("nav.favorites");
+        p.coverSeed = "pl-like";
+        p.tracks = tracks;
+        p.ncmId = 0;
+        p.trackCount = (int)tracks.size();
+        m_library.insert(m_library.begin(), p);
+    }
+    sideNav->setLibrary(m_library);
+    contentView->setLibrary(m_library);
+    if (m_curPlaylistId == kFavPlaylistId)
+        contentView->showPlaylist(kFavPlaylistId);
+}
+
+void MainWindow::onFavToggled(int playlistId, int trackIndex)
+{
+    if (!m_favs) return;
+    const Playlist* pl = findPlaylist(m_library, playlistId);
+    if (!pl || trackIndex < 0 || trackIndex >= (int)pl->tracks.size()) return;
+    const Track& t = pl->tracks[trackIndex];
+    if (t.ncmId <= 0) {
+        SharedStatusBar::instance()->showMessageTyped(
+            _("fav.local_only"), StatusWarning, 3000);
+        return;
+    }
+
+    if (m_favs->contains(t.ncmId)) {
+        m_favs->remove(t.ncmId);
+        m_favs->save();
+#ifdef NCM_ENABLE
+        if (m_ncm && m_ncmAvailable) m_ncm->like(t.ncmId, false);
+#endif
+        SharedStatusBar::instance()->showMessage(_("fav.removed"), 2500);
+    } else {
+        musiccom::FavItem f;
+        f.ncmId = t.ncmId;
+        f.name = qToStdString(t.title);
+        f.artists = qToStdString(t.artist);
+        f.album = qToStdString(t.album);
+        f.coverUrl = qToStdString(t.coverUrl);
+        f.durationMs = t.durationMs;
+        f.playable = t.playable ? 1 : 0;
+        m_favs->add(f);
+        m_favs->save();
+#ifdef NCM_ENABLE
+        if (m_ncm && m_ncmAvailable) m_ncm->like(t.ncmId, true);
+#endif
+        SharedStatusBar::instance()->showMessage(_("fav.done"), 2500);
+    }
+    refreshFavPlaylist();
+}

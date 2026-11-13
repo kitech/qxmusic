@@ -180,6 +180,60 @@ void NcmApi::artistAsync(qint64 artistId)
     }).detach();
 }
 
+void NcmApi::likeListAsync()
+{
+    std::thread([this]() {
+        std::string json;
+        const auto st = m_client.like_list(json);
+        QList<qint64> ids;
+        QString err;
+        if (st != ncm::Status::Ok) {
+            err = statusText(st);
+        } else {
+            const auto arr = QJsonDocument::fromJson(
+                QByteArray::fromStdString(json)).object()
+                .value(QStringLiteral("ids")).toArray();
+            for (const auto& v : arr) {
+                const qint64 id = v.toVariant().toLongLong();
+                if (id > 0) ids.append(id);
+            }
+        }
+        qDebug() << "[qskmusic] ncm like_list:" << ids.size() << err;
+        Q_EMIT likeListDone(ids, err);
+    }).detach();
+}
+
+void NcmApi::likeAsync(qint64 songId, bool on)
+{
+    if (songId <= 0)
+        return;
+    std::thread([this, songId, on]() {
+        std::string json;
+        const auto st = m_client.like(songId, on, json);
+        QString err = st == ncm::Status::Ok ? QString() : statusText(st);
+        qDebug() << "[qskmusic] ncm like" << songId << on
+                 << (err.isEmpty() ? QStringLiteral("ok") : err);
+        Q_EMIT likeDone(songId, on, err);
+    }).detach();
+}
+
+void NcmApi::songDetailAsync(const QString& ids)
+{
+    const std::string idStr = ids.toStdString();
+    std::thread([this, idStr]() {
+        std::string json;
+        const auto st = m_client.song_detail(idStr, json);
+        QList<Song> songs;
+        QString err;
+        if (st != ncm::Status::Ok)
+            err = statusText(st);
+        else
+            songs = parseSongs(QByteArray::fromStdString(json));
+        qDebug() << "[qskmusic] ncm song_detail:" << songs.size() << err;
+        Q_EMIT songDetailDone(songs, err);
+    }).detach();
+}
+
 void NcmApi::lyricAsync(qint64 songId)
 {
     std::thread([this, songId]() {
