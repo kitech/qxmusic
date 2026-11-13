@@ -146,7 +146,9 @@ QMap<QString, unsigned int>& negativeMap()
     return map;
 }
 
-const unsigned int kNegativeTtlSec = 300;
+/* 失败负缓存：60s（原 300s）。Android cleartext/网络抖动修复后，
+ * 过长的负缓存会让已恢复的封面继续兜底图标 */
+const unsigned int kNegativeTtlSec = 60;
 
 } // namespace
 

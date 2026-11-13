@@ -20,6 +20,7 @@
     <application
         android:hardwareAccelerated="true"
         android:label="qskmusic"
+        android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:fullBackupOnly="false"
         android:enableOnBackInvokedCallback="false"
