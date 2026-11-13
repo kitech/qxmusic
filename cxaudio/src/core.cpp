@@ -106,6 +106,7 @@ bool Core::open(const std::string& uri) {
 
         std::string err;
         if (backend_->available(&err) && backend_->open(uri, &err)) {
+            backend_->setVolume(volume_);   /* 新 backend 立即吃到当前音量（切歌不丢） */
             resolved_ = id;
             CXA_LOG("backend try=%s ok", id.c_str());
             return true;
@@ -124,7 +125,10 @@ void Core::play() { if (backend_) backend_->play(); }
 void Core::pause() { if (backend_) backend_->pause(); }
 void Core::stop() { if (backend_) backend_->stop(); }
 void Core::seek(int64_t ms) { if (backend_) backend_->seek(ms); }
-void Core::setVolume(int v) { if (backend_) backend_->setVolume(v); }
+void Core::setVolume(int v) {
+    volume_ = v;                       /* 引擎层记忆（切歌重建 backend 后重放） */
+    if (backend_) backend_->setVolume(v);
+}
 
 int64_t Core::position() const { return backend_ ? backend_->position() : 0; }
 int64_t Core::duration() const { return backend_ ? backend_->duration() : 0; }

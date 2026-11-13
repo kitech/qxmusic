@@ -52,6 +52,8 @@ private:
     std::string requested_ = "auto";
     std::string resolved_ = "";
     std::string pendingOutputDeviceName_; /* open 前设置 → open 时下发 */
+    int volume_ = 100; /* 引擎层记忆音量：open() 重建 backend 后重放，
+                        * 否则切歌丢音量（默认 100%） */
     std::unique_ptr<IBackend> backend_;
     BackendCallbacks cbs_;
 
