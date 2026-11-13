@@ -19,7 +19,10 @@ public class ImageFetch {
             conn.setConnectTimeout(10000);
             conn.setReadTimeout(20000);
             conn.setInstanceFollowRedirects(true);
-            conn.setRequestProperty("User-Agent", "qskmusic/0.1");
+            conn.setRequestProperty("User-Agent",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                + "AppleWebKit/537.36 (KHTML, like Gecko) "
+                + "Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0");
             conn.setRequestProperty("Referer", "https://music.163.com");
             final int code = conn.getResponseCode();
             if (code < 200 || code >= 300)

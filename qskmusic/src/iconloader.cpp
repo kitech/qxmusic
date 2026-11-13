@@ -252,7 +252,9 @@ void IconLoader::startDownload(const QString& url, int px)
 #else
     QNetworkRequest req{QUrl(url)};
     req.setRawHeader("Referer", "https://music.163.com");
-    req.setRawHeader("User-Agent", "qskmusic/0.1");
+    req.setRawHeader("User-Agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0");
     req.setTransferTimeout(15000);          // 15s 无响应即中止，避免占满并发槽
     req.setAttribute(QNetworkRequest::RedirectPolicyAttribute,
                      QNetworkRequest::NoLessSafeRedirectPolicy);
