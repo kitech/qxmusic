@@ -44,6 +44,8 @@ public:
     void showNetRadioRegion(const QString& regionKey, const QString& title);
     /* 当前电台地区 key（MainWindow 取流时用） */
     QString currentNetRegion() const { return m_netRegion; }
+    /* 当前歌曲列表对应的 NCM 歌单 id（0 = 本地歌单/电台），刷新按钮用 */
+    qint64 currentNcmPlaylistId() const;
 
     /* CategoryGridMode：NCM 分类宫格 */
     void showCategoryGrid(const QStringList& cats);
@@ -68,6 +70,8 @@ signals:
     void categoryActivated(const QString& cat);
     void loadMoreRequested();
     void backRequested();
+    /* 标题行 ⟳：MainWindow 按当前模式重载数据 */
+    void refreshRequested();
 
 protected:
     void paintEvent(QPaintEvent* e);
@@ -93,11 +97,13 @@ private:
     int totalHeight() const;
     QRect playAllRect() const;
     QRect backRect() const;
+    QRect refreshRect() const;
     QRect loadMoreRect() const;
 
     std::vector<Playlist> m_lib;
     const Playlist* m_pl;
     bool m_radioList;        /* PlaylistListMode 的电台变体：点卡片发 radioSelected */
+    bool m_radioProgramMode; /* 站点电台节目列表：计数单位「期」 */
     Playlist m_tempPl;       /* showRadioPrograms 的宿主，生命周期由 ContentView 持有 */
     bool m_netRadioMode;     /* TracksMode 的电台变体：行=直播流，不走 trackActivated */
     QString m_netRegion;     /* 当前电台地区 key（供 MainWindow 取流清单） */
@@ -112,6 +118,7 @@ private:
     int m_scrollDelta;
     int m_hover;
     int m_current;
+    bool m_hoverRefresh;     /* 标题行 ⟳ 悬停态 */
     qint64 m_playingNcmId;   /* 正在播放的 NCM 曲目 id（0=无，本地曲不标） */
     int m_playlistId;    int m_headerH;
     int m_rowH;

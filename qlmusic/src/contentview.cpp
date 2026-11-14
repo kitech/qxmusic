@@ -39,9 +39,11 @@ QString fmtCount(qint64 n)
 }
 
 ContentView::ContentView(QWidget* parent)
-    : QWidget(parent), m_pl(0), m_radioList(false), m_netRadioMode(false),
+    : QWidget(parent), m_pl(0), m_radioList(false),
+      m_radioProgramMode(false), m_netRadioMode(false),
       m_mode(TracksMode), m_scrollBar(0), m_scrollY(0),
-      m_scrollDelta(0), m_hover(-1), m_current(-1), m_playingNcmId(0), m_playlistId(-1),
+      m_scrollDelta(0), m_hover(-1), m_current(-1), m_hoverRefresh(false),
+      m_playingNcmId(0), m_playlistId(-1),
       m_headerH(64), m_rowH(48), m_hasMore(false), m_loadingNow(false)
 {
     setMouseTracking(true);
@@ -95,6 +97,8 @@ void ContentView::setLibrary(const std::vector<Playlist>& lib)
 void ContentView::showPlaylist(int playlistId)
 {
     m_mode = TracksMode;
+    m_radioProgramMode = false;
+    m_netRadioMode = false;
     m_cards.clear();
     m_gridCats.clear();
     m_pl = findPlaylist(m_lib, playlistId);
@@ -114,6 +118,7 @@ void ContentView::showPlaylistList(const QString& title, const std::vector<Remot
     m_mode = PlaylistListMode;
     m_radioList = false;
     m_netRadioMode = false;
+    m_radioProgramMode = false;
     m_pl = 0;
     m_playlistId = -1;
     m_listTitle = title;
@@ -135,6 +140,7 @@ void ContentView::showRadioList(const QString& title,
     m_mode = PlaylistListMode;
     m_radioList = true;
     m_netRadioMode = false;
+    m_radioProgramMode = false;
     m_pl = 0;
     m_playlistId = -1;
     m_listTitle = title;
@@ -160,6 +166,7 @@ void ContentView::showRadioPrograms(qint64 rid, const QString& title,
     m_mode = TracksMode;
     m_radioList = false;
     m_netRadioMode = false;
+    m_radioProgramMode = true;   /* 计数单位「期」 */
     m_pl = &m_tempPl;
     m_playlistId = m_tempPl.id;
     m_current = -1;
@@ -188,6 +195,7 @@ void ContentView::showCategoryGrid(const QStringList& cats)
     m_listTitle = _("content.categories");
     m_gridCats = cats;
     m_netRadioMode = false;
+    m_radioProgramMode = false;
     m_hasMore = false;
     m_loadingNow = false;
     m_hover = -1;
@@ -203,6 +211,7 @@ void ContentView::showNetRadioRegion(const QString& regionKey, const QString& ti
 {
     m_netRadioStreams = radiolist::byRegion(regionKey);
     m_netRadioMode = true;
+    m_radioProgramMode = false;
     m_netRegion = regionKey;
     m_tempPl = Playlist();
     m_tempPl.id = -90;                       /* 伪 playlist id，避免与现有冲突 */
@@ -299,6 +308,17 @@ QRect ContentView::backRect() const
     return QRect(width() - 92, 34, 72, 24);
 }
 
+QRect ContentView::refreshRect() const
+{
+    /* 紧贴返回按钮左侧：28x24 圆角小按钮 */
+    return QRect(width() - 128, 34, 28, 24);
+}
+
+qint64 ContentView::currentNcmPlaylistId() const
+{
+    return (m_mode == TracksMode && m_pl) ? m_pl->ncmId : 0;
+}
+
 QRect ContentView::loadMoreRect() const
 {
     return QRect(width() / 2 - 90, m_headerH + (int)m_rows.size() * 56 + 6, 180, 36);
@@ -390,7 +410,12 @@ void ContentView::paintEvent(QPaintEvent*)
     /* ── 标题区 ── */
     if (m_mode == TracksMode) {
         QString title = m_pl ? m_pl->name : QString();
-        if (m_pl) title += QString::fromUtf8(" %1 首").arg((int)m_pl->tracks.size());
+        if (m_pl) {
+            /* 计数单位随模式：歌曲=首 / 电台节目=期 / 网络电台=个 */
+            const char* unit = m_netRadioMode ? " %1 个"
+                             : (m_radioProgramMode ? " %1 期" : " %1 首");
+            title += QString::fromUtf8(unit).arg((int)m_pl->tracks.size());
+        }
         p.setFont(titleFont);
         p.setPen(pal.textPrimary);
         /* 歌单封面（40px 圆角 8）：标题右移留位 */
@@ -415,14 +440,39 @@ void ContentView::paintEvent(QPaintEvent*)
         p.setPen(pal.accentText);
         p.setFont(small);
         p.drawText(pa, Qt::AlignCenter, m_playAll);
+
+        /* 刷新 ⟳（仅 NCM 歌单可重取；本地歌单/节目/静态电台不画） */
+        if (m_pl && m_pl->ncmId > 0) {
+            QRect fr = refreshRect();
+            p.setPen(Qt::NoPen);
+            p.setBrush(m_hoverRefresh ? pal.hoverBg : pal.windowBg);
+            muiDrawRoundRect(p, fr, fr.height() / 2, fr.height() / 2);
+            p.setPen(pal.textPrimary);
+            p.setFont(small);
+            p.drawText(fr, Qt::AlignCenter, QString::fromUtf8("⟳"));
+        }
     } else {
         /* List/Grid 模式：标题 + 返回按钮（列表模式带条目计数） */
         QString title = m_listTitle;
-        if (m_mode == PlaylistListMode)
-            title += QString::fromUtf8(" %1 个歌单").arg((int)m_cards.size());
+        if (m_mode == PlaylistListMode) {
+            title += m_radioList
+                ? QString::fromUtf8(" · %1 个电台").arg((int)m_cards.size())
+                : QString::fromUtf8(" · %1 个歌单").arg((int)m_cards.size());
+        }
         p.setFont(titleFont);
         p.setPen(pal.textPrimary);
-        p.drawText(QRect(20, 4, width() - 200, 30), Qt::AlignVCenter | Qt::AlignLeft, title);
+        p.drawText(QRect(20, 4, width() - 220, 30), Qt::AlignVCenter | Qt::AlignLeft, title);
+
+        /* 刷新 ⟳（分类歌单/站点电台列表可重载） */
+        if (m_mode == PlaylistListMode) {
+            QRect fr = refreshRect();
+            p.setPen(Qt::NoPen);
+            p.setBrush(m_hoverRefresh ? pal.hoverBg : pal.windowBg);
+            muiDrawRoundRect(p, fr, fr.height() / 2, fr.height() / 2);
+            p.setPen(pal.textPrimary);
+            p.setFont(small);
+            p.drawText(fr, Qt::AlignCenter, QString::fromUtf8("⟳"));
+        }
 
         QRect br = backRect();
         p.setPen(Qt::NoPen);
@@ -596,6 +646,13 @@ void ContentView::contextMenuEvent(QContextMenuEvent* e)
 
 void ContentView::mousePressEvent(QMouseEvent* e)
 {
+    /* 标题行 ⟳：NCM 歌单/列表两种模式都可能出现 */
+    if ((m_mode == PlaylistListMode
+            || (m_mode == TracksMode && m_pl && m_pl->ncmId > 0))
+        && refreshRect().contains(e->pos())) {
+        emit refreshRequested();
+        return;
+    }
     if (m_mode == PlaylistListMode || m_mode == CategoryGridMode) {
         if (backRect().contains(e->pos())) {
             emit backRequested();
@@ -659,6 +716,16 @@ void ContentView::mousePressEvent(QMouseEvent* e)
 
 void ContentView::mouseMoveEvent(QMouseEvent* e)
 {
+    /* ⟳ 悬停态（两种模式通用） */
+    {
+        const bool hr = refreshRect().contains(e->pos())
+            && (m_mode == PlaylistListMode
+                || (m_mode == TracksMode && m_pl && m_pl->ncmId > 0));
+        if (hr != m_hoverRefresh) {
+            m_hoverRefresh = hr;
+            update();
+        }
+    }
     if (m_mode == PlaylistListMode) {
         int hIdx = -1;
         if (m_hasMore && !m_loadingNow) {
@@ -690,6 +757,10 @@ void ContentView::leaveEvent(QEvent* e)
     QWidget::leaveEvent(e);
     if (m_hover != -1) {
         m_hover = -1;
+        update();
+    }
+    if (m_hoverRefresh) {
+        m_hoverRefresh = false;
         update();
     }
 }

@@ -499,6 +499,8 @@ void MainWindow::buildCentralWidget()
                      this, SLOT(onNcmLoadMore()));
     QObject::connect(contentView, SIGNAL(backRequested()),
                      this, SLOT(onNcmBack()));
+    QObject::connect(contentView, SIGNAL(refreshRequested()),
+                     this, SLOT(onContentViewRefresh()));
 #endif /* NCM_ENABLE */
 
     if (playerBar) {
@@ -1977,6 +1979,27 @@ void MainWindow::onNcmLoadMore()
 {
     if (m_ncmBusy || m_ncmCatKey.isEmpty()) return;
     requestTopPlaylists(m_ncmCatKey, m_ncmOffset);
+}
+
+void MainWindow::onContentViewRefresh()
+{
+    /* 歌曲列表：NCM 歌单 → 重拉详情/曲目（覆盖本地缓存副本） */
+    const qint64 ncmId = contentView ? contentView->currentNcmPlaylistId() : 0;
+    if (ncmId > 0 && m_ncmAvailable && !m_ncmBusy) {
+        int localId = -1;
+        for (size_t i = 0; i < m_library.size(); ++i)
+            if (m_library[i].ncmId == ncmId) { localId = m_library[i].id; break; }
+        if (localId < 0) return;
+        m_ncmBusy = true;
+        SharedStatusBar::instance()->showMessage(_("ncm.loading"), 0);
+        m_ncm->loadPlaylistTracks(ncmId, localId);
+        return;
+    }
+    /* 歌单/电台列表：按当前分类从第 0 页重载（轮播/热度会变） */
+    const QString cat = m_ncmCatKey.isEmpty() ? QString("__hot__") : m_ncmCatKey;
+    m_ncmOffset = 0;
+    m_ncmPendingCards.clear();
+    requestTopPlaylists(cat, 0);
 }
 
 void MainWindow::onNcmBack()

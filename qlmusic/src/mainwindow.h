@@ -82,6 +82,7 @@ private slots:
     void onNcmCategorySelected(const QString& catKey);
     void onNavAction(int action);
     void onNcmPlaylistActivated(qint64 ncmPlaylistId);
+    void onContentViewRefresh();
     void onNcmLoadMore();
     void onNcmBack();
     void onNcmCategories(int rc, const QString& json, int sel);

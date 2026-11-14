@@ -6,6 +6,7 @@
 
 class PlaylistListView;
 class QskLinearBox;
+class QskTextLabel;
 class StatusLine;
 class QskPushButton;
 
@@ -38,6 +39,7 @@ private:
     QskLinearBox* m_cardRows = nullptr;
     StatusLine* m_status = nullptr;
     QskPushButton* m_moreBtn = nullptr;
+    QskTextLabel* m_count = nullptr;   /* 标题行计数（每次数据变化现算） */
 };
 
 #endif

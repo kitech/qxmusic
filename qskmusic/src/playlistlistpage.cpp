@@ -63,8 +63,26 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
     });
     auto* title = new QskTextLabel(m_title, topBar);
     title->setFontRole(QskFontRole(QskFontRole::Title, QskFontRole::Normal));
-    title->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+    title->setSizePolicy(QskSizePolicy::Preferred, QskSizePolicy::Preferred);
     title->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+
+    /* 标题行计数（分类/翻页/刷新均现算）+ 刷新 */
+    m_count = new QskTextLabel(QString(), topBar);
+    m_count->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+    m_count->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    m_count->setTextColor(QColor(0x9a, 0x9a, 0x9a));
+
+    auto* refreshBtn = new QskPushButton(QString::fromUtf8("⟳"), topBar);
+    refreshBtn->setPreferredSize(36, 36);
+    connect(refreshBtn, &QskAbstractButton::clicked, this, [this]() {
+        if (m_loading) return;
+        m_cards.clear();       /* 刷新 = 第 0 页整表重取（requestPage 是追加语义） */
+        m_more = false;
+        m_count->setText(tr("%1 items").arg(0));
+        rebuildCards();
+        m_status->clearStatus();
+        requestPage(0);
+    });
 
     new QskSeparator(Qt::Horizontal, layout);
 
@@ -126,6 +144,7 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
             }
             m_cards += cards;
             m_more = more;
+            m_count->setText(tr("%1 items").arg(m_cards.size()));
             if (m_cards.isEmpty())
                 m_status->setStatus(StatusLine::Info, tr("No playlists"));
             else
@@ -157,6 +176,7 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
                 m_status->setStatus(StatusLine::Info, tr("No radios"));
             else
                 m_status->clearStatus();
+            m_count->setText(tr("%1 items").arg(m_cards.size()));
             m_moreBtn->setVisible(false);   // 电台首页一次 30 条，不滚动分页
             rebuildCards();
         });

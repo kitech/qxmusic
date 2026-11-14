@@ -70,6 +70,17 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
     m_header->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
     m_header->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
 
+    /* 顶栏刷新：重拉歌单详情+曲目（计数随回调更新） */
+    auto* refreshBtn = new QskPushButton(QString::fromUtf8("⟳"), topBar);
+    refreshBtn->setPreferredSize(36, 36);
+    connect(refreshBtn, &QskAbstractButton::clicked, this, [this]() {
+        m_songs.clear();
+        buildRows();
+        m_count->setText(QString());
+        m_status->setStatus(StatusLine::Loading, tr("Loading playlist…"));
+        NcmCatalog::instance().loadPlaylistTracksAsync(m_playlistId);
+    });
+
     new QskSeparator(Qt::Horizontal, layout);
 
     // 信息行：共 N 首 + 播放全部（滚动区外，QskPushButton 可靠通道；
