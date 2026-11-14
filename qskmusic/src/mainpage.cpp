@@ -23,6 +23,16 @@
 #include <QTimer>
 #include <QPointF>
 
+namespace {
+
+/* chip 文本限长：安卓窄屏 + 三列 fixed 宽度时防横向溢出（图标仍用完整名） */
+QString elidedChip(const QString& t, int n)
+{
+    return t.size() > n ? t.left(n - 1) + QString::fromUtf8("…") : t;
+}
+
+} // namespace
+
 HomePage::HomePage(QQuickItem* parent)
     : Page(parent)
 {
@@ -347,8 +357,9 @@ void HomePage::addNavEntry(const QString& label, const QString& key,
 
 QskLinearBox* HomePage::addSectionGrid()
 {
-    // 三列 chips 网格（QSkinny 官方 dimension 口径：超 3 个自动换行）
-    auto* grid = new QskLinearBox(Qt::Vertical, 3, m_rows);
+    /* 每行 3 个、向下换行（QSkinny 语义：dimension = 该方向上的元素上限；
+     * Vertical+3 是"每列 3 个向右开新列"，窄屏右侧会溢出） */
+    auto* grid = new QskLinearBox(Qt::Horizontal, 3, m_rows);
     grid->setSpacing(6);
     /* chip 宽度随内容：列内左对齐，不拉伸 */
     grid->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
@@ -370,7 +381,7 @@ void HomePage::addChip(QskLinearBox* grid, const QString& label,
     icon->setCornerRadius(5);
     icon->setFallback(qximage::categoryIcon(label, 36));
 
-    auto* text = new QskTextLabel(label, chip);
+    auto* text = new QskTextLabel(elidedChip(label, 8), chip);
     text->setSizePolicy(QskSizePolicy::Preferred, QskSizePolicy::Preferred);
     text->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
 

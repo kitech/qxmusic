@@ -37,6 +37,7 @@
 #include <qpixmap.h>
 #include <qevent.h>
 #include <qapplication.h>
+#include <qdesktopwidget.h>
 #include <qtimer.h>
 #include <qmessagebox.h>
 #include <qlineedit.h>
@@ -820,6 +821,47 @@ void MainWindow::closeEvent(QCloseEvent* event)
         return;
     }
     event->accept();
+}
+
+void MainWindow::showEvent(QShowEvent* event)
+{
+    QWidget::showEvent(event);
+    /* 首次显示：按屏幕可用区夹取（mac 上布局最小宽可能把窗口顶到数屏宽）；
+     * 同时打印一次诊断，定位是哪个子件的最小尺寸在撑宽 */
+    static bool clamped = false;
+    if (clamped) return;
+    clamped = true;
+
+    const QRect avail = QApplication::desktop()->availableGeometry(this);
+    const int w = (880 < avail.width() * 9 / 10) ? 880 : avail.width() * 9 / 10;
+    const int h = (640 < avail.height() * 9 / 10) ? 640 : avail.height() * 9 / 10;
+    resize(w, h);
+    move(avail.x() + (avail.width() - w) / 2,
+         avail.y() + (avail.height() - h) / 2);
+
+    if (avail.width() < minimumSizeHint().width()) {
+#ifdef QT3_BUILD
+        const QValueList<int> sz = bodySplitter->sizes();
+        const int s0 = sz.count() > 0 ? sz[0] : 0;
+        const int s1 = sz.count() > 1 ? sz[1] : 0;
+        const int s2 = sz.count() > 2 ? sz[2] : 0;
+#else
+        const QList<int> sz = bodySplitter->sizes();
+        const int s0 = sz.size() > 0 ? sz[0] : 0;
+        const int s1 = sz.size() > 1 ? sz[1] : 0;
+        const int s2 = sz.size() > 2 ? sz[2] : 0;
+#endif
+        ALOG_INFO(qFromUtf8(
+            "[win] avail=%1x%2 winMin=%3 sidebarMin=%4 contentMin=%5 "
+            "queueMin=%6 playerMin=%7 splitter=[%8,%9,%10]")
+            .arg(avail.width()).arg(avail.height())
+            .arg(minimumSizeHint().width())
+            .arg(sideNav ? sideNav->minimumSizeHint().width() : -1)
+            .arg(contentView ? contentView->minimumSizeHint().width() : -1)
+            .arg(queuePanel ? queuePanel->minimumSizeHint().width() : -1)
+            .arg(playerBar ? playerBar->minimumSizeHint().width() : -1)
+            .arg(s0).arg(s1).arg(s2));
+    }
 }
 
 void MainWindow::onTitleUilang(int index)
