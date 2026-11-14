@@ -143,8 +143,11 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
                     return;
                 }
                 if (cat.startsWith(QStringLiteral("__net:"))) {
-                    /* 网络电台地区 chip：直达该地区电台列表 */
-                    const QString region = cat.mid(5);
+                    /* 网络电台地区 chip：直达该地区电台列表。
+                     * 取 key 必须用前缀长度（"__net:" = 6），mid(5) 会带出冒号
+                     * 变成 ":china" → byRegion 0 行（空列表根因） */
+                    const QString region =
+                        cat.mid(QStringLiteral("__net:").size());
                     if (auto* pm = pageManager()) {
                         QVariantMap args;
                         args.insert("region", region);

@@ -40,10 +40,6 @@ void NetRadioPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
 {
     const QString region = launchArgs.value("region").toString();
     const QString title = launchArgs.value("title").toString();
-    /* TODO(debug): 定位空列表——定稿前拔除 */
-    qWarning().noquote() << "[NetRadio][debug] launchArgs.keys="
-                         << launchArgs.keys() << "region=" << region
-                         << "title=" << title;
     const QString headerTitle = title.isEmpty()
         ? regionLabel(region) : title;
 
@@ -71,9 +67,6 @@ void NetRadioPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
     // ── 地区内电台行列表（region 必传：来自首页地区 chip）──
     {
         const auto list = radiolist::byRegion(region);
-        /* TODO(debug): 定稿前拔除 */
-        qWarning().noquote() << "[NetRadio][debug] byRegion(" << region
-                             << ") rows=" << list.size();
         auto* rows = new QskLinearBox(Qt::Vertical);
         rows->setSpacing(2);
         rows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
@@ -116,6 +109,10 @@ void NetRadioPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
             tap->setGesturePolicy(QQuickTapHandler::DragThreshold);
             connect(tap, &QQuickTapHandler::singleTapped, this, play);
         }
+        /* onCreate 时页面尚未可见：DeferredPolish 阻塞/maybeUnresized 跳过布局，
+         * 不补一次 update() 行几何永不落地（空列表根因）；与全工程
+         * playlistlist/radiopage/favorites 填行收尾 update() 同款 */
+        rows->update();
     }
 
     /* 断流/切台：AudioPlayer finished → 本页 ▶ 标记复位 */

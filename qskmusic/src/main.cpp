@@ -78,24 +78,6 @@ protected:
     {
         auto* win = qobject_cast<QQuickWindow*>(obj);
 
-        // DIAG: 指针链探针（定位"行点击无响应"根因，结论后撤）
-        if (event->type() == QEvent::MouseButtonPress
-            || event->type() == QEvent::TouchBegin) {
-            QPointF p;
-            if (event->type() == QEvent::MouseButtonPress)
-                p = static_cast<QMouseEvent*>(event)->position();
-            else if (!static_cast<QTouchEvent*>(event)->points().isEmpty())
-                p = static_cast<QTouchEvent*>(event)->points().first().position();
-            QQuickItem* hit = win ? win->contentItem()->childAt(p.x(), p.y()) : nullptr;
-            QString chain;
-            for (QQuickItem* it = hit; it; it = it->parentItem())
-                chain += QString::fromUtf8(it->metaObject()->className())
-                    + QStringLiteral(" < ");
-            qDebug() << "[DIAG] press pos=" << p << "chain=" << chain
-                     << "focus=" << (win && win->activeFocusItem()
-                            ? win->activeFocusItem()->metaObject()->className() : "none");
-        }
-
         if (event->type() == QEvent::KeyPress) {
             auto* ke = static_cast<QKeyEvent*>(event);
             if (ke->key() == Qt::Key_Back) {
