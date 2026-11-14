@@ -150,6 +150,12 @@ NCM_API void NCM_CALL ncm_free(ncm_client *client);
 /* 返回库版本，形如 "0.1.0 (abi 2)"。由库分配，需 ncm_free_string() 释放。 */
 NCM_API char *NCM_CALL ncm_version(void);
 
+/* 动态开关请求日志（URL / 响应码 / 下载长度），默认开启。
+ * on=0 关闭，非 0 开启；环境变量 NCM_HTTP_LOG=0/off/false 可在进程启动时
+ * 覆盖默认值（其后仍可用本函数切换）。日志走 Go log（stderr）。
+ * 需要观察歌单列表 / 歌曲列表的网络行为时开启，日常可关闭减少噪音。 */
+NCM_API void NCM_CALL ncm_set_http_log(int32_t on);
+
 /* 释放任何 char* 出参。对 NULL 是空操作。 */
 NCM_API void NCM_CALL ncm_free_string(char *s);
 

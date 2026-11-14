@@ -86,6 +86,8 @@ void NcmCatalog::loadCategoriesAsync()
 void NcmCatalog::loadTopPlaylistsAsync(const QString& cat,
     const QString& order, int limit, int offset)
 {
+    qDebug() << "[qsk] ncm req top_playlists cat=" << cat
+             << "order=" << order << "limit=" << limit << "offset=" << offset;
     const std::string c = cat.toStdString();
     const std::string o = order.toStdString();
     std::thread([this, c, o, limit, offset]() {
@@ -120,6 +122,7 @@ void NcmCatalog::loadTopPlaylistsAsync(const QString& cat,
 
 void NcmCatalog::loadPlaylistTracksAsync(qint64 playlistId)
 {
+    qDebug() << "[qsk] ncm req playlist_tracks id=" << playlistId;
     std::thread([this, playlistId]() {
         std::string json;
         const auto st = m_client.playlist_tracks(playlistId, json);

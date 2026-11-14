@@ -654,6 +654,11 @@ void NcmService::loadDjPrograms(qint64 rid, int limit, int offset, int asc)
 void NcmService::execTask(const NcmTask& t)
 {
     if (!m_client) return;
+    /* 请求参数日志（URL/响应码/下载长度由 libncm 的 [http] 日志给出；
+     * 开关：ncm_set_http_log / 环境变量 NCM_HTTP_LOG=0） */
+    ALOG_INFO(qFromUtf8("ncm req %1 id=%2 cat=%3 offset=%4")
+                  .arg(qFromUtf8(t.op.c_str())).arg(t.id)
+                  .arg(qFromUtf8(t.cat.c_str())).arg(t.offset));
 #ifdef NCM_ENABLE
     int rc = NCM_ERR_INTERNAL;
     std::string json;

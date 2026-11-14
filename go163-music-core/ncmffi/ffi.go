@@ -34,6 +34,7 @@ import (
 	"qx163/ncm/internal/catalog"
 	"qx163/ncm/internal/client"
 	"qx163/ncm/internal/errs"
+	"qx163/ncm/internal/httplog"
 	"qx163/ncm/internal/version"
 )
 
@@ -272,6 +273,11 @@ func ncm_free_string(s *C.char) {
 func ncm_version() (ret *C.char) {
 	guardVoid(func() { ret = C.CString(version.String()) })
 	return ret
+}
+
+//export ncm_set_http_log
+func ncm_set_http_log(on C.int32_t) {
+	guardVoid(func() { httplog.SetEnabled(on != 0) })
 }
 
 //export ncm_set_event_cb

@@ -5,6 +5,8 @@ package client
 import (
 	"encoding/json"
 	"sync"
+
+	"qx163/ncm/internal/httplog"
 )
 
 // 事件编号，与 include/ncm.h 中的 ncm_event 保持一致。
@@ -63,6 +65,8 @@ type Client struct {
 
 // New 创建 Client。
 func New(opts Options) *Client {
+	// 请求日志（URL/响应码/下载长度）：两端共用 libncm，一处挂载即全覆盖
+	httplog.Install()
 	return &Client{opts: opts}
 }
 

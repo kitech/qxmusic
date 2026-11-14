@@ -352,6 +352,11 @@ public:
     return out;
   }
 
+  /* 动态开关请求日志（URL / 响应码 / 下载长度；默认开启）。 */
+  static void set_http_log(bool on) noexcept {
+    ncm_set_http_log(on ? 1 : 0);
+  }
+
 private:
   /* 统一处理 char* 出参：拷贝进 std::string 后立即归还给库，避免泄漏。 */
   template <typename F>
