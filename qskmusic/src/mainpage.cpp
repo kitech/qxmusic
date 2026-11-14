@@ -6,6 +6,7 @@
 #include "iconitem.h"
 #include "icongen.h"
 #include "radiolist.h"
+#include "chipframe.h"
 #include <QskLinearBox.h>
 #include <QskTextLabel.h>
 #include <QskPushButton.h>
@@ -349,6 +350,8 @@ QskLinearBox* HomePage::addSectionGrid()
     // 三列 chips 网格（QSkinny 官方 dimension 口径：超 3 个自动换行）
     auto* grid = new QskLinearBox(Qt::Vertical, 3, m_rows);
     grid->setSpacing(6);
+    /* chip 宽度随内容：列内左对齐，不拉伸 */
+    grid->setDefaultAlignment(Qt::AlignLeft | Qt::AlignVCenter);
     return grid;
 }
 
@@ -357,8 +360,9 @@ void HomePage::addChip(QskLinearBox* grid, const QString& label,
 {
     auto* chip = new QskLinearBox(Qt::Horizontal, grid);
     chip->setPreferredHeight(32);   // 紧凑 chip（原 44dp 通栏按钮）
-    chip->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+    chip->setSizePolicy(QskSizePolicy::Fixed, QskSizePolicy::Preferred);
     chip->setSpacing(4);
+    chip->setMargins(QMarginsF(6, 0, 6, 0));   // 描边内缩，文字/图标不贴边
 
     // 分类图标（本地生成首字色块，无网络依赖；尺寸固定不参与伸缩）
     auto* icon = new IconItem(chip);
@@ -367,8 +371,27 @@ void HomePage::addChip(QskLinearBox* grid, const QString& label,
     icon->setFallback(qximage::categoryIcon(label, 36));
 
     auto* text = new QskTextLabel(label, chip);
-    text->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+    text->setSizePolicy(QskSizePolicy::Preferred, QskSizePolicy::Preferred);
     text->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+
+    /* 对号紧跟文字（纯装饰，无状态）：文字取内容宽，剩余空白留右侧 */
+    auto* check = new QskTextLabel(QString::fromUtf8("✓"), chip);
+    check->setPreferredWidth(12);
+    check->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    check->setTextColor(QColor(0x3d, 0x8b, 0xfd, 200));
+
+    /* 视觉包裹层（纯装饰，不参与任何状态判断/点击逻辑）：
+     * 细弱 accent 圆角描边；layoutPolicy=Ignore 不进布局，
+     * 尺寸跟随 chip 宽高 */
+    auto* frame = new ChipFrameItem(chip);
+    frame->setZ(1);
+    frame->setSize(QSizeF(chip->width(), chip->height()));
+    QObject::connect(chip, &QQuickItem::widthChanged, frame, [chip, frame]() {
+        frame->setSize(QSizeF(chip->width(), chip->height()));
+    });
+    QObject::connect(chip, &QQuickItem::heightChanged, frame, [chip, frame]() {
+        frame->setSize(QSizeF(chip->width(), chip->height()));
+    });
 
     m_chipCats.push_back({ chip, cat });
 }
