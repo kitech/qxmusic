@@ -31,6 +31,7 @@ private:
 
     QString m_cat;
     QString m_title;
+    bool m_radio = false;    /* launchArgs.radio：站点电台模式（数据源 dj_hot） */
     bool m_more = false;
     bool m_loading = false;
     QList<PlaylistCard> m_cards;

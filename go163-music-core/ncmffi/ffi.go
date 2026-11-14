@@ -551,6 +551,56 @@ func ncm_like(h *C.ncm_client, songID C.int64_t, like C.int32_t, out **C.char) C
 	})
 }
 
+//export ncm_dj_hot
+func ncm_dj_hot(h *C.ncm_client, cate C.int32_t, limit C.int32_t,
+	offset C.int32_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := catalog.DjHot(int32(cate), int32(limit), int32(offset))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_dj_detail
+func ncm_dj_detail(h *C.ncm_client, rid C.int64_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := catalog.DjDetail(int64(rid))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_dj_programs
+func ncm_dj_programs(h *C.ncm_client, rid C.int64_t, limit C.int32_t,
+	offset C.int32_t, asc C.int32_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := catalog.DjPrograms(int64(rid), int32(limit), int32(offset), int32(asc))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
 //export ncm_check_music
 func ncm_check_music(h *C.ncm_client, songID C.int64_t, br C.int32_t, out **C.char) C.int32_t {
 	apiMu.Lock()

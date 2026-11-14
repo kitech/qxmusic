@@ -271,6 +271,26 @@ public:
                  out_json);
   }
 
+  /* 热门电台：cate_id=0 全部。out_json: {"radios":[...]} */
+  [[nodiscard]] Status dj_hot(int32_t cate_id, int32_t limit, int32_t offset,
+                              std::string &out_json) {
+    return fetch([&](char **o) { return ncm_dj_hot(h_, cate_id, limit, offset, o); },
+                 out_json);
+  }
+
+  /* 电台详情 */
+  [[nodiscard]] Status dj_detail(int64_t rid, std::string &out_json) {
+    return fetch([&](char **o) { return ncm_dj_detail(h_, rid, o); }, out_json);
+  }
+
+  /* 电台节目列表（main_song_id → resolve_source 取流） */
+  [[nodiscard]] Status dj_programs(int64_t rid, int32_t limit, int32_t offset,
+                                   int32_t asc, std::string &out_json) {
+    return fetch([&](char **o) {
+      return ncm_dj_programs(h_, rid, limit, offset, asc, o);
+    }, out_json);
+  }
+
   [[nodiscard]] Status daily_recommend(std::string &out_json) {
     return fetch([&](char **o) { return ncm_daily_recommend(h_, o); }, out_json);
   }

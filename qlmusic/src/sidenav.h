@@ -57,6 +57,8 @@ private:
         NavRank,        /* 排行榜 → 暂缓提示 */
         NavMyMusic,     /* 我的音乐 → 需登录提示 */
         NavLocalMusic,  /* 本地音乐 → 暂缓提示 */
+        NavNetRadio,    /* 网络电台 → 空处理占位 */
+        NavRadioSite,   /* 站点电台 → 热门电台列表 */
     };
     struct NavItem {
         NavKind kind;
@@ -89,6 +91,8 @@ private:
     QString m_navRank;
     QString m_navMine;
     QString m_navLocal;
+    QString m_navNetRadio;
+    QString m_navRadioSite;
     QString m_groupCreated;
     QString m_groupCollected;
     QString m_groupCategories;

@@ -51,6 +51,9 @@ enum {
     NcmTaskArtist,     /* 艺人详情：ncm_artist_detail（头像 URL） */
     NcmTaskLikeList,   /* 账号"喜欢的音乐" id 列表（需登录） */
     NcmTaskLike,       /* 收藏/取消收藏 ncm_like */
+    NcmTaskDjHot,      /* 热门电台列表（站点电台） */
+    NcmTaskDjDetail,   /* 电台详情 */
+    NcmTaskDjPrograms, /* 电台节目列表 */
     NcmTaskQuit,       /* 哨兵：worker 收到即退出线程 */
 };
 
@@ -103,6 +106,8 @@ public:
     void loadArtist(qint64 artistId); /* 艺人详情（头像 URL） */
     void likeList();                  /* 账号"喜欢的音乐" id 列表（需登录） */
     void like(qint64 songId, bool on); /* 收藏/取消收藏（需登录） */
+    void loadDjHot(int cateId, int limit, int offset);          /* 站点电台：热门电台 */
+    void loadDjPrograms(qint64 rid, int limit, int offset, int asc); /* 电台节目 */
 
     /* MainWindow::customEvent 转发进来 */
     void handleResult(NcmResultEvent* e);
@@ -123,6 +128,8 @@ signals:
     void artistLoaded(qint64 artistId, int rc, const QString& json);
     void likeListLoaded(int rc, const QString& json);
     void likeDone(qint64 songId, bool on, int rc);
+    void djHotLoaded(int rc, const QString& json);
+    void djProgramsLoaded(int rc, const QString& json, qint64 rid);
     void authRequired(const QString& op);
     /* 下载进度（worker curl 回调节流 200ms 投递；pct 0-100） */
     void downloadProgress(qint64 songId, int pct);

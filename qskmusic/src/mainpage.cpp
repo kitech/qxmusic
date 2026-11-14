@@ -141,6 +141,20 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
                     ToastPopup::show(this, tr("Local music coming soon"));
                     return;
                 }
+                if (cat == QStringLiteral("__netradio__")) {
+                    /* 网络电台：空处理（占位，不请求数据） */
+                    ToastPopup::show(this, tr("Internet radio coming soon"));
+                    return;
+                }
+                if (cat == QStringLiteral("__radio__")) {
+                    if (auto* pm = pageManager()) {
+                        QVariantMap args;
+                        args.insert("radio", true);
+                        args.insert("title", tr("Stations & Radio"));
+                        pm->open("playlists", args);
+                    }
+                    return;
+                }
                 openPlaylistList(cat, cat.isEmpty()
                     ? tr("Hot Playlists") : cat);
             });
@@ -240,6 +254,10 @@ void HomePage::rebuild(const QStringList& hot,
     addNavEntry(tr("Rankings"), QStringLiteral("__rank__"), QStringLiteral("rank"));
     addNavEntry(tr("My Music"), QStringLiteral("__mymusic__"), QStringLiteral("mymusic"));
     addNavEntry(tr("Local Music"), QStringLiteral("__local__"), QStringLiteral("local"));
+    addNavEntry(tr("Internet Radio"), QStringLiteral("__netradio__"),
+                QStringLiteral("radio"));
+    addNavEntry(tr("Stations & Radio"), QStringLiteral("__radio__"),
+                QStringLiteral("radio"));
 
     auto addGroup = [&](const QString& title, const QStringList& cats) {
         if (cats.isEmpty()) return;

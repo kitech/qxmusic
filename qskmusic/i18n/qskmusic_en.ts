@@ -48,13 +48,13 @@
     <name>HomePage</name>
     <message>
         <location filename="../src/mainpage.cpp" line="51"/>
-        <location filename="../src/mainpage.cpp" line="401"/>
+        <location filename="../src/mainpage.cpp" line="417"/>
         <source>Not signed in</source>
         <translation>Not signed in</translation>
     </message>
     <message>
         <location filename="../src/mainpage.cpp" line="53"/>
-        <location filename="../src/mainpage.cpp" line="404"/>
+        <location filename="../src/mainpage.cpp" line="420"/>
         <source>Tap to sign in</source>
         <translation>Tap to sign in</translation>
     </message>
@@ -71,9 +71,9 @@
     </message>
     <message>
         <location filename="../src/mainpage.cpp" line="98"/>
-        <location filename="../src/mainpage.cpp" line="363"/>
         <location filename="../src/mainpage.cpp" line="379"/>
-        <location filename="../src/mainpage.cpp" line="383"/>
+        <location filename="../src/mainpage.cpp" line="395"/>
+        <location filename="../src/mainpage.cpp" line="399"/>
         <source>163 Music</source>
         <translation>163 Music</translation>
     </message>
@@ -99,98 +99,114 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="145"/>
-        <location filename="../src/mainpage.cpp" line="270"/>
+        <location filename="../src/mainpage.cpp" line="146"/>
+        <source>Internet radio coming soon</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="153"/>
+        <location filename="../src/mainpage.cpp" line="259"/>
+        <source>Stations &amp; Radio</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="159"/>
+        <location filename="../src/mainpage.cpp" line="288"/>
         <source>Hot Playlists</source>
         <translation>Hot Playlists</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="154"/>
+        <location filename="../src/mainpage.cpp" line="168"/>
         <source>Load failed: %1</source>
         <translation>Load failed: %1</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="181"/>
+        <location filename="../src/mainpage.cpp" line="195"/>
         <source>Search</source>
         <translation>Search</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="183"/>
+        <location filename="../src/mainpage.cpp" line="197"/>
         <source>My Favorites</source>
         <translation>My Favorites</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="184"/>
+        <location filename="../src/mainpage.cpp" line="198"/>
         <source>Logs</source>
         <translation>Logs</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="185"/>
+        <location filename="../src/mainpage.cpp" line="199"/>
         <source>Settings</source>
         <translation>Settings</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="186"/>
+        <location filename="../src/mainpage.cpp" line="200"/>
         <source>About</source>
         <translation>About</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="240"/>
+        <location filename="../src/mainpage.cpp" line="254"/>
         <source>Rankings</source>
         <translation>Rankings</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="241"/>
+        <location filename="../src/mainpage.cpp" line="255"/>
         <source>My Music</source>
         <translation>My Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="242"/>
+        <location filename="../src/mainpage.cpp" line="256"/>
         <source>Local Music</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="251"/>
+        <location filename="../src/mainpage.cpp" line="257"/>
+        <source>Internet Radio</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="269"/>
         <source>Hot Categories</source>
         <translation>Hot Categories</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="363"/>
+        <location filename="../src/mainpage.cpp" line="379"/>
         <source>QQ Music</source>
         <translation>QQ Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="363"/>
+        <location filename="../src/mainpage.cpp" line="379"/>
         <source>Baidu Music</source>
         <translation>Baidu Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="363"/>
+        <location filename="../src/mainpage.cpp" line="379"/>
         <source>Kugou Music</source>
         <translation>Kugou Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="364"/>
+        <location filename="../src/mainpage.cpp" line="380"/>
         <source>Kuwo Music</source>
         <translation>Kuwo Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="364"/>
+        <location filename="../src/mainpage.cpp" line="380"/>
         <source>Bilibili Music</source>
         <translation>Bilibili Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="364"/>
+        <location filename="../src/mainpage.cpp" line="380"/>
         <source>YouTube Music</source>
         <translation>YouTube Music</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="382"/>
+        <location filename="../src/mainpage.cpp" line="398"/>
         <source>This site is coming soon</source>
         <translation>This site is coming soon</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="403"/>
+        <location filename="../src/mainpage.cpp" line="419"/>
         <source>Signed in</source>
         <translation>Signed in</translation>
     </message>
@@ -313,42 +329,58 @@
         <translation>%1K</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="48"/>
+        <location filename="../src/playlistlistpage.cpp" line="49"/>
         <source>Hot Playlists</source>
         <translation>Hot Playlists</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="101"/>
+        <location filename="../src/playlistlistpage.cpp" line="109"/>
         <source>Load more</source>
         <translation>Load more</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="114"/>
+        <location filename="../src/playlistlistpage.cpp" line="123"/>
+        <location filename="../src/playlistlistpage.cpp" line="143"/>
         <source>Load failed: %1</source>
         <translation>Load failed: %1</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="121"/>
+        <location filename="../src/playlistlistpage.cpp" line="130"/>
         <source>No playlists</source>
         <translation>No playlists</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="135"/>
+        <location filename="../src/playlistlistpage.cpp" line="157"/>
+        <source>No radios</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="172"/>
         <source>Loading playlists…</source>
         <translation>Loading playlists…</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="142"/>
+        <location filename="../src/playlistlistpage.cpp" line="172"/>
+        <source>Loading radio…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="184"/>
         <source>All</source>
         <translation>All</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="170"/>
+        <location filename="../src/playlistlistpage.cpp" line="213"/>
+        <source>%1 programs</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="215"/>
         <source>%1 tracks</source>
         <translation>%1 tracks</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="171"/>
+        <location filename="../src/playlistlistpage.cpp" line="216"/>
         <source> · %1 plays</source>
         <translation> · %1 plays</translation>
     </message>
@@ -438,6 +470,68 @@
         <location filename="../src/queuepopup.cpp" line="51"/>
         <source>Play Queue</source>
         <translation>Play Queue</translation>
+    </message>
+</context>
+<context>
+    <name>RadioPage</name>
+    <message>
+        <location filename="../src/radiopage.cpp" line="74"/>
+        <source>▶ Play All</source>
+        <translation type="unfinished">▶ Play All</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="78"/>
+        <location filename="../src/radiopage.cpp" line="164"/>
+        <source>No programs</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="81"/>
+        <source>Resolving play URL…</source>
+        <translation type="unfinished">Resolving play URL…</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="86"/>
+        <source>Loading radio programs…</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="103"/>
+        <location filename="../src/radiopage.cpp" line="113"/>
+        <location filename="../src/radiopage.cpp" line="241"/>
+        <location filename="../src/radiopage.cpp" line="277"/>
+        <source>No audio for this program</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="126"/>
+        <source>Download: %1</source>
+        <translation type="unfinished">Download: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="149"/>
+        <source>Load failed: %1</source>
+        <translation type="unfinished">Load failed: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="168"/>
+        <source>%1 programs</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="181"/>
+        <source>Failed to get download URL: %1</source>
+        <translation type="unfinished">Failed to get download URL: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="188"/>
+        <source>Added to downloads</source>
+        <translation type="unfinished">Added to downloads</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="281"/>
+        <source>Already cached</source>
+        <translation type="unfinished">Already cached</translation>
     </message>
 </context>
 <context>
@@ -543,18 +637,18 @@
 <context>
     <name>main</name>
     <message>
-        <location filename="../src/main.cpp" line="411"/>
+        <location filename="../src/main.cpp" line="412"/>
         <source>Volume panel: coming soon</source>
         <translation>Volume panel: coming soon</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="441"/>
+        <location filename="../src/main.cpp" line="442"/>
         <source>Play a song first</source>
         <translation>Play a song first</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="448"/>
-        <location filename="../src/main.cpp" line="462"/>
+        <location filename="../src/main.cpp" line="449"/>
+        <location filename="../src/main.cpp" line="463"/>
         <source>Loading…</source>
         <translation>Loading…</translation>
     </message>

@@ -722,3 +722,161 @@ func resolveLegacy(songID int64, quality int32) (SourceResult, error) {
 	return finishSource(songID, quality, data[0])
 }
 
+
+/* ---------------- 电台（djradio） ---------------- */
+
+// DjRadio 电台摘要（列表与详情共用）。
+type DjRadio struct {
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`
+	Cover        string `json:"cover"`
+	Desc         string `json:"desc"`
+	ProgramCount int64  `json:"program_count"`
+	Nickname     string `json:"nickname"`
+}
+
+type DjHotResult struct {
+	Radios []DjRadio `json:"radios"`
+}
+
+// DjProgram 电台节目。MainSongID 交给 ncm_resolve_source 取流
+// （classic djradio 的 mp3Url 字段已废弃恒为 null，不可用）。
+type DjProgram struct {
+	ID         int64  `json:"id"`
+	Name       string `json:"name"`
+	Cover      string `json:"cover"`
+	DurationMs int64  `json:"duration_ms"`
+	MainSongID int64  `json:"main_song_id"`
+	CreateTime int64  `json:"create_time"`
+}
+
+type DjProgramsResult struct {
+	Count    int64       `json:"count"`
+	Programs []DjProgram `json:"programs"`
+}
+
+// DjHot 热门电台（/api/djradio/hot；cateID=0 = 全部）。
+func DjHot(cateID, limit, offset int32) (DjHotResult, error) {
+	if limit <= 0 {
+		limit = 30
+	}
+	svc := &nmsvc.DjRadioHotService{
+		CateId: strconv.Itoa(int(cateID)),
+		Limit:  strconv.Itoa(int(limit)),
+		Offset: strconv.Itoa(int(offset)),
+	}
+	code, body := svc.DjRadioHot()
+	if err := opStatus("dj_hot", "/api/djradio/hot", code, len(body)); err != nil {
+		return DjHotResult{}, err
+	}
+	var env struct {
+		Radios []struct {
+			ID           float64 `json:"id"`
+			Name         string  `json:"name"`
+			PicURL       string  `json:"picUrl"`
+			Desc         string  `json:"desc"`
+			ProgramCount float64 `json:"programCount"`
+			DJ           struct {
+				Nickname string `json:"nickname"`
+			} `json:"dj"`
+		} `json:"djRadios"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return DjHotResult{}, fmt.Errorf("%w: dj_hot 解析失败: %v", errs.ErrBadResponse, err)
+	}
+	res := DjHotResult{Radios: make([]DjRadio, 0, len(env.Radios))}
+	for _, r := range env.Radios {
+		res.Radios = append(res.Radios, DjRadio{
+			ID: int64(r.ID), Name: r.Name, Cover: r.PicURL, Desc: r.Desc,
+			ProgramCount: int64(r.ProgramCount), Nickname: r.DJ.Nickname,
+		})
+	}
+	return res, nil
+}
+
+// DjDetail 电台详情（/weapi/djradio/get）。
+func DjDetail(rid int64) (DjRadio, error) {
+	if rid <= 0 {
+		return DjRadio{}, errs.ErrInvalidArg
+	}
+	svc := &nmsvc.DjDetailService{ID: strconv.FormatInt(rid, 10)}
+	code, body := svc.DjDetail()
+	if err := opStatus("dj_detail", "/weapi/djradio/get", code, len(body)); err != nil {
+		return DjRadio{}, err
+	}
+	var env struct {
+		Radio struct {
+			ID           float64 `json:"id"`
+			Name         string  `json:"name"`
+			PicURL       string  `json:"picUrl"`
+			Desc         string  `json:"desc"`
+			ProgramCount float64 `json:"programCount"`
+			DJ           struct {
+				Nickname string `json:"nickname"`
+			} `json:"dj"`
+		} `json:"djRadio"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return DjRadio{}, fmt.Errorf("%w: dj_detail 解析失败: %v", errs.ErrBadResponse, err)
+	}
+	return DjRadio{
+		ID: int64(env.Radio.ID), Name: env.Radio.Name, Cover: env.Radio.PicURL,
+		Desc: env.Radio.Desc, ProgramCount: int64(env.Radio.ProgramCount),
+		Nickname: env.Radio.DJ.Nickname,
+	}, nil
+}
+
+// DjPrograms 电台节目列表（/weapi/dj/program/byradio）。
+func DjPrograms(rid int64, limit, offset, asc int32) (DjProgramsResult, error) {
+	if rid <= 0 {
+		return DjProgramsResult{}, errs.ErrInvalidArg
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	a := "false"
+	if asc != 0 {
+		a = "true"
+	}
+	svc := &nmsvc.DjProgramService{
+		RID:    strconv.FormatInt(rid, 10),
+		Limit:  strconv.Itoa(int(limit)),
+		Offset: strconv.Itoa(int(offset)),
+		Asc:    a,
+	}
+	code, body := svc.DjProgram()
+	if err := opStatus("dj_programs", "/weapi/dj/program/byradio", code, len(body)); err != nil {
+		return DjProgramsResult{}, err
+	}
+	var env struct {
+		Count    float64 `json:"count"`
+		Programs []struct {
+			ID       float64 `json:"programId"`
+			Name     string  `json:"name"`
+			Cover    string  `json:"coverUrl"`
+			Duration float64 `json:"duration"`
+			Create   float64 `json:"createTime"`
+			MainSong struct {
+				ID   float64 `json:"id"`
+				Name string  `json:"name"`
+			} `json:"mainSong"`
+		} `json:"programs"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return DjProgramsResult{}, fmt.Errorf("%w: dj_programs 解析失败: %v", errs.ErrBadResponse, err)
+	}
+	res := DjProgramsResult{Count: int64(env.Count),
+		Programs: make([]DjProgram, 0, len(env.Programs))}
+	for _, p := range env.Programs {
+		name := p.Name
+		if name == "" {
+			name = p.MainSong.Name // 个别节目 name 为空，回退 mainSong
+		}
+		res.Programs = append(res.Programs, DjProgram{
+			ID: int64(p.ID), Name: name, Cover: p.Cover,
+			DurationMs: int64(p.Duration), MainSongID: int64(p.MainSong.ID),
+			CreateTime: int64(p.Create),
+		})
+	}
+	return res, nil
+}

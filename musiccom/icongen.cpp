@@ -280,6 +280,19 @@ void drawFolder(QPainter& p, const QRect& r)
                      w * 6 / 100, h * 20 / 100));    // 音符杆
 }
 
+/* 电台（网络电台 / 站点电台）：中心圆点 + 两道波纹弧 */
+void drawBroadcast(QPainter& p, const QRect& r)
+{
+    const int w = r.width(), h = r.height();
+    const int x = r.left(), y = r.top();
+    const int dot = w / 7;
+    p.drawEllipse(QRect(x + w / 2 - dot / 2, y + h / 2 - dot / 2, dot, dot));
+    p.setBrush(Qt::NoBrush);
+    p.setPen(QPen(Qt::white, (w / 12 < 3) ? w / 12 : 3));
+    p.drawArc(QRect(x + w / 4, y + h / 4, w / 2, h / 2), 45 * 16, 90 * 16);
+    p.drawArc(QRect(x + w / 8, y + h / 8, w * 3 / 4, h * 3 / 4), 45 * 16, 90 * 16);
+}
+
 } // namespace
 
 QPixmap navIcon(const QString& kind, int size)
@@ -319,6 +332,7 @@ QPixmap navIcon(const QString& kind, int size)
     else if (kind == QString("rank"))      drawBars(p, inner);
     else if (kind == QString("mymusic"))   drawPerson(p, inner);
     else if (kind == QString("local"))     drawFolder(p, inner);
+    else if (kind == QString("radio"))     drawBroadcast(p, inner);
     else                                   drawFlame(p, inner);
     p.end();
     return pm;

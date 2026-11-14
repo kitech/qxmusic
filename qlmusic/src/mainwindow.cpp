@@ -461,6 +461,12 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onNcmSongDetail(int, const QString&, int)));
         QObject::connect(m_ncm, SIGNAL(likeDone(qint64, bool, int)),
                          this, SLOT(onNcmLikeDone(qint64, bool, int)));
+        QObject::connect(m_ncm, SIGNAL(djHotLoaded(int, const QString&)),
+                         this, SLOT(onNcmDjHot(int, const QString&)));
+        QObject::connect(m_ncm, SIGNAL(djProgramsLoaded(int, const QString&, qint64)),
+                         this, SLOT(onNcmDjPrograms(int, const QString&, qint64)));
+        QObject::connect(contentView, SIGNAL(radioSelected(qint64)),
+                         this, SLOT(onRadioSelected(qint64)));
         /* 登录态启动即做收藏双向合并（未登录静默跳过，本地功能不受影响） */
         m_ncm->likeList();
         m_ncm->loadCategories();
@@ -1983,6 +1989,85 @@ void MainWindow::onNavAction(int action)
         SharedStatusBar::instance()->showMessage(_("nav.local_coming"), 3000);
         return;
     }
+    if (action == 3) {
+        /* 网络电台：空处理（占位，不请求数据） */
+        SharedStatusBar::instance()->showMessage(_("radio.net_coming"), 3000);
+        return;
+    }
+    if (action == 4) {
+        /* 站点电台：热门电台列表 */
+#ifdef NCM_ENABLE
+        if (!m_ncm || !m_ncmAvailable) {
+            SharedStatusBar::instance()->showMessageTyped(_("ncm.unavailable"),
+                                                          StatusWarning, 4000);
+            return;
+        }
+        SharedStatusBar::instance()->showMessage(_("radio.loading"), 0);
+        m_ncm->loadDjHot(0, 30, 0);
+#endif
+        return;
+    }
+}
+
+void MainWindow::onNcmDjHot(int rc, const QString& json)
+{
+    SharedStatusBar::instance()->clearMessage();
+    if (rc != NCM_OK) {
+        showNcmError(rc, _("nav.radio_site"));
+        return;
+    }
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) return;
+    std::vector<RemotePlaylistCard> cards;
+    cJSON* arr = cJSON_GetObjectItem(root, "radios");
+    for (int i = 0; arr && i < cJSON_GetArraySize(arr); ++i) {
+        cJSON* it = cJSON_GetArrayItem(arr, i);
+        if (!it) continue;
+        RemotePlaylistCard c;
+        c.id = cJSONInt(it, "id", 0);
+        c.name = cJSONStr(it, "name", "");
+        c.creator = cJSONStr(it, "nickname", "");
+        c.coverUrl = cJSONStr(it, "cover", "");
+        c.trackCount = (int)cJSONInt(it, "program_count", 0);
+        cards.push_back(c);
+    }
+    cJSON_Delete(root);
+    contentView->showRadioList(_("nav.radio_site"), cards, false, false);
+}
+
+void MainWindow::onRadioSelected(qint64 rid)
+{
+    if (!m_ncm || !m_ncmAvailable || rid <= 0) return;
+    SharedStatusBar::instance()->showMessage(_("radio.loading"), 0);
+    m_ncm->loadDjPrograms(rid, 50, 0, 0);
+}
+
+void MainWindow::onNcmDjPrograms(int rc, const QString& json, qint64 rid)
+{
+    SharedStatusBar::instance()->clearMessage();
+    if (rc != NCM_OK) {
+        showNcmError(rc, _("nav.radio_site"));
+        return;
+    }
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) return;
+    std::vector<Track> programs;
+    static int nextDjTrackId = 500000;
+    cJSON* arr = cJSON_GetObjectItem(root, "programs");
+    for (int i = 0; arr && i < cJSON_GetArraySize(arr); ++i) {
+        cJSON* it = cJSON_GetArrayItem(arr, i);
+        if (!it) continue;
+        const qint64 msid = cJSONInt(it, "main_song_id", 0);
+        Track t = makeNcmTrack(nextDjTrackId++, msid,
+                               cJSONStr(it, "name", ""), _("nav.radio_site"),
+                               QString(), (int)cJSONInt(it, "duration_ms", 0),
+                               cJSONStr(it, "cover", ""), 0);
+        /* mainSong.id 交给既有 resolve 链路取流（电台 mp3Url 已废弃） */
+        t.playable = msid > 0;
+        programs.push_back(t);
+    }
+    cJSON_Delete(root);
+    contentView->showRadioPrograms(rid, _("nav.radio_site"), programs);
 }
 
 void MainWindow::showNcmError(int rc, const QString& op)
@@ -2144,6 +2229,9 @@ void MainWindow::onNcmTopPlaylists(int, const QString&, int) {}
 void MainWindow::onNcmPlaylistTracks(int, const QString&, int) {}
 void MainWindow::onNcmSource(int, const QString&, qint64) {}
 void MainWindow::onNcmAuthRequired(const QString&) {}
+void MainWindow::onNcmDjHot(int, const QString&) {}
+void MainWindow::onNcmDjPrograms(int, const QString&, qint64) {}
+void MainWindow::onRadioSelected(qint64) {}
 
 #endif /* NCM_ENABLE */
 

@@ -48,13 +48,13 @@
     <name>HomePage</name>
     <message>
         <location filename="../src/mainpage.cpp" line="51"/>
-        <location filename="../src/mainpage.cpp" line="401"/>
+        <location filename="../src/mainpage.cpp" line="417"/>
         <source>Not signed in</source>
         <translation>未登录</translation>
     </message>
     <message>
         <location filename="../src/mainpage.cpp" line="53"/>
-        <location filename="../src/mainpage.cpp" line="404"/>
+        <location filename="../src/mainpage.cpp" line="420"/>
         <source>Tap to sign in</source>
         <translation>点击登录</translation>
     </message>
@@ -71,9 +71,9 @@
     </message>
     <message>
         <location filename="../src/mainpage.cpp" line="98"/>
-        <location filename="../src/mainpage.cpp" line="363"/>
         <location filename="../src/mainpage.cpp" line="379"/>
-        <location filename="../src/mainpage.cpp" line="383"/>
+        <location filename="../src/mainpage.cpp" line="395"/>
+        <location filename="../src/mainpage.cpp" line="399"/>
         <source>163 Music</source>
         <translation>163音乐</translation>
     </message>
@@ -99,98 +99,114 @@
         <translation>本地音乐即将支持</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="145"/>
-        <location filename="../src/mainpage.cpp" line="270"/>
+        <location filename="../src/mainpage.cpp" line="146"/>
+        <source>Internet radio coming soon</source>
+        <translation>网络电台即将支持</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="153"/>
+        <location filename="../src/mainpage.cpp" line="259"/>
+        <source>Stations &amp; Radio</source>
+        <translation>站点电台</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="159"/>
+        <location filename="../src/mainpage.cpp" line="288"/>
         <source>Hot Playlists</source>
         <translation>热门歌单</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="154"/>
+        <location filename="../src/mainpage.cpp" line="168"/>
         <source>Load failed: %1</source>
         <translation>加载失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="181"/>
+        <location filename="../src/mainpage.cpp" line="195"/>
         <source>Search</source>
         <translation>搜索</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="183"/>
+        <location filename="../src/mainpage.cpp" line="197"/>
         <source>My Favorites</source>
         <translation>我的收藏</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="184"/>
+        <location filename="../src/mainpage.cpp" line="198"/>
         <source>Logs</source>
         <translation>日志</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="185"/>
+        <location filename="../src/mainpage.cpp" line="199"/>
         <source>Settings</source>
         <translation>设置</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="186"/>
+        <location filename="../src/mainpage.cpp" line="200"/>
         <source>About</source>
         <translation>关于</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="240"/>
+        <location filename="../src/mainpage.cpp" line="254"/>
         <source>Rankings</source>
         <translation>排行榜</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="241"/>
+        <location filename="../src/mainpage.cpp" line="255"/>
         <source>My Music</source>
         <translation>我的音乐</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="242"/>
+        <location filename="../src/mainpage.cpp" line="256"/>
         <source>Local Music</source>
         <translation>本地音乐</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="251"/>
+        <location filename="../src/mainpage.cpp" line="257"/>
+        <source>Internet Radio</source>
+        <translation>网络电台</translation>
+    </message>
+    <message>
+        <location filename="../src/mainpage.cpp" line="269"/>
         <source>Hot Categories</source>
         <translation>热门分类</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="363"/>
+        <location filename="../src/mainpage.cpp" line="379"/>
         <source>QQ Music</source>
         <translation>qq音乐</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="363"/>
+        <location filename="../src/mainpage.cpp" line="379"/>
         <source>Baidu Music</source>
         <translation>百度音乐</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="363"/>
+        <location filename="../src/mainpage.cpp" line="379"/>
         <source>Kugou Music</source>
         <translation>酷狗音乐</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="364"/>
+        <location filename="../src/mainpage.cpp" line="380"/>
         <source>Kuwo Music</source>
         <translation>酷我音乐</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="364"/>
+        <location filename="../src/mainpage.cpp" line="380"/>
         <source>Bilibili Music</source>
         <translation>bili音乐</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="364"/>
+        <location filename="../src/mainpage.cpp" line="380"/>
         <source>YouTube Music</source>
         <translation>youtube音乐</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="382"/>
+        <location filename="../src/mainpage.cpp" line="398"/>
         <source>This site is coming soon</source>
         <translation>该站点即将支持</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="403"/>
+        <location filename="../src/mainpage.cpp" line="419"/>
         <source>Signed in</source>
         <translation>已登录</translation>
     </message>
@@ -313,42 +329,58 @@
         <translation>%1万</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="48"/>
+        <location filename="../src/playlistlistpage.cpp" line="49"/>
         <source>Hot Playlists</source>
         <translation>热门歌单</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="101"/>
+        <location filename="../src/playlistlistpage.cpp" line="109"/>
         <source>Load more</source>
         <translation>加载更多</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="114"/>
+        <location filename="../src/playlistlistpage.cpp" line="123"/>
+        <location filename="../src/playlistlistpage.cpp" line="143"/>
         <source>Load failed: %1</source>
         <translation>加载失败：%1</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="121"/>
+        <location filename="../src/playlistlistpage.cpp" line="130"/>
         <source>No playlists</source>
         <translation>暂无歌单</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="135"/>
+        <location filename="../src/playlistlistpage.cpp" line="157"/>
+        <source>No radios</source>
+        <translation>暂无电台</translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="172"/>
         <source>Loading playlists…</source>
         <translation>正在加载歌单…</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="142"/>
+        <location filename="../src/playlistlistpage.cpp" line="172"/>
+        <source>Loading radio…</source>
+        <translation>正在加载电台…</translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="184"/>
         <source>All</source>
         <translation>全部</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="170"/>
+        <location filename="../src/playlistlistpage.cpp" line="213"/>
+        <source>%1 programs</source>
+        <translation>%1 期</translation>
+    </message>
+    <message>
+        <location filename="../src/playlistlistpage.cpp" line="215"/>
         <source>%1 tracks</source>
         <translation>%1 首</translation>
     </message>
     <message>
-        <location filename="../src/playlistlistpage.cpp" line="171"/>
+        <location filename="../src/playlistlistpage.cpp" line="216"/>
         <source> · %1 plays</source>
         <translation> · %1 次播放</translation>
     </message>
@@ -441,6 +473,68 @@
     </message>
 </context>
 <context>
+    <name>RadioPage</name>
+    <message>
+        <location filename="../src/radiopage.cpp" line="74"/>
+        <source>▶ Play All</source>
+        <translation>▶ 播放全部</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="78"/>
+        <location filename="../src/radiopage.cpp" line="164"/>
+        <source>No programs</source>
+        <translation>暂无节目</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="81"/>
+        <source>Resolving play URL…</source>
+        <translation>正在获取播放链接…</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="86"/>
+        <source>Loading radio programs…</source>
+        <translation>正在加载节目…</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="103"/>
+        <location filename="../src/radiopage.cpp" line="113"/>
+        <location filename="../src/radiopage.cpp" line="241"/>
+        <location filename="../src/radiopage.cpp" line="277"/>
+        <source>No audio for this program</source>
+        <translation>该节目无音源</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="126"/>
+        <source>Download: %1</source>
+        <translation>下载：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="149"/>
+        <source>Load failed: %1</source>
+        <translation>加载失败：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="168"/>
+        <source>%1 programs</source>
+        <translation>%1 期</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="181"/>
+        <source>Failed to get download URL: %1</source>
+        <translation>获取下载链接失败：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="188"/>
+        <source>Added to downloads</source>
+        <translation>已加入下载</translation>
+    </message>
+    <message>
+        <location filename="../src/radiopage.cpp" line="281"/>
+        <source>Already cached</source>
+        <translation>已缓存，无需下载</translation>
+    </message>
+</context>
+<context>
     <name>SearchPage</name>
     <message>
         <location filename="../src/searchpage.cpp" line="48"/>
@@ -514,7 +608,7 @@
     </message>
     <message>
         <source>None</source>
-        <translation type="vanished">无</translation>
+        <translation>无</translation>
     </message>
     <message>
         <source>Animator4 (default)</source>
@@ -547,18 +641,18 @@
 <context>
     <name>main</name>
     <message>
-        <location filename="../src/main.cpp" line="411"/>
+        <location filename="../src/main.cpp" line="412"/>
         <source>Volume panel: coming soon</source>
         <translation>音量弹层：下轮实装</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="441"/>
+        <location filename="../src/main.cpp" line="442"/>
         <source>Play a song first</source>
         <translation>先播放一首歌</translation>
     </message>
     <message>
-        <location filename="../src/main.cpp" line="448"/>
-        <location filename="../src/main.cpp" line="462"/>
+        <location filename="../src/main.cpp" line="449"/>
+        <location filename="../src/main.cpp" line="463"/>
         <source>Loading…</source>
         <translation>加载中…</translation>
     </message>

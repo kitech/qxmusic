@@ -8,7 +8,7 @@ const (
 	// AbiVersion 是 C ABI 版本。include/ncm.h 中任何破坏性变更
 	// （删改已有导出符号、修改已有函数签名或结构体布局）都必须递增，
 	// 并在 ncm_version() 的输出中体现，方便 UI 侧做兼容判断。
-	AbiVersion = 4
+	AbiVersion = 6
 )
 
 // String 形如 "0.1.0 (abi 2)"。

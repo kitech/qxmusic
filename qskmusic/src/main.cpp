@@ -21,6 +21,7 @@
 #include "playlistlistpage.h"
 #include "playlisttrackspage.h"
 #include "favoritespage.h"
+#include "radiopage.h"
 #include "favorites.h"
 #include "searchpage.h"
 #include "logpage.h"
@@ -512,6 +513,10 @@ int main(int argc, char* argv[])
 
     pageManager->registerPage("favorites", []() -> Page* {
         return new FavoritesPage();
+    }, {CachePolicy::Transient, LaunchMode::Standard});
+
+    pageManager->registerPage("radioPrograms", []() -> Page* {
+        return new RadioPage();
     }, {CachePolicy::Transient, LaunchMode::Standard});
 
     pageManager->registerPage("search", []() -> Page* {

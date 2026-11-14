@@ -32,6 +32,14 @@ public:
                           bool hasMore, bool loading);
     void setListLoading(bool loading);
 
+    /* 站点电台：电台列表（复用 PlaylistListMode 渲染，点击发 radioSelected） */
+    void showRadioList(const QString& title,
+                       const std::vector<RemotePlaylistCard>& radios,
+                       bool hasMore, bool loading);
+    /* 站点电台：节目列表（复用 TracksMode；m_tempPl 作宿主保证 m_pl 有效） */
+    void showRadioPrograms(qint64 rid, const QString& title,
+                           const std::vector<Track>& programs);
+
     /* CategoryGridMode：NCM 分类宫格 */
     void showCategoryGrid(const QStringList& cats);
 
@@ -46,6 +54,8 @@ signals:
     /* TracksMode 右键菜单"收藏/取消收藏"（MainWindow 落 FavoriteStore） */
     void favToggled(int playlistId, int trackIndex);
     void playlistActivated(qint64 ncmPlaylistId);
+    /* 站点电台：列表里点了某电台（rid） */
+    void radioSelected(qint64 rid);
     void categoryActivated(const QString& cat);
     void loadMoreRequested();
     void backRequested();
@@ -78,6 +88,8 @@ private:
 
     std::vector<Playlist> m_lib;
     const Playlist* m_pl;
+    bool m_radioList;        /* PlaylistListMode 的电台变体：点卡片发 radioSelected */
+    Playlist m_tempPl;       /* showRadioPrograms 的宿主，生命周期由 ContentView 持有 */
     ViewMode m_mode;
     std::vector<Row> m_rows;
     std::vector<RemotePlaylistCard> m_cards;
@@ -88,8 +100,7 @@ private:
     int m_hover;
     int m_current;
     qint64 m_playingNcmId;   /* 正在播放的 NCM 曲目 id（0=无，本地曲不标） */
-    int m_playlistId;
-    int m_headerH;
+    int m_playlistId;    int m_headerH;
     int m_rowH;
     QString m_playAll;
     QString m_listTitle;

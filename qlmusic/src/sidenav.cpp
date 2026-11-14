@@ -86,6 +86,8 @@ void SideNav::retranslateUi()
     m_navRank = _("nav.rank");
     m_navMine = _("nav.mymusic");
     m_navLocal = _("nav.local_music");
+    m_navNetRadio = _("nav.net_radio");
+    m_navRadioSite = _("nav.radio_site");
     m_groupCreated = _("nav.created");
     m_groupCollected = _("nav.collected");
     m_groupCategories = _("nav.categories");
@@ -145,6 +147,12 @@ void SideNav::relayout()
     it.y = y; it.h = kItemH; y += kItemH;
     m_items.push_back(it);
     it.kind = NavLocalMusic; it.id = -4; it.text = m_navLocal; it.cat = QString();
+    it.y = y; it.h = kItemH; y += kItemH;
+    m_items.push_back(it);
+    it.kind = NavNetRadio; it.id = -5; it.text = m_navNetRadio; it.cat = QString();
+    it.y = y; it.h = kItemH; y += kItemH;
+    m_items.push_back(it);
+    it.kind = NavRadioSite; it.id = -6; it.text = m_navRadioSite; it.cat = QString();
     it.y = y; it.h = kItemH; y += kItemH;
     m_items.push_back(it);
 
@@ -349,12 +357,15 @@ void SideNav::paintEvent(QPaintEvent*)
             p.drawPixmap(6, r.y() + (r.height() - 18) / 2, icon);
             textX = 30;
         } else if (it.kind == NavHotPlaylists || it.kind == NavRank
-                   || it.kind == NavMyMusic || it.kind == NavLocalMusic) {
+                   || it.kind == NavMyMusic || it.kind == NavLocalMusic
+                   || it.kind == NavNetRadio || it.kind == NavRadioSite) {
             /* 固定入口图标（本地矢量；语义固定，不随文字哈希漂移） */
             const char* kind = "hot";
             if (it.kind == NavRank) kind = "rank";
             else if (it.kind == NavMyMusic) kind = "mymusic";
             else if (it.kind == NavLocalMusic) kind = "local";
+            else if (it.kind == NavNetRadio || it.kind == NavRadioSite)
+                kind = "radio";
             QPixmap icon = qximage::navIcon(QString::fromLatin1(kind), 18);
             p.drawPixmap(6, r.y() + (r.height() - 18) / 2, icon);
             textX = 30;
@@ -408,6 +419,14 @@ void SideNav::mousePressEvent(QMouseEvent* e)
     }
     if (it.kind == NavLocalMusic) {
         emit actionTriggered(2);   /* 暂缓：本地音乐即将支持 */
+        return;
+    }
+    if (it.kind == NavNetRadio) {
+        emit actionTriggered(3);   /* 空处理：网络电台即将支持 */
+        return;
+    }
+    if (it.kind == NavRadioSite) {
+        emit actionTriggered(4);   /* 站点电台：热门电台列表 */
         return;
     }
 }

@@ -144,3 +144,60 @@ void NcmCatalog::loadPlaylistTracksAsync(qint64 playlistId)
         Q_EMIT playlistTracksDone(info, err);
     }).detach();
 }
+
+void NcmCatalog::loadDjHotAsync(int cateId, int limit, int offset)
+{
+    std::thread([this, cateId, limit, offset]() {
+        std::string json;
+        const auto st = m_client.dj_hot(cateId, limit, offset, json);
+        QList<DjRadio> radios;
+        QString err;
+        if (st != ncm::Status::Ok) {
+            err = QString::fromStdString(std::string(ncm::to_string(st)));
+        } else {
+            const auto o = QJsonDocument::fromJson(
+                QByteArray::fromStdString(json)).object();
+            for (const auto& v : o.value("radios").toArray()) {
+                const auto r = v.toObject();
+                DjRadio d;
+                d.id = r.value("id").toVariant().toLongLong();
+                d.name = r.value("name").toString();
+                d.cover = r.value("cover").toString();
+                d.desc = r.value("desc").toString();
+                d.nickname = r.value("nickname").toString();
+                d.programCount = r.value("program_count").toInt();
+                radios << d;
+            }
+        }
+        qDebug() << "[qskmusic] ncm dj hot:" << radios.size() << err;
+        Q_EMIT djHotDone(radios, err);
+    }).detach();
+}
+
+void NcmCatalog::loadDjProgramsAsync(qint64 rid, int limit, int offset)
+{
+    std::thread([this, rid, limit, offset]() {
+        std::string json;
+        const auto st = m_client.dj_programs(rid, limit, offset, 0, json);
+        QList<DjProgram> programs;
+        QString err;
+        if (st != ncm::Status::Ok) {
+            err = QString::fromStdString(std::string(ncm::to_string(st)));
+        } else {
+            const auto o = QJsonDocument::fromJson(
+                QByteArray::fromStdString(json)).object();
+            for (const auto& v : o.value("programs").toArray()) {
+                const auto p = v.toObject();
+                DjProgram d;
+                d.id = p.value("id").toVariant().toLongLong();
+                d.mainSongId = p.value("main_song_id").toVariant().toLongLong();
+                d.name = p.value("name").toString();
+                d.cover = p.value("cover").toString();
+                d.durationMs = p.value("duration_ms").toInt();
+                programs << d;
+            }
+        }
+        qDebug() << "[qskmusic] ncm dj programs:" << rid << programs.size() << err;
+        Q_EMIT djProgramsDone(rid, programs, err);
+    }).detach();
+}

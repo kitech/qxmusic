@@ -38,7 +38,7 @@ QString fmtCount(qint64 n)
 }
 
 ContentView::ContentView(QWidget* parent)
-    : QWidget(parent), m_pl(0), m_mode(TracksMode), m_scrollBar(0), m_scrollY(0),
+    : QWidget(parent), m_pl(0), m_radioList(false), m_mode(TracksMode), m_scrollBar(0), m_scrollY(0),
       m_scrollDelta(0), m_hover(-1), m_current(-1), m_playingNcmId(0), m_playlistId(-1),
       m_headerH(64), m_rowH(48), m_hasMore(false), m_loadingNow(false)
 {
@@ -110,6 +110,7 @@ void ContentView::showPlaylistList(const QString& title, const std::vector<Remot
                                    bool hasMore, bool loading)
 {
     m_mode = PlaylistListMode;
+    m_radioList = false;
     m_pl = 0;
     m_playlistId = -1;
     m_listTitle = title;
@@ -119,6 +120,47 @@ void ContentView::showPlaylistList(const QString& title, const std::vector<Remot
     m_hover = -1;
     m_current = -1;
     m_scrollY = 0;
+    rebuildRows();
+    updateScrollBar();
+    update();
+}
+
+void ContentView::showRadioList(const QString& title,
+                                const std::vector<RemotePlaylistCard>& radios,
+                                bool hasMore, bool loading)
+{
+    m_mode = PlaylistListMode;
+    m_radioList = true;
+    m_pl = 0;
+    m_playlistId = -1;
+    m_listTitle = title;
+    m_cards = radios;
+    m_hasMore = hasMore;
+    m_loadingNow = loading;
+    m_hover = -1;
+    m_current = -1;
+    m_scrollY = 0;
+    rebuildRows();
+    updateScrollBar();
+    update();
+}
+
+void ContentView::showRadioPrograms(qint64 rid, const QString& title,
+                                    const std::vector<Track>& programs)
+{
+    m_tempPl = Playlist();
+    m_tempPl.id = (int)(rid & 0x7fffffff);
+    m_tempPl.name = title;
+    m_tempPl.tracks = programs;
+    m_tempPl.trackCount = (int)programs.size();
+    m_mode = TracksMode;
+    m_radioList = false;
+    m_pl = &m_tempPl;
+    m_playlistId = m_tempPl.id;
+    m_current = -1;
+    m_scrollY = 0;
+    m_hasMore = false;
+    m_loadingNow = false;
     rebuildRows();
     updateScrollBar();
     update();
@@ -526,7 +568,10 @@ void ContentView::mousePressEvent(QMouseEvent* e)
         }
         int idx = rowAt(e->pos());
         if (idx < 0) return;
-        emit playlistActivated(m_cards[idx].id);
+        if (m_radioList)
+            emit radioSelected(m_cards[idx].id);
+        else
+            emit playlistActivated(m_cards[idx].id);
         return;
     }
     if (m_mode == CategoryGridMode) {

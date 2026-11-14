@@ -13,6 +13,8 @@
     "favorites": "我的收藏",
     "local_music": "本地音樂",
     "local_coming": "本地音樂即將支援",
+    "net_radio": "網路電台",
+    "radio_site": "站點電台",
     "rank_coming": "排行榜即將支援"
   },
   "content": {
@@ -27,6 +29,11 @@
     "local_only": "本地曲目無法收藏（僅線上歌曲）",
     "done": "已收藏",
     "removed": "已取消收藏"
+  },
+  "radio": {
+    "net_coming": "網路電台即將支援",
+    "loading": "正在載入電台…",
+    "no_source": "該節目無音源"
   },
   "site": {
     "label": "音樂站點",

@@ -627,6 +627,30 @@ void NcmService::like(qint64 songId, bool on)
     m_worker->push(t);
 }
 
+void NcmService::loadDjHot(int cateId, int limit, int offset)
+{
+    NcmTask t;
+    t.kind = NcmTaskDjHot;
+    t.op = "dj_hot";
+    t.sel = cateId;
+    t.limit = limit;
+    t.offset = offset;
+    m_worker->push(t);
+}
+
+void NcmService::loadDjPrograms(qint64 rid, int limit, int offset, int asc)
+{
+    if (rid <= 0) return;
+    NcmTask t;
+    t.kind = NcmTaskDjPrograms;
+    t.op = "dj_programs";
+    t.id = rid;
+    t.limit = limit;
+    t.offset = offset;
+    t.sel = asc;
+    m_worker->push(t);
+}
+
 void NcmService::execTask(const NcmTask& t)
 {
     if (!m_client) return;
@@ -714,6 +738,20 @@ void NcmService::execTask(const NcmTask& t)
         if (out) ncm_free_string(out);
         break;
     }
+    case NcmTaskDjHot: {
+        char* out = 0;
+        rc = ncm_dj_hot(m_client, t.sel, t.limit, t.offset, &out);
+        if (rc == NCM_OK && out) json = out;
+        if (out) ncm_free_string(out);
+        break;
+    }
+    case NcmTaskDjPrograms: {
+        char* out = 0;
+        rc = ncm_dj_programs(m_client, t.id, t.limit, t.offset, t.sel, &out);
+        if (rc == NCM_OK && out) json = out;
+        if (out) ncm_free_string(out);
+        break;
+    }
     default:
         return;
     }
@@ -772,6 +810,14 @@ void NcmService::handleResult(NcmResultEvent* e)
     }
     if (op == qFromUtf8("like")) {
         emit likeDone(e->id, e->sel != 0, e->rc);
+        return;
+    }
+    if (op == qFromUtf8("dj_hot")) {
+        emit djHotLoaded(e->rc, json);
+        return;
+    }
+    if (op == qFromUtf8("dj_programs")) {
+        emit djProgramsLoaded(e->rc, json, e->id);
         return;
     }
     if (op == qFromUtf8("playlist_categories")) {

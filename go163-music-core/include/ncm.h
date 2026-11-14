@@ -197,6 +197,20 @@ NCM_API int32_t NCM_CALL ncm_like_list(ncm_client *client, char **out_json);
 /* 认证: 是。like 非 0 = 收藏，0 = 取消。出参: {"song_id","liked"} */
 NCM_API int32_t NCM_CALL ncm_like(ncm_client *client, int64_t song_id, int32_t like, char **out_json);
 
+/* ---- 电台（djradio；节目音频 = mainSong.id → ncm_resolve_source） ---- */
+
+/* 认证: 否。cate_id=0 = 全部。出参:
+ * {"radios":[{"id","name","cover","desc","program_count","nickname"}]} */
+NCM_API int32_t NCM_CALL ncm_dj_hot(ncm_client *client, int32_t cate_id,
+                                    int32_t limit, int32_t offset, char **out_json);
+/* 认证: 否。出参: {"id","name","cover","desc","program_count","nickname"} */
+NCM_API int32_t NCM_CALL ncm_dj_detail(ncm_client *client, int64_t rid, char **out_json);
+/* 认证: 部分电台需登录（301）。asc=0 新→老。出参:
+ * {"count":N,"programs":[{"id","name","cover","duration_ms","main_song_id","create_time"}]} */
+NCM_API int32_t NCM_CALL ncm_dj_programs(ncm_client *client, int64_t rid,
+                                         int32_t limit, int32_t offset,
+                                         int32_t asc, char **out_json);
+
 /* ---- 播放 ---- */
 
 /* 认证: 免费曲否；VIP 音质/无版权 301 或空 url。出参: {"song_id","url","source","quality","format","size","expires_ms","level"} */

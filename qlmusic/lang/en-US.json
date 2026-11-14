@@ -13,6 +13,8 @@
     "favorites": "My Favorites",
     "local_music": "Local Music",
     "local_coming": "Local music coming soon",
+    "net_radio": "Internet Radio",
+    "radio_site": "Stations & Radio",
     "rank_coming": "Rankings coming soon"
   },
   "content": {
@@ -27,6 +29,11 @@
     "local_only": "Local tracks can't be favorited (online songs only)",
     "done": "Added to favorites",
     "removed": "Removed from favorites"
+  },
+  "radio": {
+    "net_coming": "Internet radio coming soon",
+    "loading": "Loading radio…",
+    "no_source": "No audio for this program"
   },
   "site": {
     "label": "Music Site",

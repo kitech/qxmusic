@@ -43,6 +43,7 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
     const QVariantMap&)
 {
     m_cat = launchArgs.value("cat").toString();
+    m_radio = launchArgs.value("radio").toBool();
     m_title = launchArgs.value("title").toString();
     if (m_title.isEmpty())
         m_title = m_cat.isEmpty() ? tr("Hot Playlists") : m_cat;
@@ -86,9 +87,16 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
                 const auto& card = m_cards.at(idx);
                 if (auto* pm = pageManager()) {
                     QVariantMap args;
-                    args.insert("playlistId", card.id);
-                    args.insert("title", card.name);
-                    pm->open("tracks", args);
+                    if (m_radio) {
+                        /* 站点电台：卡片 id 是电台 rid → 节目页 */
+                        args.insert("rid", card.id);
+                        args.insert("title", card.name);
+                        pm->open("radioPrograms", args);
+                    } else {
+                        args.insert("playlistId", card.id);
+                        args.insert("title", card.name);
+                        pm->open("tracks", args);
+                    }
                 }
             });
     }
@@ -107,6 +115,7 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
 
     connect(&NcmCatalog::instance(), &NcmCatalog::topPlaylistsDone, this,
         [this](const QList<PlaylistCard>& cards, bool more, const QString& err) {
+            if (m_radio) return;      // 电台模式走 djHotDone
             if (!m_loading) return;   // 非本页在途请求
             m_loading = false;
             if (!err.isEmpty()) {
@@ -125,6 +134,33 @@ void PlaylistListPage::onCreate(const QVariantMap& launchArgs,
             rebuildCards();
         });
 
+    connect(&NcmCatalog::instance(), &NcmCatalog::djHotDone, this,
+        [this](const QList<DjRadio>& radios, const QString& err) {
+            if (!m_radio || !m_loading) return;
+            m_loading = false;
+            if (!err.isEmpty()) {
+                m_status->setStatus(StatusLine::Error,
+                    tr("Load failed: %1").arg(err));
+                m_moreBtn->setVisible(m_more);
+                return;
+            }
+            for (const auto& r : radios) {
+                PlaylistCard c;
+                c.id = r.id;
+                c.name = r.name;
+                c.creator = r.nickname;
+                c.cover = r.cover;
+                c.trackCount = r.programCount;
+                m_cards << c;
+            }
+            if (m_cards.isEmpty())
+                m_status->setStatus(StatusLine::Info, tr("No radios"));
+            else
+                m_status->clearStatus();
+            m_moreBtn->setVisible(false);   // 电台首页一次 30 条，不滚动分页
+            rebuildCards();
+        });
+
     requestPage(0);
 }
 
@@ -132,11 +168,17 @@ void PlaylistListPage::requestPage(int offset)
 {
     if (m_loading) return;
     m_loading = true;
-    m_status->setStatus(StatusLine::Loading, tr("Loading playlists…"));
+    m_status->setStatus(StatusLine::Loading,
+        m_radio ? tr("Loading radio…") : tr("Loading playlists…"));
     m_moreBtn->setVisible(false);
     if (offset == 0) {
         m_cards.clear();
         m_more = false;
+    }
+    if (m_radio) {
+        /* 站点电台：热门电台（cateId=0 全部，分页 30/次） */
+        NcmCatalog::instance().loadDjHotAsync(0, 30, offset);
+        return;
     }
     // 热门哨兵：服务端 cat="全部"（qlmusic 同口径）
     const QString cat = m_cat.isEmpty() ? tr("All") : m_cat;
@@ -167,8 +209,12 @@ void PlaylistListPage::rebuildCards()
         QString sub;
         if (!card.creator.isEmpty())
             sub = elided(card.creator, 8) + QString::fromUtf8(" · ");
-        sub += tr("%1 tracks").arg(card.trackCount);
-        sub += tr(" · %1 plays").arg(fmtCount(card.playCount));
+        if (m_radio)
+            sub += tr("%1 programs").arg(card.trackCount);
+        else {
+            sub += tr("%1 tracks").arg(card.trackCount);
+            sub += tr(" · %1 plays").arg(fmtCount(card.playCount));
+        }
         auto* subLbl = new QskTextLabel(sub, row);
         subLbl->setPreferredWidth(120);
         subLbl->setSizePolicy(QskSizePolicy::Preferred, QskSizePolicy::Preferred);

@@ -97,6 +97,10 @@ private slots:
     void onNcmLikeList(int rc, const QString& json);
     void onNcmSongDetail(int rc, const QString& json, int sel);
     void onNcmLikeDone(qint64 songId, bool on, int rc);
+    /* 站点电台 */
+    void onNcmDjHot(int rc, const QString& json);
+    void onNcmDjPrograms(int rc, const QString& json, qint64 rid);
+    void onRadioSelected(qint64 rid);
 
 private:
     struct MenuItemRef {
