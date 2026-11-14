@@ -33,6 +33,8 @@ public:
 
 protected:
     virtual void closeEvent(QCloseEvent* event);
+    /* 首次显示：按屏幕可用区夹取窗口尺寸（mac 布局最小宽撑出屏幕的兜底） */
+    virtual void showEvent(QShowEvent* event);
     /* 空格=全局播放/暂停（app 级 eventFilter；输入控件/外来顶窗豁免） */
     bool eventFilter(QObject* obj, QEvent* ev);
     virtual void customEvent(CustomEventBase* event);
