@@ -264,6 +264,19 @@ void HomePage::rebuild(const QStringList& hot,
     addNavEntry(tr("Stations & Radio"), QStringLiteral("__radio__"),
                 QStringLiteral("radio"));
 
+    /* 网络电台：与 ql SideNav 顺序一致——紧跟站点电台之后、分类分组之前；
+     * 地区 chips（静态数据，无请求） */
+    addHeader(tr("Internet Radio"));
+    auto* netGrid = addSectionGrid();
+    {
+        int n = 0;
+        const char* const* regs = radiolist::regions(n);
+        for (int i = 0; i < n; ++i) {
+            const QString key = QString::fromUtf8(regs[i]);
+            addChip(netGrid, regionLabel(key), QStringLiteral("__net:") + key);
+        }
+    }
+
     auto addGroup = [&](const QString& title, const QStringList& cats) {
         if (cats.isEmpty()) return;
         addHeader(title);
@@ -275,17 +288,6 @@ void HomePage::rebuild(const QStringList& hot,
     for (const auto& g : groups)
         addGroup(g.name, g.categories);
 
-    /* 网络电台：与「分类/风格」同款分组 + 地区 chips（静态数据，无请求） */
-    addHeader(tr("Internet Radio"));
-    auto* netGrid = addSectionGrid();
-    {
-        int n = 0;
-        const char* const* regs = radiolist::regions(n);
-        for (int i = 0; i < n; ++i) {
-            const QString key = QString::fromUtf8(regs[i]);
-            addChip(netGrid, regionLabel(key), QStringLiteral("__net:") + key);
-        }
-    }
     m_rows->update();
 }
 

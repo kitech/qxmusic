@@ -199,6 +199,7 @@ private:
     /* 播放条行为（Config 持久：player.repeat / player.autoskip） */
     int m_repeatMode;           /* 0=off 1=all 2=one */
     bool m_autoSkip;            /* 播放失败自动跳下一首（默认开） */
+    bool m_liveStream = false;  /* 网络电台直播流：不自动连播/不出进度 */
     int m_errSkipRun;           /* 连续失败计数，成功播放清零 */
     int m_autoSkipMenuIndex;    /* Tool 菜单 check 项（updateBackendChecks 范式） */
     enum { kErrSkipStopAt = 99 };   /* 连续失败止损阈值（foo_skip 惯例量级） */

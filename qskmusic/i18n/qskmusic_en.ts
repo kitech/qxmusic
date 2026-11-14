@@ -237,14 +237,14 @@
 <context>
     <name>NetRadioPage</name>
     <message>
-        <location filename="../src/netradiopage.cpp" line="102"/>
-        <source>HLS streams not supported yet</source>
+        <location filename="../src/netradiopage.cpp" line="101"/>
+        <source>Playing radio: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/netradiopage.cpp" line="107"/>
-        <source>Playing radio: %1</source>
-        <translation type="unfinished"></translation>
+        <location filename="../src/netradiopage.cpp" line="131"/>
+        <source>Radio stream unavailable</source>
+        <translation>Radio stream unavailable</translation>
     </message>
 </context>
 <context>

@@ -1380,6 +1380,12 @@ void MainWindow::onAudioState(int state)
 
 void MainWindow::onAudioFinished()
 {
+    if (m_liveStream) {
+        m_liveStream = false;
+        if (playerBar) playerBar->setLive(false);
+        /* 直播流正常结束（断流/切台）：停留原地，不 advanceNext */
+        return;
+    }
     if (m_repeatMode == 2 && m_curTrackIndex >= 0) {
         playTrack(m_curPlaylistId, m_curTrackIndex);   /* 单曲重复 */
         return;
@@ -1389,6 +1395,16 @@ void MainWindow::onAudioFinished()
 
 void MainWindow::onAudioError(const QString& msg)
 {
+    if (m_liveStream) {
+        m_liveStream = false;
+        if (playerBar) playerBar->setLive(false);
+        playerBar->setPlaying(false);
+        ToastWidget::showCenter(this, _("radio.stream_error"),
+            ToastWidget::Warning, 3000);
+        SharedStatusBar::instance()->showMessage(
+            _("player.error") + qFromUtf8(": ") + msg, 5000);
+        return;
+    }
     if (m_autoSkip) {
         ALOG_WARN(msg);
         skipOnError(msg);
@@ -2088,6 +2104,14 @@ void MainWindow::onNetRadioStream(int index)
     std::vector<RadioStation> list = radiolist::byRegion(contentView->currentNetRegion());
     if (index >= (int)list.size()) return;
     const RadioStation& s = list[index];
+    /* 直播流：HLS 交给 ffmpeg/mpv 后端原生 demux（lavf 内置 hls）；
+     * faad 后端不支持 m3u8 → 固定 faad 时提示切后端 */
+    if (audioEngine && audioEngine->backendId() == qFromUtf8("faad")) {
+        SharedStatusBar::instance()->showMessage(_("radio.faad_hls"), 0);
+        ToastWidget::showCenter(this, _("radio.faad_hls"), ToastWidget::Warning, 3000);
+        return;
+    }
+    m_liveStream = true;
     ensureEngine();
     audioEngine->open(QString::fromUtf8(s.url));
     audioEngine->play();
@@ -2106,6 +2130,7 @@ void MainWindow::onNetRadioStream(int index)
     if (playerBar) {
         playerBar->setTrack(t);
         playerBar->setPlaying(true);
+        playerBar->setLive(s.hls);
     }
     SharedStatusBar::instance()->showMessage(
         _("radio.playing") + qFromUtf8(" ") + t.title, 3000);
@@ -2291,6 +2316,14 @@ void MainWindow::onNetRadioStream(int index)
     std::vector<RadioStation> list = radiolist::byRegion(contentView->currentNetRegion());
     if (index >= (int)list.size()) return;
     const RadioStation& s = list[index];
+    /* 直播流：HLS 交给 ffmpeg/mpv 后端原生 demux（lavf 内置 hls）；
+     * faad 后端不支持 m3u8 → 固定 faad 时提示切后端 */
+    if (audioEngine && audioEngine->backendId() == qFromUtf8("faad")) {
+        SharedStatusBar::instance()->showMessage(_("radio.faad_hls"), 0);
+        ToastWidget::showCenter(this, _("radio.faad_hls"), ToastWidget::Warning, 3000);
+        return;
+    }
+    m_liveStream = true;
     ensureEngine();
     audioEngine->open(QString::fromUtf8(s.url));
     audioEngine->play();
@@ -2308,6 +2341,7 @@ void MainWindow::onNetRadioStream(int index)
     if (playerBar) {
         playerBar->setTrack(t);
         playerBar->setPlaying(true);
+        playerBar->setLive(s.hls);
     }
     SharedStatusBar::instance()->showMessage(
         _("radio.playing") + qFromUtf8(" ") + t.title, 3000);

@@ -18,6 +18,7 @@ public:
     bool isPlaying() const { return m_playing; }
     void setProgress(int ms);
     void setDuration(int ms);
+    void setLive(bool on);           /* 直播流：隐藏 seek/时长，画 LIVE 徽标 */
     void setRepeatMode(int mode);     /* 0=off 1=all 2=one */
     void setAutoSkip(bool on);
     void setVolume(int v);           /* 0-100；0=静音态（喇叭画斜杠） */
@@ -83,6 +84,7 @@ private:
     Track m_track;
     bool m_hasTrack;
     bool m_playing;
+    bool m_live;
     int m_progressMs;
     int m_durationMs;
     int m_repeatMode;

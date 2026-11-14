@@ -35,7 +35,9 @@
     "loading": "Loading radio…",
     "no_source": "No audio for this program",
     "playing": "Playing radio: ",
-    "hls_no": "This station is an HLS stream, playback not supported yet",
+    "live": "LIVE",
+    "faad_hls": "Current audio engine doesn't support radio streams; switch to auto/ffmpeg/mpv in Settings",
+    "stream_error": "Radio stream unavailable or interrupted",
     "region": {
       "china": "China",
       "hongkong": "HongKong",

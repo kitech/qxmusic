@@ -35,7 +35,9 @@
     "loading": "正在載入電台…",
     "no_source": "該節目無音源",
     "playing": "正在播放電台：",
-    "hls_no": "該電台為 HLS 串流，暫不支援播放",
+    "live": "LIVE",
+    "faad_hls": "目前音訊引擎不支援電台直播流，請在設定中切換為自動/ffmpeg/mpv",
+    "stream_error": "電台串流不可用或已中斷",
     "region": {
       "china": "中國",
       "hongkong": "香港",

@@ -100,7 +100,7 @@
     </message>
     <message>
         <source>Internet radio coming soon</source>
-        <translation>網路電台即將支援</translation>
+        <translation type="vanished">網路電台即將支援</translation>
     </message>
     <message>
         <location filename="../src/mainpage.cpp" line="160"/>
@@ -246,21 +246,25 @@
     <name>NetRadioPage</name>
     <message>
         <source>Internet Radio</source>
-        <translation>網路電台</translation>
+        <translation type="vanished">網路電台</translation>
     </message>
     <message>
         <source>%1 stations</source>
-        <translation>%1 家</translation>
+        <translation type="vanished">%1 家</translation>
     </message>
     <message>
-        <location filename="../src/netradiopage.cpp" line="102"/>
         <source>HLS streams not supported yet</source>
-        <translation>HLS 電台暫不支援播放</translation>
+        <translation type="vanished">HLS 電台暫不支援播放</translation>
     </message>
     <message>
-        <location filename="../src/netradiopage.cpp" line="107"/>
+        <location filename="../src/netradiopage.cpp" line="101"/>
         <source>Playing radio: %1</source>
         <translation>正在播放電台：%1</translation>
+    </message>
+    <message>
+        <location filename="../src/netradiopage.cpp" line="131"/>
+        <source>Radio stream unavailable</source>
+        <translation>該電台串流不可用，請稍後重試</translation>
     </message>
 </context>
 <context>

@@ -40,6 +40,10 @@ void NetRadioPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
 {
     const QString region = launchArgs.value("region").toString();
     const QString title = launchArgs.value("title").toString();
+    /* TODO(debug): 定位空列表——定稿前拔除 */
+    qWarning().noquote() << "[NetRadio][debug] launchArgs.keys="
+                         << launchArgs.keys() << "region=" << region
+                         << "title=" << title;
     const QString headerTitle = title.isEmpty()
         ? regionLabel(region) : title;
 
@@ -67,6 +71,9 @@ void NetRadioPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
     // ── 地区内电台行列表（region 必传：来自首页地区 chip）──
     {
         const auto list = radiolist::byRegion(region);
+        /* TODO(debug): 定稿前拔除 */
+        qWarning().noquote() << "[NetRadio][debug] byRegion(" << region
+                             << ") rows=" << list.size();
         auto* rows = new QskLinearBox(Qt::Vertical);
         rows->setSpacing(2);
         rows->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Minimum);
@@ -91,17 +98,11 @@ void NetRadioPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
                 row);
             label->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
             label->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
-            if (s.hls)
-                label->setOpacity(0.45);   /* 灰态：HLS 暂不支持 */
 
             auto* playBtn = new QskPushButton(QString::fromUtf8("▶"), row);
             playBtn->setPreferredSize(30, 30);
 
             auto play = [this, marker, region, s]() {
-                if (s.hls) {
-                    ToastPopup::show(this, tr("HLS streams not supported yet"));
-                    return;
-                }
                 marker->setText(QString::fromUtf8("▶"));
                 ToastPopup::show(this,
                     tr("Playing radio: %1").arg(elided(QString::fromUtf8(s.name), 10)));
@@ -116,4 +117,24 @@ void NetRadioPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
             connect(tap, &QQuickTapHandler::singleTapped, this, play);
         }
     }
+
+    /* 断流/切台：AudioPlayer finished → 本页 ▶ 标记复位 */
+    connect(AudioPlayer::instance(), &AudioPlayer::finished, this,
+        [this](const QString& id) {
+            if (!id.startsWith(QStringLiteral("netradio-"))) return;
+            const auto rows = m_layout->findChildren<QskLinearBox*>();
+            for (auto* row : rows) {
+                const auto labels = row->findChildren<QskTextLabel*>();
+                if (!labels.isEmpty()
+                    && labels.first()->text() == QString::fromUtf8("▶"))
+                    labels.first()->setText(QString());
+            }
+        });
+
+    /* 起播失败（流不可达/格式拒绝）：▶ 复位由 finished 兜底，此处补提示 */
+    connect(AudioPlayer::instance(), &AudioPlayer::playError, this,
+        [this](const QString& id) {
+            if (!id.startsWith(QStringLiteral("netradio-"))) return;
+            ToastPopup::show(this, tr("Radio stream unavailable"));
+        });
 }

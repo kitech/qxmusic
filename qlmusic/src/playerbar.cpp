@@ -421,6 +421,7 @@ void drawTriangle(QPainter& p, const QRect& r, bool left, const QColor& c)
 PlayerBar::PlayerBar(QWidget* parent)
     : QWidget(parent), m_hasTrack(false), m_playing(false),
       m_progressMs(0), m_durationMs(0), m_repeatMode(0), m_autoSkip(true),
+      m_live(false),
       m_volume(100), m_lastVolume(100),
       m_tip(0),
       m_hover(HitNone), m_dragging(false),
@@ -517,6 +518,13 @@ void PlayerBar::setProgress(int ms)
 void PlayerBar::setDuration(int ms)
 {
     if (ms > 0) m_durationMs = ms;
+    update();
+}
+
+void PlayerBar::setLive(bool on)
+{
+    if (m_live == on) return;
+    m_live = on;
     update();
 }
 
@@ -947,6 +955,17 @@ void PlayerBar::paintEvent(QPaintEvent*)
     p.restore();
 
     QRect pr = progressRect();
+    if (m_live) {
+        /* 直播流：无 seek/时长，画 LIVE 徽标 */
+        QFont boldF = small;
+        boldF.setBold(true);
+        p.setFont(boldF);
+        p.setPen(pal.accent);
+        p.drawText(pr, Qt::AlignVCenter | Qt::AlignLeft, _("radio.live"));
+        p.setFont(small);
+        p.setPen(pal.textMuted);
+        return;
+    }
     p.setPen(Qt::NoPen);
     p.setBrush(pal.border);
     muiDrawRoundRect(p, pr, 3, 3);
@@ -980,7 +999,7 @@ void PlayerBar::mousePressEvent(QMouseEvent* e)
         emit autoSkipClicked();
     } else if (volumeRect().contains(e->pos())) {
         toggleVolumePopup();   /* 用户拍板：popup 弹滑条（非常驻） */
-    } else if (progressRect().contains(e->pos())) {
+    } else if (!m_live && progressRect().contains(e->pos())) {
         m_dragging = true;
         setProgressFromX(e->pos().x());
     }
@@ -1000,7 +1019,7 @@ void PlayerBar::mouseMoveEvent(QMouseEvent* e)
     else if (autoSkipRect().contains(e->pos())) h = HitAutoSkip;
     else if (volumeRect().contains(e->pos())) h = HitVolume;
     else if (m_dlSongId > 0 && downloadRect().contains(e->pos())) h = HitDownload;
-    else if (progressRect().contains(e->pos())) h = HitProgress;
+    else if (!m_live && progressRect().contains(e->pos())) h = HitProgress;
     if (h != m_hover) {
         m_hover = h;
         update();

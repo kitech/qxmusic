@@ -215,13 +215,13 @@ void ContentView::showNetRadioRegion(const QString& regionKey, const QString& ti
         t.ncmId = 0;
         t.albumId = 0;
         t.title = QString::fromUtf8(s.name);
-        t.artist = s.hls ? QString::fromUtf8("· HLS") : QString();
+        t.artist = s.hls ? QString::fromUtf8("· HLS") : QString();   /* 信息标签，不再灰态 */
         t.album = QString();
         t.durationMs = 0;
         t.coverUrl = QString();
         t.coverSeed = QString("radio-%1-%2").arg(regionKey).arg((int)i);
         t.url = QString::fromUtf8(s.url);
-        t.playable = !s.hls;
+        t.playable = true;   /* HLS 走 ffmpeg/mpv 后端原生 demux */
         m_tempPl.tracks.push_back(t);
     }
     m_mode = TracksMode;
@@ -632,10 +632,6 @@ void ContentView::mousePressEvent(QMouseEvent* e)
         if (m_pl && !m_pl->tracks.empty()) {
             /* 网络电台「播放全部」：从第 1 台开始（HLS 首台则提示） */
             if (m_netRadioMode) {
-                if (!m_netRadioStreams.empty() && m_netRadioStreams[0].hls) {
-                    SharedStatusBar::instance()->showMessage(_("radio.hls_no"), 3000);
-                    return;
-                }
                 m_current = 0;
                 emit netRadioStreamSelected(0);
                 update();
@@ -651,10 +647,6 @@ void ContentView::mousePressEvent(QMouseEvent* e)
     if (idx < 0 || !m_pl) return;
     /* 网络电台：行=直播流（HLS 行灰态提示，不走 trackActivated） */
     if (m_netRadioMode) {
-        if (idx < (int)m_netRadioStreams.size() && m_netRadioStreams[idx].hls) {
-            SharedStatusBar::instance()->showMessage(_("radio.hls_no"), 3000);
-            return;
-        }
         m_current = idx;
         emit netRadioStreamSelected(idx);
         update();
