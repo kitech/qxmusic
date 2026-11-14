@@ -5,6 +5,7 @@
 #include "translator.h"
 #include "limelog.h"
 #include "icongen.h"
+#include "radiolist.h"
 
 #include <qlabel.h>
 #include <qcombobox.h>
@@ -149,12 +150,29 @@ void SideNav::relayout()
     it.kind = NavLocalMusic; it.id = -4; it.text = m_navLocal; it.cat = QString();
     it.y = y; it.h = kItemH; y += kItemH;
     m_items.push_back(it);
-    it.kind = NavNetRadio; it.id = -5; it.text = m_navNetRadio; it.cat = QString();
-    it.y = y; it.h = kItemH; y += kItemH;
-    m_items.push_back(it);
     it.kind = NavRadioSite; it.id = -6; it.text = m_navRadioSite; it.cat = QString();
     it.y = y; it.h = kItemH; y += kItemH;
     m_items.push_back(it);
+
+    /* 网络电台：顶级分类（组标题不可点）+ 显式地区子分类（NCM 分类同款行） */
+    y += 8;
+    it.kind = NavHeader; it.id = 0; it.text = m_navNetRadio; it.cat = QString();
+    it.count = (int)radiolist::stations().size();
+    it.y = y; it.h = kGroupH; y += kGroupH;
+    m_items.push_back(it);
+    {
+        int n = 0;
+        const char* const* regs = radiolist::regions(n);
+        for (int i = 0; i < n; ++i) {
+            it.kind = NavNetRegion; it.id = 0;
+            it.text = _(qToUtf8(radiolist::regionTitleKey(
+                QString::fromUtf8(regs[i]))).data());
+            it.cat = QString::fromUtf8(regs[i]);
+            it.count = -1;
+            it.y = y; it.h = kItemH; y += kItemH;
+            m_items.push_back(it);
+        }
+    }
 
     if (!m_hotCats.isEmpty() || !m_catGroups.isEmpty()) {
         y += 8;
@@ -337,7 +355,7 @@ void SideNav::paintEvent(QPaintEvent*)
         bool selected = false;
         if (it.kind == NavPlaylist)
             selected = (m_current == it.id);
-        else if (it.kind == NavCategory)
+        else if (it.kind == NavCategory || it.kind == NavNetRegion)
             selected = (!m_currentCat.isEmpty() && m_currentCat == it.cat);
         else if (it.kind == NavHotPlaylists)
             selected = (!m_currentCat.isEmpty() && m_currentCat == QString::fromUtf8(kHotViewKey));
@@ -351,20 +369,20 @@ void SideNav::paintEvent(QPaintEvent*)
         p.setFont(selected ? bold : normal);
         p.setPen(selected ? pal.accent : pal.textPrimary);
         int textX = 20;
-        if (it.kind == NavCategory) {
+        if (it.kind == NavCategory || it.kind == NavNetRegion) {
             // 分类图标（本地生成：首字色块，无网络依赖）
             QPixmap icon = qximage::categoryIcon(it.text, 18);
             p.drawPixmap(6, r.y() + (r.height() - 18) / 2, icon);
             textX = 30;
         } else if (it.kind == NavHotPlaylists || it.kind == NavRank
                    || it.kind == NavMyMusic || it.kind == NavLocalMusic
-                   || it.kind == NavNetRadio || it.kind == NavRadioSite) {
+                   || it.kind == NavRadioSite) {
             /* 固定入口图标（本地矢量；语义固定，不随文字哈希漂移） */
             const char* kind = "hot";
             if (it.kind == NavRank) kind = "rank";
             else if (it.kind == NavMyMusic) kind = "mymusic";
             else if (it.kind == NavLocalMusic) kind = "local";
-            else if (it.kind == NavNetRadio || it.kind == NavRadioSite)
+            else
                 kind = "radio";
             QPixmap icon = qximage::navIcon(QString::fromLatin1(kind), 18);
             p.drawPixmap(6, r.y() + (r.height() - 18) / 2, icon);
@@ -421,8 +439,11 @@ void SideNav::mousePressEvent(QMouseEvent* e)
         emit actionTriggered(2);   /* 暂缓：本地音乐即将支持 */
         return;
     }
-    if (it.kind == NavNetRadio) {
-        emit actionTriggered(3);   /* 空处理：网络电台即将支持 */
+    if (it.kind == NavNetRegion) {
+        m_currentCat = it.cat;
+        m_current = -1;
+        emit netRadioRegionSelected(it.cat);
+        update();
         return;
     }
     if (it.kind == NavRadioSite) {

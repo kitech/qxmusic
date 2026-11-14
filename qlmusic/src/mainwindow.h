@@ -101,6 +101,9 @@ private slots:
     void onNcmDjHot(int rc, const QString& json);
     void onNcmDjPrograms(int rc, const QString& json, qint64 rid);
     void onRadioSelected(qint64 rid);
+    /* 网络电台（内置清单） */
+    void onNetRadioRegion(const QString& regionKey);
+    void onNetRadioStream(int index);
 
 private:
     struct MenuItemRef {

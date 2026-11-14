@@ -33,7 +33,15 @@
   "radio": {
     "net_coming": "Internet radio coming soon",
     "loading": "Loading radio…",
-    "no_source": "No audio for this program"
+    "no_source": "No audio for this program",
+    "playing": "Playing radio: ",
+    "hls_no": "This station is an HLS stream, playback not supported yet",
+    "region": {
+      "china": "China",
+      "hongkong": "HongKong",
+      "asia": "Asia",
+      "international": "International"
+    }
   },
   "site": {
     "label": "Music Site",

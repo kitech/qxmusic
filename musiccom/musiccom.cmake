@@ -12,6 +12,8 @@ set(MUSICCOM_SOURCES
     ${MUSICCOM_DIR}/favoritestore.cpp
     ${MUSICCOM_DIR}/vinylpaint.h
     ${MUSICCOM_DIR}/vinylpaint.cpp
+    ${MUSICCOM_DIR}/radiolist.h
+    ${MUSICCOM_DIR}/radiolist.cpp
 )
 
 set(MUSICCOM_INCLUDE_DIRS ${MUSICCOM_DIR})

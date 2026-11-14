@@ -114,6 +114,8 @@ qt_add_executable(qskmusic
     src/favoritespage.cpp
     src/radiopage.h
     src/radiopage.cpp
+    src/netradiopage.h
+    src/netradiopage.cpp
     src/vinylitem.h
     src/vinylitem.cpp
     src/statusline.h

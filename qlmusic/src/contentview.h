@@ -3,6 +3,7 @@
 
 #include "compat34.h"
 #include "musicmodel.h"
+#include "radiolist.h"
 #include <qwidget.h>
 #include <qrect.h>
 #include <qstringlist.h>
@@ -39,6 +40,10 @@ public:
     /* 站点电台：节目列表（复用 TracksMode；m_tempPl 作宿主保证 m_pl 有效） */
     void showRadioPrograms(qint64 rid, const QString& title,
                            const std::vector<Track>& programs);
+    /* 网络电台：地区内固定电台清单（复用 TracksMode 行；HLS 行灰态不可播） */
+    void showNetRadioRegion(const QString& regionKey, const QString& title);
+    /* 当前电台地区 key（MainWindow 取流时用） */
+    QString currentNetRegion() const { return m_netRegion; }
 
     /* CategoryGridMode：NCM 分类宫格 */
     void showCategoryGrid(const QStringList& cats);
@@ -56,6 +61,10 @@ signals:
     void playlistActivated(qint64 ncmPlaylistId);
     /* 站点电台：列表里点了某电台（rid） */
     void radioSelected(qint64 rid);
+    /* 网络电台：选了某地区（原始 key，如 "cn"） */
+    void netRadioRegionSelected(const QString& regionKey);
+    /* 网络电台：点了某电台行（索引进当前 m_netRadioStreams 顺序） */
+    void netRadioStreamSelected(int index);
     void categoryActivated(const QString& cat);
     void loadMoreRequested();
     void backRequested();
@@ -90,6 +99,10 @@ private:
     const Playlist* m_pl;
     bool m_radioList;        /* PlaylistListMode 的电台变体：点卡片发 radioSelected */
     Playlist m_tempPl;       /* showRadioPrograms 的宿主，生命周期由 ContentView 持有 */
+    bool m_netRadioMode;     /* TracksMode 的电台变体：行=直播流，不走 trackActivated */
+    QString m_netRegion;     /* 当前电台地区 key（供 MainWindow 取流清单） */
+    std::vector<RadioStation> m_netRadioStreams;
+
     ViewMode m_mode;
     std::vector<Row> m_rows;
     std::vector<RemotePlaylistCard> m_cards;

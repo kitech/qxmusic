@@ -33,7 +33,15 @@
   "radio": {
     "net_coming": "網路電台即將支援",
     "loading": "正在載入電台…",
-    "no_source": "該節目無音源"
+    "no_source": "該節目無音源",
+    "playing": "正在播放電台：",
+    "hls_no": "該電台為 HLS 串流，暫不支援播放",
+    "region": {
+      "china": "中國",
+      "hongkong": "香港",
+      "asia": "亞洲",
+      "international": "國際"
+    }
   },
   "site": {
     "label": "音樂站點",

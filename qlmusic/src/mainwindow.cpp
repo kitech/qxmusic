@@ -25,6 +25,7 @@
 #include "toastwidget.h"
 #include "userinfopanel.h"
 #include "favoritestore.h"   /* musiccom：本地收藏 JSON 存储（Qt 版本无关） */
+#include "radiolist.h"       /* musiccom：网络电台内置清单 */
 
 #ifdef NCM_ENABLE
 #include "ncm.h"
@@ -475,6 +476,12 @@ void MainWindow::buildCentralWidget()
         requestTopPlaylists(QString("__hot__"), 0);
     }
 
+    /* 网络电台：内置清单，不依赖 libncm（!NCM_ENABLE 构建也可用） */
+    QObject::connect(contentView, SIGNAL(netRadioRegionSelected(const QString&)),
+                     this, SLOT(onNetRadioRegion(const QString&)));
+    QObject::connect(contentView, SIGNAL(netRadioStreamSelected(int)),
+                     this, SLOT(onNetRadioStream(int)));
+
     QObject::connect(sideNav, SIGNAL(categorySelected(const QString&)),
                      this, SLOT(onNcmCategorySelected(const QString&)));
     /* 侧栏左上用户区（登录占位；Phase 2 接二维码登录）
@@ -483,6 +490,9 @@ void MainWindow::buildCentralWidget()
                      this, SLOT(onUserLoginPlaceholder()));
     QObject::connect(sideNav, SIGNAL(actionTriggered(int)),
                      this, SLOT(onNavAction(int)));
+    /* 网络电台地区子分类：内置清单，不依赖 libncm（!NCM_ENABLE 构建也可用） */
+    QObject::connect(sideNav, SIGNAL(netRadioRegionSelected(const QString&)),
+                     this, SLOT(onNetRadioRegion(const QString&)));
     QObject::connect(contentView, SIGNAL(playlistActivated(qint64)),
                      this, SLOT(onNcmPlaylistActivated(qint64)));
     QObject::connect(contentView, SIGNAL(loadMoreRequested()),
@@ -1989,11 +1999,6 @@ void MainWindow::onNavAction(int action)
         SharedStatusBar::instance()->showMessage(_("nav.local_coming"), 3000);
         return;
     }
-    if (action == 3) {
-        /* 网络电台：空处理（占位，不请求数据） */
-        SharedStatusBar::instance()->showMessage(_("radio.net_coming"), 3000);
-        return;
-    }
     if (action == 4) {
         /* 站点电台：热门电台列表 */
 #ifdef NCM_ENABLE
@@ -2068,6 +2073,42 @@ void MainWindow::onNcmDjPrograms(int rc, const QString& json, qint64 rid)
     }
     cJSON_Delete(root);
     contentView->showRadioPrograms(rid, _("nav.radio_site"), programs);
+}
+
+/* ── 网络电台（内置固定清单，无请求） ── */
+void MainWindow::onNetRadioRegion(const QString& regionKey)
+{
+    contentView->showNetRadioRegion(regionKey,
+        _(qToUtf8(radiolist::regionTitleKey(regionKey)).data()));
+}
+
+void MainWindow::onNetRadioStream(int index)
+{
+    if (index < 0) return;
+    std::vector<RadioStation> list = radiolist::byRegion(contentView->currentNetRegion());
+    if (index >= (int)list.size()) return;
+    const RadioStation& s = list[index];
+    ensureEngine();
+    audioEngine->open(QString::fromUtf8(s.url));
+    audioEngine->play();
+    /* PlayerBar 显示台名（独立流播放：不进 NCM 队列/resolve 链路） */
+    Track t;
+    t.id = index + 1;
+    t.ncmId = 0;
+    t.albumId = 0;
+    t.title = QString::fromUtf8(s.name);
+    t.artist = _("radio.net_radio");
+    t.album = QString();
+    t.durationMs = 0;
+    t.coverSeed = QString("radio-stream-%1").arg(index);
+    t.url = QString::fromUtf8(s.url);
+    t.playable = true;
+    if (playerBar) {
+        playerBar->setTrack(t);
+        playerBar->setPlaying(true);
+    }
+    SharedStatusBar::instance()->showMessage(
+        _("radio.playing") + qFromUtf8(" ") + t.title, 3000);
 }
 
 void MainWindow::showNcmError(int rc, const QString& op)
@@ -2220,7 +2261,12 @@ void MainWindow::onNcmLikeDone(qint64 /*songId*/, bool /*on*/, int rc)
 #else /* !NCM_ENABLE：libncm 不可用，仅保留符号满足 moc */
 
 void MainWindow::onNcmCategorySelected(const QString&) {}
-void MainWindow::onNavAction(int) {}
+void MainWindow::onNavAction(int action)
+{
+    /* !NCM_ENABLE 构建仅保留网络电台（内置清单，无网络依赖） */
+    if (action == 3 && contentView)
+        contentView->showNetRadioRegions();
+}
 void MainWindow::onNcmPlaylistActivated(qint64) {}
 void MainWindow::onNcmLoadMore() {}
 void MainWindow::onNcmBack() {}
@@ -2232,6 +2278,40 @@ void MainWindow::onNcmAuthRequired(const QString&) {}
 void MainWindow::onNcmDjHot(int, const QString&) {}
 void MainWindow::onNcmDjPrograms(int, const QString&, qint64) {}
 void MainWindow::onRadioSelected(qint64) {}
+
+/* 网络电台：内置清单不依赖 libncm（!NCM_ENABLE 构建同样可用） */
+void MainWindow::onNetRadioRegion(const QString& regionKey)
+{
+    contentView->showNetRadioRegion(regionKey,
+        _(qToUtf8(radiolist::regionTitleKey(regionKey)).data()));
+}
+void MainWindow::onNetRadioStream(int index)
+{
+    if (index < 0) return;
+    std::vector<RadioStation> list = radiolist::byRegion(contentView->currentNetRegion());
+    if (index >= (int)list.size()) return;
+    const RadioStation& s = list[index];
+    ensureEngine();
+    audioEngine->open(QString::fromUtf8(s.url));
+    audioEngine->play();
+    Track t;
+    t.id = index + 1;
+    t.ncmId = 0;
+    t.albumId = 0;
+    t.title = QString::fromUtf8(s.name);
+    t.artist = _("radio.net_radio");
+    t.album = QString();
+    t.durationMs = 0;
+    t.coverSeed = QString("radio-stream-%1").arg(index);
+    t.url = QString::fromUtf8(s.url);
+    t.playable = true;
+    if (playerBar) {
+        playerBar->setTrack(t);
+        playerBar->setPlaying(true);
+    }
+    SharedStatusBar::instance()->showMessage(
+        _("radio.playing") + qFromUtf8(" ") + t.title, 3000);
+}
 
 #endif /* NCM_ENABLE */
 

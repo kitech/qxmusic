@@ -5,6 +5,7 @@
 #include "toastpopup.h"
 #include "iconitem.h"
 #include "icongen.h"
+#include "radiolist.h"
 #include <QskLinearBox.h>
 #include <QskTextLabel.h>
 #include <QskPushButton.h>
@@ -141,9 +142,15 @@ void HomePage::onCreate(const QVariantMap&, const QVariantMap&)
                     ToastPopup::show(this, tr("Local music coming soon"));
                     return;
                 }
-                if (cat == QStringLiteral("__netradio__")) {
-                    /* 网络电台：空处理（占位，不请求数据） */
-                    ToastPopup::show(this, tr("Internet radio coming soon"));
+                if (cat.startsWith(QStringLiteral("__net:"))) {
+                    /* 网络电台地区 chip：直达该地区电台列表 */
+                    const QString region = cat.mid(5);
+                    if (auto* pm = pageManager()) {
+                        QVariantMap args;
+                        args.insert("region", region);
+                        args.insert("title", regionLabel(region));
+                        pm->open("netradio", args);
+                    }
                     return;
                 }
                 if (cat == QStringLiteral("__radio__")) {
@@ -254,8 +261,6 @@ void HomePage::rebuild(const QStringList& hot,
     addNavEntry(tr("Rankings"), QStringLiteral("__rank__"), QStringLiteral("rank"));
     addNavEntry(tr("My Music"), QStringLiteral("__mymusic__"), QStringLiteral("mymusic"));
     addNavEntry(tr("Local Music"), QStringLiteral("__local__"), QStringLiteral("local"));
-    addNavEntry(tr("Internet Radio"), QStringLiteral("__netradio__"),
-                QStringLiteral("radio"));
     addNavEntry(tr("Stations & Radio"), QStringLiteral("__radio__"),
                 QStringLiteral("radio"));
 
@@ -269,7 +274,28 @@ void HomePage::rebuild(const QStringList& hot,
     addGroup(tr("Hot Categories"), hot);
     for (const auto& g : groups)
         addGroup(g.name, g.categories);
+
+    /* 网络电台：与「分类/风格」同款分组 + 地区 chips（静态数据，无请求） */
+    addHeader(tr("Internet Radio"));
+    auto* netGrid = addSectionGrid();
+    {
+        int n = 0;
+        const char* const* regs = radiolist::regions(n);
+        for (int i = 0; i < n; ++i) {
+            const QString key = QString::fromUtf8(regs[i]);
+            addChip(netGrid, regionLabel(key), QStringLiteral("__net:") + key);
+        }
+    }
     m_rows->update();
+}
+
+QString HomePage::regionLabel(const QString& regionKey)
+{
+    /* 地区 key → 英文源文本（qsk tr 走 QTranslator 英文源→译文） */
+    if (regionKey == QStringLiteral("china"))         return tr("China");
+    if (regionKey == QStringLiteral("hongkong"))     return tr("HongKong");
+    if (regionKey == QStringLiteral("asia"))         return tr("Asia");
+    return tr("International");
 }
 
 void HomePage::addHotEntry()

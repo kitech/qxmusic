@@ -1,6 +1,7 @@
 #include "contentview.h"
 #include "musicstyle.h"
 #include "translator.h"
+#include "sharedstatusbar.h"
 #include "identicon.h"
 #include "iconloader.h"
 #include "LimeScrollBar.h"
@@ -38,7 +39,8 @@ QString fmtCount(qint64 n)
 }
 
 ContentView::ContentView(QWidget* parent)
-    : QWidget(parent), m_pl(0), m_radioList(false), m_mode(TracksMode), m_scrollBar(0), m_scrollY(0),
+    : QWidget(parent), m_pl(0), m_radioList(false), m_netRadioMode(false),
+      m_mode(TracksMode), m_scrollBar(0), m_scrollY(0),
       m_scrollDelta(0), m_hover(-1), m_current(-1), m_playingNcmId(0), m_playlistId(-1),
       m_headerH(64), m_rowH(48), m_hasMore(false), m_loadingNow(false)
 {
@@ -111,6 +113,7 @@ void ContentView::showPlaylistList(const QString& title, const std::vector<Remot
 {
     m_mode = PlaylistListMode;
     m_radioList = false;
+    m_netRadioMode = false;
     m_pl = 0;
     m_playlistId = -1;
     m_listTitle = title;
@@ -131,6 +134,7 @@ void ContentView::showRadioList(const QString& title,
 {
     m_mode = PlaylistListMode;
     m_radioList = true;
+    m_netRadioMode = false;
     m_pl = 0;
     m_playlistId = -1;
     m_listTitle = title;
@@ -155,6 +159,7 @@ void ContentView::showRadioPrograms(qint64 rid, const QString& title,
     m_tempPl.trackCount = (int)programs.size();
     m_mode = TracksMode;
     m_radioList = false;
+    m_netRadioMode = false;
     m_pl = &m_tempPl;
     m_playlistId = m_tempPl.id;
     m_current = -1;
@@ -182,6 +187,47 @@ void ContentView::showCategoryGrid(const QStringList& cats)
     m_playlistId = -1;
     m_listTitle = _("content.categories");
     m_gridCats = cats;
+    m_netRadioMode = false;
+    m_hasMore = false;
+    m_loadingNow = false;
+    m_hover = -1;
+    m_current = -1;
+    m_scrollY = 0;
+    rebuildRows();
+    updateScrollBar();
+    update();
+}
+
+/* 网络电台 · 地区内固定清单：复用 TracksMode 行，HLS 行灰态不可播 */
+void ContentView::showNetRadioRegion(const QString& regionKey, const QString& title)
+{
+    m_netRadioStreams = radiolist::byRegion(regionKey);
+    m_netRadioMode = true;
+    m_netRegion = regionKey;
+    m_tempPl = Playlist();
+    m_tempPl.id = -90;                       /* 伪 playlist id，避免与现有冲突 */
+    m_tempPl.name = title;
+    m_tempPl.trackCount = (int)m_netRadioStreams.size();
+    for (size_t i = 0; i < m_netRadioStreams.size(); ++i) {
+        const RadioStation& s = m_netRadioStreams[i];
+        Track t;
+        t.id = (int)(i + 1);
+        t.ncmId = 0;
+        t.albumId = 0;
+        t.title = QString::fromUtf8(s.name);
+        t.artist = s.hls ? QString::fromUtf8("· HLS") : QString();
+        t.album = QString();
+        t.durationMs = 0;
+        t.coverUrl = QString();
+        t.coverSeed = QString("radio-%1-%2").arg(regionKey).arg((int)i);
+        t.url = QString::fromUtf8(s.url);
+        t.playable = !s.hls;
+        m_tempPl.tracks.push_back(t);
+    }
+    m_mode = TracksMode;
+    m_pl = &m_tempPl;
+    m_playlistId = m_tempPl.id;
+    m_listTitle = title;
     m_hasMore = false;
     m_loadingNow = false;
     m_hover = -1;
@@ -525,7 +571,7 @@ void ContentView::paintEvent(QPaintEvent*)
 void ContentView::contextMenuEvent(QContextMenuEvent* e)
 {
     /* TracksMode 曲目行右键：收藏/取消收藏（收藏状态由 MainWindow 维护） */
-    if (m_mode != TracksMode || !m_pl)
+    if (m_mode != TracksMode || !m_pl || m_netRadioMode)
         return;
     const int idx = rowAt(e->pos());
     if (idx < 0 || idx >= (int)m_rows.size())
@@ -584,6 +630,17 @@ void ContentView::mousePressEvent(QMouseEvent* e)
     /* TracksMode */
     if (playAllRect().contains(e->pos())) {
         if (m_pl && !m_pl->tracks.empty()) {
+            /* 网络电台「播放全部」：从第 1 台开始（HLS 首台则提示） */
+            if (m_netRadioMode) {
+                if (!m_netRadioStreams.empty() && m_netRadioStreams[0].hls) {
+                    SharedStatusBar::instance()->showMessage(_("radio.hls_no"), 3000);
+                    return;
+                }
+                m_current = 0;
+                emit netRadioStreamSelected(0);
+                update();
+                return;
+            }
             m_current = 0;
             emit trackActivated(m_playlistId, 0);
             update();
@@ -592,6 +649,17 @@ void ContentView::mousePressEvent(QMouseEvent* e)
     }
     int idx = rowAt(e->pos());
     if (idx < 0 || !m_pl) return;
+    /* 网络电台：行=直播流（HLS 行灰态提示，不走 trackActivated） */
+    if (m_netRadioMode) {
+        if (idx < (int)m_netRadioStreams.size() && m_netRadioStreams[idx].hls) {
+            SharedStatusBar::instance()->showMessage(_("radio.hls_no"), 3000);
+            return;
+        }
+        m_current = idx;
+        emit netRadioStreamSelected(idx);
+        update();
+        return;
+    }
     m_current = idx;
     emit trackActivated(m_playlistId, m_rows[idx].index);
     update();

@@ -42,6 +42,8 @@ private:
                      const QString& iconKind);
     QskLinearBox* addSectionGrid();
     void addChip(QskLinearBox* grid, const QString& label, const QString& cat);
+    /* 网络电台地区 key → 显示名（英文源文本，走 tr） */
+    QString regionLabel(const QString& regionKey);
     void openPlaylistList(const QString& cat, const QString& title);
     bool chipAt(const QPointF& localPos, QString* cat) const;
 

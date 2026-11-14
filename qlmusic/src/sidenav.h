@@ -38,6 +38,8 @@ signals:
     void playlistSelected(int playlistId);
     void categorySelected(const QString& cat);
     void actionTriggered(int actionId);
+    /* 网络电台：点了某地区子分类（原始 key："cn"/"hk"/"asia"/"world"） */
+    void netRadioRegionSelected(const QString& regionKey);
     void loginRequested();
 
 protected:
@@ -57,7 +59,7 @@ private:
         NavRank,        /* 排行榜 → 暂缓提示 */
         NavMyMusic,     /* 我的音乐 → 需登录提示 */
         NavLocalMusic,  /* 本地音乐 → 暂缓提示 */
-        NavNetRadio,    /* 网络电台 → 空处理占位 */
+        NavNetRegion,   /* 网络电台 · 地区子分类（NCM 分类子项同款） */
         NavRadioSite,   /* 站点电台 → 热门电台列表 */
     };
     struct NavItem {
