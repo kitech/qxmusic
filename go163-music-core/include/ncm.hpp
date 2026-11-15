@@ -357,6 +357,33 @@ public:
     ncm_set_http_log(on ? 1 : 0);
   }
 
+  /* ---- YouTube Music（外部 yt-dlp）---- */
+
+  [[nodiscard]] static bool ytm_available() {
+    return ncm_ytm_available() == 0;
+  }
+
+  static void set_ytm_proxy(std::string_view proxy) {
+    detail::InStr p(proxy);
+    ncm_ytm_set_proxy(p.get());
+  }
+
+  /* out_json: {"songs":[{id,name,artists,album,duration_ms,playable,publish_ms}]} */
+  [[nodiscard]] Status ytm_search(std::string_view keywords, int32_t limit,
+                                  std::string &out_json) {
+    detail::InStr k(keywords);
+    return fetch([&](char **o) { return ncm_ytm_search(h_, k.get(), limit, o); },
+                 out_json);
+  }
+
+  /* out_json: {"video_id":..,"url":..}（googlevideo 直链，播放走同一代理） */
+  [[nodiscard]] Status ytm_stream(std::string_view video_id,
+                                  std::string &out_json) {
+    detail::InStr v(video_id);
+    return fetch([&](char **o) { return ncm_ytm_stream(h_, v.get(), o); },
+                 out_json);
+  }
+
 private:
   /* 统一处理 char* 出参：拷贝进 std::string 后立即归还给库，避免泄漏。 */
   template <typename F>

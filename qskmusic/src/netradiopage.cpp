@@ -11,6 +11,7 @@
 #include <QskSeparator.h>
 #include <QskFontRole.h>
 #include <QUrl>
+#include <QTimer>
 #include <private/qquicktaphandler_p.h>
 
 namespace {
@@ -46,6 +47,17 @@ void NetRadioPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
     setAutoLayoutChildren(true);
     m_layout = new QskLinearBox(Qt::Vertical, this);
     m_layout->setPanel(true);
+
+    /* 缓冲 spinner 帧驱动（200ms/帧；点台启动，出声/断流停止） */
+    m_spinTimer = new QTimer(this);
+    m_spinTimer->setInterval(200);
+    connect(m_spinTimer, &QTimer::timeout, this, [this]() {
+        static const char* kSpin[8] =
+            {"⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧"};
+        if (!m_marker) return;
+        m_spinTick = (m_spinTick + 1) % 8;
+        m_marker->setText(QString::fromUtf8(kSpin[m_spinTick]));
+    });
 
     // ── 顶栏：返回 + 标题 ──
     auto* topBar = new QskLinearBox(Qt::Horizontal, m_layout);
@@ -97,6 +109,10 @@ void NetRadioPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
 
             auto play = [this, marker, region, s]() {
                 marker->setText(QString::fromUtf8("▶"));
+                /* 缓冲态：点台后流未出声前，▶ 变 spinner（QTimer 200ms 轮换） */
+                m_marker = marker;      /* 记录活动 marker，spinner 帧驱动用 */
+                m_spinTick = 0;
+                m_spinTimer->start();
                 ToastPopup::show(this,
                     tr("Playing radio: %1").arg(elided(QString::fromUtf8(s.name), 10)));
                 AudioPlayer::instance()->playUrl(
@@ -115,23 +131,39 @@ void NetRadioPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
         rows->update();
     }
 
-    /* 断流/切台：AudioPlayer finished → 本页 ▶ 标记复位 */
+    /* 断流/切台：AudioPlayer finished → 本页 ▶/spinner 复位 */
     connect(AudioPlayer::instance(), &AudioPlayer::finished, this,
         [this](const QString& id) {
             if (!id.startsWith(QStringLiteral("netradio-"))) return;
+            m_spinTimer->stop();
+            if (m_marker) { m_marker->setText(QString()); m_marker = nullptr; }
             const auto rows = m_layout->findChildren<QskLinearBox*>();
             for (auto* row : rows) {
                 const auto labels = row->findChildren<QskTextLabel*>();
                 if (!labels.isEmpty()
-                    && labels.first()->text() == QString::fromUtf8("▶"))
+                    && (labels.first()->text() == QString::fromUtf8("▶")
+                        || labels.first()->text().size() == 1
+                            && labels.first()->text().at(0).category()
+                               == QChar::Symbol_Other))
                     labels.first()->setText(QString());
             }
         });
 
-    /* 起播失败（流不可达/格式拒绝）：▶ 复位由 finished 兜底，此处补提示 */
+    /* 起播失败（流不可达/格式拒绝）：spinner 停 + 复位，补提示 */
     connect(AudioPlayer::instance(), &AudioPlayer::playError, this,
         [this](const QString& id) {
             if (!id.startsWith(QStringLiteral("netradio-"))) return;
+            m_spinTimer->stop();
+            if (m_marker) { m_marker->setText(QString()); m_marker = nullptr; }
             ToastPopup::show(this, tr("Radio stream unavailable"));
+        });
+
+    /* 出声即停 spinner：AudioPlayer 无 started 信号，用首个 position 回调兜底 */
+    connect(AudioPlayer::instance(), &AudioPlayer::positionChanged, this,
+        [this](qint64 ms) {
+            if (m_spinTimer->isActive() && ms > 0) {
+                m_spinTimer->stop();
+                if (m_marker) { m_marker->setText(QString::fromUtf8("▶")); }
+            }
         });
 }

@@ -21,6 +21,16 @@ struct Song
     qint64 albumId = 0; // 专辑 id（兜底图标 seed / 去重预留）
     int durationMs = 0;
     bool playable = true;
+    qint64 publishMs = 0;   // NCM 专辑上架时间 al.publishTime（0=无）
+};
+
+/* YouTube Music 曲目：id 是 videoId 字符串（无法映射 qint64，独立形状） */
+struct YtmSong
+{
+    QString vid;         // videoId（取流用）
+    QString name;
+    QString artists;
+    int durationMs = 0;
 };
 
 /*
@@ -47,6 +57,11 @@ public:
     void likeAsync(qint64 songId, bool on);   // 收藏/取消收藏（需登录）
     void songDetailAsync(const QString& ids); // 批量歌曲详情（逗号分隔 id）
 
+    /* ---- YouTube Music（外部 yt-dlp + 代理，默认 http://127.0.0.1:10809）---- */
+    static bool ytmAvailable();              // yt-dlp 在 PATH？
+    void ytmSearchAsync(const QString& keywords, int limit);
+    void ytmStreamAsync(const QString& videoId);
+
 Q_SIGNALS:
     void searchDone(const QList<Song>& songs, const QString& err);
     void resolveDone(qint64 songId, const QString& url, const QString& err);
@@ -57,6 +72,9 @@ Q_SIGNALS:
     void likeDone(qint64 songId, bool on, const QString& err);
     void songDetailDone(const QList<Song>& songs, const QString& err);
     void playFailReceived(qint64 songId, const QString& reason);
+
+    void ytmSearchDone(const QList<YtmSong>& songs, const QString& err);
+    void ytmStreamDone(const QString& videoId, const QString& url, const QString& err);
 
 private:
     explicit NcmApi(QObject* parent = nullptr);

@@ -18,6 +18,7 @@ struct Track {
     QString coverUrl;
     qint64 artistNcmId = 0;   /* 首位歌手 id（艺人头像查询） */
     bool playable;
+    qint64 publishMs = 0;     /* NCM 专辑上架时间 al.publishTime（0=无） */
 };
 
 struct Playlist {
@@ -30,6 +31,7 @@ struct Playlist {
     QString creator;
     QString coverUrl;
     int trackCount;
+    qint64 ncmUpdatedAtMs = 0;  /* NCM 歌单更新时间（0=无） */
 };
 
 inline const Playlist* findPlaylist(const std::vector<Playlist>& lib, int id)

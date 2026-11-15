@@ -651,6 +651,32 @@ void NcmService::loadDjPrograms(qint64 rid, int limit, int offset, int asc)
     m_worker->push(t);
 }
 
+void NcmService::ytmSearch(const QString& keywords, int limit)
+{
+#ifdef QT3_BUILD
+    const QString kw = keywords.stripWhiteSpace();
+#else
+    const QString kw = keywords.trimmed();
+#endif
+    if (kw.isEmpty()) return;
+    NcmTask t;
+    t.kind = NcmTaskYtmSearch;
+    t.op = "ytm_search";
+    t.cat = qToUtf8(kw).data();
+    t.limit = limit > 0 ? limit : 30;
+    m_worker->push(t);
+}
+
+void NcmService::ytmStream(const QString& videoId)
+{
+    if (videoId.isEmpty()) return;
+    NcmTask t;
+    t.kind = NcmTaskYtmStream;
+    t.op = "ytm_stream";
+    t.url = qToUtf8(videoId).data();
+    m_worker->push(t);
+}
+
 void NcmService::execTask(const NcmTask& t)
 {
     if (!m_client) return;
@@ -757,6 +783,20 @@ void NcmService::execTask(const NcmTask& t)
         if (out) ncm_free_string(out);
         break;
     }
+    case NcmTaskYtmSearch: {
+        char* out = 0;
+        rc = ncm_ytm_search(m_client, t.cat.c_str(), t.limit, &out);
+        if (rc == NCM_OK && out) json = out;
+        if (out) ncm_free_string(out);
+        break;
+    }
+    case NcmTaskYtmStream: {
+        char* out = 0;
+        rc = ncm_ytm_stream(m_client, t.url.c_str(), &out);
+        if (rc == NCM_OK && out) json = out;
+        if (out) ncm_free_string(out);
+        break;
+    }
     default:
         return;
     }
@@ -823,6 +863,14 @@ void NcmService::handleResult(NcmResultEvent* e)
     }
     if (op == qFromUtf8("dj_programs")) {
         emit djProgramsLoaded(e->rc, json, e->id);
+        return;
+    }
+    if (op == qFromUtf8("ytm_search")) {
+        emit ytmSearchLoaded(e->rc, json);
+        return;
+    }
+    if (op == qFromUtf8("ytm_stream")) {
+        emit ytmStreamLoaded(e->rc, json);
         return;
     }
     if (op == qFromUtf8("playlist_categories")) {

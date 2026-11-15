@@ -175,6 +175,13 @@ int main(int argc, char* argv[])
 
     installLogHandler();
 
+    /* YTM 代理默认值（Go core 与播放端共用；YTM_PROXY 显式设置时不覆盖）：
+     * googlevideo 直链回源也必须走代理，播放端（GStreamer soup）读 http_proxy */
+#ifndef Q_OS_ANDROID
+    if (qEnvironmentVariableIsEmpty("YTM_PROXY"))
+        qputenv("YTM_PROXY", "http://127.0.0.1:10809");
+#endif
+
     QCoreApplication::setOrganizationName("fedlet");
     QCoreApplication::setApplicationName("qskmusic");
 

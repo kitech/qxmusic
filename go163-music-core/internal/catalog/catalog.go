@@ -28,12 +28,13 @@ type CategoriesResult struct {
 }
 
 type PlaylistSummary struct {
-	ID         int64  `json:"id"`
-	Name       string `json:"name"`
-	Cover      string `json:"cover"`
-	Creator    string `json:"creator"`
-	TrackCount int64  `json:"track_count"`
-	PlayCount  int64  `json:"play_count"`
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Cover       string `json:"cover"`
+	Creator     string `json:"creator"`
+	TrackCount  int64  `json:"track_count"`
+	PlayCount   int64  `json:"play_count"`
+	UpdatedAtMs int64  `json:"updated_at_ms"` /* 列表接口 updateTime（0=无） */
 }
 
 type TopPlaylistsResult struct {
@@ -54,6 +55,7 @@ type Song struct {
 	DurationMS int64    `json:"duration_ms"`
 	Cover      string   `json:"cover"`
 	Playable   bool     `json:"playable"`
+	PublishMs  int64    `json:"publish_ms"` /* 专辑上架 al.publishTime（0=无） */
 }
 
 type SongDetailResult struct {
@@ -67,6 +69,8 @@ type PlaylistInfo struct {
 	Creator     string `json:"creator"`
 	TrackCount  int64  `json:"track_count"`
 	Description string `json:"description"`
+	CreatedAtMs int64  `json:"created_at_ms"`
+	UpdatedAtMs int64  `json:"updated_at_ms"`
 }
 
 type PlaylistTracksResult struct {
@@ -109,9 +113,10 @@ type rawSong struct {
 		Name string  `json:"name"`
 	} `json:"ar"`
 	Al struct {
-		ID     float64 `json:"id"`
-		Name   string  `json:"name"`
-		PicURL string  `json:"picUrl"`
+		ID          float64 `json:"id"`
+		Name        string  `json:"name"`
+		PicURL      string  `json:"picUrl"`
+		PublishTime float64 `json:"publishTime"`
 	} `json:"al"`
 	DT        float64 `json:"dt"`
 	St        float64 `json:"st"`
@@ -135,6 +140,7 @@ func convSong(r rawSong) Song {
 		DurationMS: int64(r.DT),
 		Cover:      r.Al.PicURL,
 		Playable:   st >= 0,
+		PublishMs:  int64(r.Al.PublishTime),
 	}
 	for _, a := range r.Ar {
 		if a.Name != "" {
@@ -153,6 +159,8 @@ type rawPlaylist struct {
 	CoverImgURL string  `json:"coverImgUrl"`
 	Description string  `json:"description"`
 	TrackCount  float64 `json:"trackCount"`
+	CreateTime  float64 `json:"createTime"`
+	UpdateTime  float64 `json:"updateTime"`
 	Creator     struct {
 		Nickname string `json:"nickname"`
 	} `json:"creator"`
@@ -166,6 +174,8 @@ func (r rawPlaylist) info() PlaylistInfo {
 		Creator:     r.Creator.Nickname,
 		TrackCount:  int64(r.TrackCount),
 		Description: r.Description,
+		CreatedAtMs: int64(r.CreateTime),
+		UpdatedAtMs: int64(r.UpdateTime),
 	}
 }
 
@@ -319,12 +329,13 @@ func TopPlaylists(cat, order string, limit, offset int) (TopPlaylistsResult, err
 	}
 	for _, p := range env.Playlists {
 		res.Playlists = append(res.Playlists, PlaylistSummary{
-			ID:         int64(p.ID),
-			Name:       p.Name,
-			Cover:      p.CoverImgURL,
-			Creator:    p.Creator.Nickname,
-			TrackCount: int64(p.TrackCount),
-			PlayCount:  int64(p.PlayCount),
+			ID:          int64(p.ID),
+			Name:        p.Name,
+			Cover:       p.CoverImgURL,
+			Creator:     p.Creator.Nickname,
+			TrackCount:  int64(p.TrackCount),
+			PlayCount:   int64(p.PlayCount),
+			UpdatedAtMs: int64(p.rawPlaylist.UpdateTime),
 		})
 	}
 	return res, nil
@@ -721,7 +732,6 @@ func resolveLegacy(songID int64, quality int32) (SourceResult, error) {
 	}
 	return finishSource(songID, quality, data[0])
 }
-
 
 /* ---------------- 电台（djradio） ---------------- */
 

@@ -33,6 +33,7 @@ Song parseSong(const QJsonObject& o)
     s.albumId = o.value("album_id").toVariant().toLongLong();
     s.durationMs = o.value("duration_ms").toInt();
     s.playable = o.value("playable").toBool(true);
+    s.publishMs = o.value("publish_ms").toVariant().toLongLong();
     return s;
 }
 
@@ -139,6 +140,8 @@ void NcmCatalog::loadPlaylistTracksAsync(qint64 playlistId)
             info.creator = pl.value("creator").toString();
             info.cover = pl.value("cover").toString();
             info.trackCount = pl.value("track_count").toInt();
+            /* 歌单更新时间（顶栏显示用；0=无） */
+            info.updatedAtMs = pl.value("updated_at_ms").toVariant().toLongLong();
             for (const auto& tv : root.value("tracks").toArray())
                 info.songs << parseSong(tv.toObject());
         }

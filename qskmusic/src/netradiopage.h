@@ -25,6 +25,10 @@ protected:
 
 private:
     QskLinearBox* m_layout = nullptr;
+    /* 缓冲 spinner：点台后流未出声前，▶ 变 braille 轮换 */
+    QskTextLabel* m_marker = nullptr;   /* 当前点台的 marker（跨 lambda 记录） */
+    QTimer* m_spinTimer = nullptr;
+    int m_spinTick = 0;
 };
 
 #endif

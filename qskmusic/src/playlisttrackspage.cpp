@@ -22,6 +22,7 @@
 #include <private/qquicktaphandler_p.h>
 #include <QUrl>
 #include <QColor>
+#include <QDateTime>
 #include <QTimer>
 
 namespace {
@@ -92,6 +93,12 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
     m_count = new QskTextLabel(QString(), infoRow);
     m_count->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
     m_count->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    /* 歌单更新时间（有值才显示；回调里更新；count Expanding 会被挤，改 Preferred） */
+    m_count->setSizePolicy(QskSizePolicy::Preferred, QskSizePolicy::Preferred);
+    m_updated = new QskTextLabel(QString(), infoRow);
+    m_updated->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+    m_updated->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+    m_updated->setTextColor(QColor(0x9a, 0x9a, 0x9a));
 
     auto* playAllBtn = new QskPushButton(tr("▶ Play All"), infoRow);
     playAllBtn->setPreferredHeight(34);
@@ -201,6 +208,12 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
                 m_status->clearStatus();
                 m_count->setText(tr("%1 tracks").arg(m_songs.size()));
             }
+            /* 歌单更新时间（有值才显示） */
+            if (info.updatedAtMs > 0)
+                m_updated->setText(QDateTime::fromMSecsSinceEpoch(info.updatedAtMs)
+                                       .toString("yyyy-MM-dd"));
+            else
+                m_updated->setText(QString());
             buildRows();
         });
 

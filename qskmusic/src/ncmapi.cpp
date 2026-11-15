@@ -258,3 +258,62 @@ void NcmApi::lyricAsync(qint64 songId)
         Q_EMIT lyricDone(songId, lrc, err);
     }).detach();
 }
+
+/* ---- YouTube Music（外部 yt-dlp；详见 go163-music-core/internal/ytm） ---- */
+
+bool NcmApi::ytmAvailable()
+{
+    return ncm::Client::ytm_available();
+}
+
+void NcmApi::ytmSearchAsync(const QString& keywords, int limit)
+{
+    const std::string kw = keywords.toStdString();
+    std::thread([this, kw, limit]() {
+        std::string json;
+        const auto st = m_client.ytm_search(kw, limit, json);
+        QList<YtmSong> songs;
+        QString err;
+        if (st != ncm::Status::Ok) {
+            err = statusText(st);
+        } else {
+            const auto root = QJsonDocument::fromJson(
+                QByteArray::fromStdString(json)).object();
+            for (const auto& v : root.value("songs").toArray()) {
+                const auto o = v.toObject();
+                YtmSong s;
+                s.vid = o.value("id").toString();
+                s.name = o.value("name").toString();
+                const auto arr = o.value("artists").toArray();
+                QStringList al;
+                for (const auto& a : arr) al << (a.isObject()
+                    ? a.toObject().value("name").toString() : a.toString());
+                s.artists = al.join(QStringLiteral("/"));
+                s.durationMs = o.value("duration_ms").toInt();
+                if (!s.vid.isEmpty()) songs << s;
+            }
+        }
+        qDebug() << "[qskmusic] ytm search done:" << songs.size() << err;
+        Q_EMIT ytmSearchDone(songs, err);
+    }).detach();
+}
+
+void NcmApi::ytmStreamAsync(const QString& videoId)
+{
+    const std::string vid = videoId.toStdString();
+    std::thread([this, vid, videoId]() {
+        std::string json;
+        const auto st = m_client.ytm_stream(vid, json);
+        QString url, err;
+        if (st != ncm::Status::Ok) {
+            err = statusText(st);
+        } else {
+            const auto o = QJsonDocument::fromJson(
+                QByteArray::fromStdString(json)).object();
+            url = o.value("url").toString();
+            if (url.isEmpty()) err = QStringLiteral("empty url");
+        }
+        qDebug() << "[qskmusic] ytm stream:" << videoId << err;
+        Q_EMIT ytmStreamDone(videoId, url, err);
+    }).detach();
+}

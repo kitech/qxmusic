@@ -53,7 +53,10 @@
     "kugou": "Kugou Music",
     "kuwo": "Kuwo Music",
     "bili": "Bilibili Music",
-    "youtube": "YouTube Music"
+    "youtube": "YouTube Music",
+    "ytm_ready": "YouTube Music enabled (via yt-dlp + proxy)",
+    "ytm_unavailable": "yt-dlp not found: YouTube Music unavailable",
+    "search_ncm_todo": "163 search is not available yet (switch to YouTube Music)"
   },
   "ncm": {
     "auth_required": "This action requires login — please scan the QR code first",

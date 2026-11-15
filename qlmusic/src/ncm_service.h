@@ -54,6 +54,8 @@ enum {
     NcmTaskDjHot,      /* 热门电台列表（站点电台） */
     NcmTaskDjDetail,   /* 电台详情 */
     NcmTaskDjPrograms, /* 电台节目列表 */
+    NcmTaskYtmSearch,  /* YouTube Music：yt-dlp 搜索（t.cat=关键词） */
+    NcmTaskYtmStream,  /* YouTube Music：取直链（t.url=videoId） */
     NcmTaskQuit,       /* 哨兵：worker 收到即退出线程 */
 };
 
@@ -109,6 +111,10 @@ public:
     void loadDjHot(int cateId, int limit, int offset);          /* 站点电台：热门电台 */
     void loadDjPrograms(qint64 rid, int limit, int offset, int asc); /* 电台节目 */
 
+    /* YouTube Music（外部 yt-dlp；代理默认 http://127.0.0.1:10809） */
+    void ytmSearch(const QString& keywords, int limit);
+    void ytmStream(const QString& videoId);
+
     /* MainWindow::customEvent 转发进来 */
     void handleResult(NcmResultEvent* e);
 
@@ -130,6 +136,8 @@ signals:
     void likeDone(qint64 songId, bool on, int rc);
     void djHotLoaded(int rc, const QString& json);
     void djProgramsLoaded(int rc, const QString& json, qint64 rid);
+    void ytmSearchLoaded(int rc, const QString& json);
+    void ytmStreamLoaded(int rc, const QString& json);
     void authRequired(const QString& op);
     /* 下载进度（worker curl 回调节流 200ms 投递；pct 0-100） */
     void downloadProgress(qint64 songId, int pct);

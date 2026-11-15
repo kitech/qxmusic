@@ -156,6 +156,19 @@ NCM_API char *NCM_CALL ncm_version(void);
  * 需要观察歌单列表 / 歌曲列表的网络行为时开启，日常可关闭减少噪音。 */
 NCM_API void NCM_CALL ncm_set_http_log(int32_t on);
 
+/* YouTube Music（外部 yt-dlp 提取；详见 internal/ytm/ytm.go）。
+ * 代理默认 http://127.0.0.1:10809（YTM_PROXY 环境变量可在启动时覆盖）。
+ * ncm_ytm_search 出参 JSON 形状与 ncm_song_detail 一致（{"songs":[...]}，
+ * id 为 videoId 字符串）；ncm_ytm_stream 出参 {"video_id":..,"url":..}，
+ * url 为 googlevideo 直链 —— 播放端须走同一代理（实测直连超时）。
+ * ncm_ytm_available 返回 0 表示 yt-dlp 可用，非 0 表示未安装。 */
+NCM_API int32_t NCM_CALL ncm_ytm_available(void);
+NCM_API int32_t NCM_CALL ncm_ytm_set_proxy(NCM_CPARAM char *proxy);
+NCM_API int32_t NCM_CALL ncm_ytm_search(ncm_client *client, NCM_CPARAM char *keywords,
+                                        int32_t limit, char **out_json);
+NCM_API int32_t NCM_CALL ncm_ytm_stream(ncm_client *client, NCM_CPARAM char *video_id,
+                                        char **out_json);
+
 /* 释放任何 char* 出参。对 NULL 是空操作。 */
 NCM_API void NCM_CALL ncm_free_string(char *s);
 

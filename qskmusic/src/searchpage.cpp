@@ -1,6 +1,7 @@
 #include "searchpage.h"
 #include "pagemanager.h"
 #include "playback.h"
+#include "audioplayer.h"
 #include "statusline.h"
 #include "iconitem.h"
 #include "icongen.h"
@@ -30,8 +31,10 @@ SearchPage::SearchPage(QQuickItem* parent)
 {
 }
 
-void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
+void SearchPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
 {
+    m_ytm = launchArgs.value(QStringLiteral("site")).toString()
+                == QStringLiteral("ytm");
     setAutoLayoutChildren(true);
     auto* layout = new QskLinearBox(Qt::Vertical, this);
     layout->setPanel(true);
@@ -68,10 +71,12 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
                 m_field->setText(text.trimmed());
         });    connect(searchBtn, &QskAbstractButton::clicked, this, [this]() {
         const QString kw = m_field->text().trimmed();
-        if (!kw.isEmpty()) {
-            m_status->setStatus(StatusLine::Loading, tr("Searching…"));
+        if (kw.isEmpty()) return;
+        m_status->setStatus(StatusLine::Loading, tr("Searching…"));
+        if (m_ytm)
+            NcmApi::instance().ytmSearchAsync(kw, 30);
+        else
             NcmApi::instance().searchAsync(kw, 30);
-        }
     });
 
     m_status = new StatusLine(layout);
@@ -96,6 +101,7 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
 
     connect(&NcmApi::instance(), &NcmApi::searchDone, this,
         [this](const QList<Song>& songs, const QString& err) {
+            if (m_ytm) return;   // YTM 模式走 ytmSearchDone
             if (!err.isEmpty()) {
                 m_status->setStatus(StatusLine::Error,
                     tr("Search failed: %1").arg(err));
@@ -109,9 +115,49 @@ void SearchPage::onCreate(const QVariantMap&, const QVariantMap&)
             rebuildList();
         });
 
-    // 打开即搜默认词（保留原搜索自动行为，不占首屏）
+    /* YTM：搜索结果 + 点歌取流（googlevideo 直链，播放须走代理） */
+    connect(&NcmApi::instance(), &NcmApi::ytmSearchDone, this,
+        [this](const QList<YtmSong>& songs, const QString& err) {
+            if (!m_ytm) return;
+            if (!err.isEmpty()) {
+                m_status->setStatus(StatusLine::Error,
+                    tr("Search failed: %1").arg(err));
+                return;
+            }
+            m_ytmSongs = songs;
+            if (m_ytmSongs.isEmpty()) {
+                m_status->setStatus(StatusLine::Info, tr("No results"));
+            } else {
+                m_status->clearStatus();
+                rebuildList();
+            }
+        });
+
+    connect(&NcmApi::instance(), &NcmApi::ytmStreamDone, this,
+        [this](const QString& vid, const QString& url, const QString& err) {
+            if (!err.isEmpty()) {
+                m_status->setStatus(StatusLine::Error,
+                    tr("Stream failed: %1").arg(err));
+                return;
+            }
+            /* googlevideo 直链必须走代理（实测直连超时）：
+             * GStreamer soup 读 http_proxy 环境变量 —— 播放前设置 */
+            const QByteArray proxy = qgetenv("YTM_PROXY");
+            if (!proxy.isEmpty()) {
+                qputenv("http_proxy", proxy);
+                qputenv("https_proxy", proxy);
+            }
+            AudioPlayer::instance()->playUrl(
+                QStringLiteral("ytm-%1").arg(vid), QUrl(url));
+        });
+
+    // 打开即搜默认词（YTM 模式换站点词；163 保持原默认）
     m_status->setStatus(StatusLine::Loading, tr("Searching…"));
-    NcmApi::instance().searchAsync(QStringLiteral("周杰伦"), 30);
+    if (m_ytm) {
+        NcmApi::instance().ytmSearchAsync(QStringLiteral("top hits"), 30);
+    } else {
+        NcmApi::instance().searchAsync(QStringLiteral("周杰伦"), 30);
+    }
 
     // 实锤灰歌…（保留原说明）
     // 正在播放 ▶：切歌只改文本
@@ -124,6 +170,50 @@ void SearchPage::rebuildList()
     const auto children = m_rows->childItems();
     for (auto* c : children) c->deleteLater();
     m_playingMarkers.clear();
+
+    if (m_ytm) {
+        /* YouTube Music 行：id 不可映射 qint64，走独立列表；点歌 yt-dlp 取流 */
+        for (int i = 0; i < m_ytmSongs.size(); ++i) {
+            const auto& s = m_ytmSongs.at(i);
+            auto* row = new QskLinearBox(Qt::Horizontal, m_rows);
+            row->setPreferredHeight(44);
+
+            auto* icon = new IconItem(row);
+            icon->setPreferredSize(36, 36);
+            icon->setCornerRadius(6);
+            icon->setFallback(qximage::identicon(s.vid, IconItem::pxForDp(36)));
+
+            auto* name = new QskTextLabel(
+                s.artists.isEmpty()
+                    ? elided(s.name, 14)
+                    : elided(QString("%1 - %2").arg(s.name, s.artists), 20), row);
+            name->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+            name->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+
+            const int total = s.durationMs / 1000;
+            auto* dur = new QskTextLabel(QString("%1:%2").arg(total / 60)
+                .arg(total % 60, 2, 10, QLatin1Char('0')), row);
+            dur->setPreferredWidth(56);
+            dur->setAlignment(Qt::AlignVCenter | Qt::AlignRight);
+
+            auto* playBtn = new QskPushButton(QString::fromUtf8("▶"), row);
+            playBtn->setPreferredSize(30, 30);
+            connect(playBtn, &QskAbstractButton::clicked, this, [this, i]() {
+                m_status->setStatus(StatusLine::Loading, tr("Resolving play URL…"));
+                NcmApi::instance().ytmStreamAsync(m_ytmSongs.at(i).vid);
+            });
+            /* 触摸兜底：TapHandler 点行 = 点播放 */
+            auto* tap = new QQuickTapHandler(row);
+            tap->setGesturePolicy(QQuickTapHandler::DragThreshold);
+            connect(tap, &QQuickTapHandler::singleTapped, this,
+                [this, i](QEventPoint, Qt::MouseButton) {
+                    m_status->setStatus(StatusLine::Loading, tr("Resolving play URL…"));
+                    NcmApi::instance().ytmStreamAsync(m_ytmSongs.at(i).vid);
+                });
+        }
+        m_rows->update();
+        return;
+    }
 
     for (int i = 0; i < m_songs.size(); ++i) {
         const auto& s = m_songs.at(i);

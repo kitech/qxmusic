@@ -33,6 +33,7 @@ public slots:
 
 private slots:
     void onSiteChanged(const QString& site);
+    void onSearchSubmitted(const QString& text);
 
 signals:
     void playlistSelected(int playlistId);
@@ -41,6 +42,10 @@ signals:
     /* 网络电台：点了某地区子分类（原始 key："cn"/"hk"/"asia"/"world"） */
     void netRadioRegionSelected(const QString& regionKey);
     void loginRequested();
+    /* 音乐站点切换（"ncm"=163 默认 / "ytm"=YouTube Music） */
+    void siteChanged(const QString& site);
+    /* 搜索框回车（当前站点决定搜哪个源） */
+    void searchTriggered(const QString& text);
 
 protected:
     void paintEvent(QPaintEvent* e);

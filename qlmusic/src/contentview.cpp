@@ -9,6 +9,18 @@
 #include <qglobal.h>
 #include <qpainter.h>
 #include <qevent.h>
+#include <qdatetime.h>
+
+namespace {
+
+/* Qt3/Qt4 无 QDate::fromMSecsSinceEpoch：epoch 起点加天数 */
+static QDate dateFromMs(qint64 ms)
+{
+    static const QDate epoch(1970, 1, 1);
+    return epoch.addDays((int)(ms / 86400000));
+}
+
+} // namespace
 #include <qfontmetrics.h>
 #ifdef QT3_BUILD
 #include <qpopupmenu.h>
@@ -44,9 +56,17 @@ ContentView::ContentView(QWidget* parent)
       m_mode(TracksMode), m_scrollBar(0), m_scrollY(0),
       m_scrollDelta(0), m_hover(-1), m_current(-1), m_hoverRefresh(false),
       m_playingNcmId(0), m_playlistId(-1),
+      m_playingNetIdx(-1), m_playingRid(0), m_netBuffering(false),
+      m_spinnerTick(0), m_bufTimer(0),
       m_headerH(64), m_rowH(48), m_hasMore(false), m_loadingNow(false)
 {
     setMouseTracking(true);
+    /* 缓冲 spinner 帧驱动（200ms/帧，braille 轮换） */
+    m_bufTimer = new QTimer(this);
+#ifndef QT3_BUILD
+    m_bufTimer->setInterval(200);
+#endif
+    QObject::connect(m_bufTimer, SIGNAL(timeout()), this, SLOT(onSpinnerTick()));
     m_scrollBar = new LimeScrollBar(Qt::Vertical, this);
     QObject::connect(m_scrollBar, SIGNAL(valueChanged(int)), this, SLOT(onScroll(int)));
     QObject::connect(&IconLoader::instance(), SIGNAL(iconsReady()),
@@ -68,6 +88,42 @@ void ContentView::setPlayingTrackId(qint64 ncmId)
     if (m_playingNcmId == ncmId) return;
     m_playingNcmId = ncmId;
     update();   /* 只重绘，不重建列表 */
+}
+
+void ContentView::setPlayingNetRadioIndex(int idx)
+{
+    if (m_playingNetIdx == idx) return;
+    m_playingNetIdx = idx;
+    update();
+}
+
+void ContentView::setPlayingStationRid(qint64 rid)
+{
+    if (m_playingRid == rid) return;
+    m_playingRid = rid;
+    update();
+}
+
+void ContentView::setNetBuffering(bool on)
+{
+    if (m_netBuffering == on) return;
+    m_netBuffering = on;
+    if (on) {
+#ifdef QT3_BUILD
+        m_bufTimer->start(200);   /* Qt3：间隔随 start 传 */
+#else
+        m_bufTimer->start();
+#endif
+    }
+    else { m_bufTimer->stop(); m_spinnerTick = 0; }
+    update();
+}
+
+void ContentView::onSpinnerTick()
+{
+    if (!m_netBuffering) return;
+    m_spinnerTick = (m_spinnerTick + 1) % 8;
+    update();
 }
 
 void ContentView::setLibrary(const std::vector<Playlist>& lib)
@@ -415,6 +471,11 @@ void ContentView::paintEvent(QPaintEvent*)
             const char* unit = m_netRadioMode ? " %1 个"
                              : (m_radioProgramMode ? " %1 期" : " %1 首");
             title += QString::fromUtf8(unit).arg((int)m_pl->tracks.size());
+            /* NCM 歌单更新时间（有值才显示） */
+            if (m_pl->ncmUpdatedAtMs > 0)
+                title += QString::fromUtf8(" · 更新 %1")
+                             .arg(dateFromMs(m_pl->ncmUpdatedAtMs)
+                                      .toString("yyyy-MM-dd"));
         }
         p.setFont(titleFont);
         p.setPen(pal.textPrimary);
@@ -512,6 +573,18 @@ void ContentView::paintEvent(QPaintEvent*)
                                Qt::AlignVCenter | Qt::AlignLeft,
                                QString::fromUtf8("▶"));
                 }
+                /* 网络电台行：正在播放 ▶ / 缓冲 spinner（braille 轮换） */
+                if (m_netRadioMode && (int)row.index == m_playingNetIdx) {
+                    static const char* kSpin[8] =
+                        {"⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧"};
+                    p.setFont(small);
+                    p.setPen(pal.accent);
+                    p.drawText(QRect(2, y, 14, row.h),
+                               Qt::AlignVCenter | Qt::AlignLeft,
+                               m_netBuffering
+                                   ? QString::fromUtf8(kSpin[m_spinnerTick])
+                                   : QString::fromUtf8("▶"));
+                }
 
                 p.setFont(small);
                 p.setPen(selected ? pal.accent : pal.textMuted);
@@ -541,6 +614,15 @@ void ContentView::paintEvent(QPaintEvent*)
                     dur += QString::fromUtf8(" ✓");
                 p.drawText(QRect(width() - 90, y, 60, row.h), Qt::AlignVCenter | Qt::AlignRight,
                            dur);
+
+                /* NCM 专辑上架日期（有值才显示，右对齐在时长左侧） */
+                if (t.publishMs > 0) {
+                    p.setFont(small);
+                    p.setPen(pal.textMuted);
+                    p.drawText(QRect(width() - 250, y, 150, row.h),
+                               Qt::AlignVCenter | Qt::AlignRight,
+                               dateFromMs(t.publishMs).toString("yyyy-MM-dd"));
+                }
             }
         }
     } else if (m_mode == PlaylistListMode) {
@@ -559,6 +641,19 @@ void ContentView::paintEvent(QPaintEvent*)
             p.setPen(pal.textMuted);
             p.drawText(QRect(16, y, 28, row.h), Qt::AlignVCenter | Qt::AlignRight,
                        QString::number(row.index + 1));
+
+            /* 站点电台：正在播放的电台卡片序号位置画 ▶（缓冲 spinner 同款） */
+            if (m_radioList && c.id == m_playingRid) {
+                static const char* kSpin[8] =
+                    {"⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧"};
+                p.setFont(small);
+                p.setPen(pal.accent);
+                p.drawText(QRect(2, y, 14, row.h),
+                           Qt::AlignVCenter | Qt::AlignLeft,
+                           m_netBuffering
+                               ? QString::fromUtf8(kSpin[m_spinnerTick])
+                               : QString::fromUtf8("▶"));
+            }
 
             QPixmap cover = IconLoader::instance().rounded(
                 IconLoader::instance().cover(

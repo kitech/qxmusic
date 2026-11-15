@@ -44,6 +44,8 @@ SideNav::SideNav(QWidget* parent)
     m_user = new UserInfoPanel(this);
     connect(m_user, SIGNAL(loginRequested()), this, SIGNAL(loginRequested()));
     m_search = new SearchLineEdit(this);
+    connect(m_search, SIGNAL(triggered(const QString&)),
+            this, SLOT(onSearchSubmitted(const QString&)));
     m_siteLabel = new QLabel(siteText("site.label", "音乐站点"), this);
     m_site = new QComboBox(this);
     /* 站点名走 key（Phase 2 多源接入直接复用；现仅 UI 占位）；
@@ -70,10 +72,29 @@ SideNav::SideNav(QWidget* parent)
     retranslateUi();
 }
 
-/* 站点切换暂不处理（拍板：仅 UI 占位），打日志定位 */
+/* 站点切换：YouTube Music 为唯一可用第三方站点（yt-dlp 提取）；
+ * 其余站点仍占位（打日志定位）。 */
 void SideNav::onSiteChanged(const QString& site)
 {
-    ALOG_INFO(QString::fromUtf8("SideNav site=%1 (switch pending)").arg(site));
+    const bool youtube = site.contains(QString::fromUtf8("youtube"))
+                      || site.contains(QString::fromUtf8("YouTube"));
+    ALOG_INFO(QString::fromUtf8("SideNav site=%1 (%2)")
+                  .arg(site, youtube ? qFromUtf8("ytm") : qFromUtf8("placeholder")));
+    if (youtube)
+        emit siteChanged(QString::fromUtf8("ytm"));
+    else
+        emit siteChanged(QString::fromUtf8("ncm"));
+}
+
+void SideNav::onSearchSubmitted(const QString& text)
+{
+#ifdef QT3_BUILD
+    const QString kw = text.stripWhiteSpace();
+#else
+    const QString kw = text.trimmed();
+#endif
+    if (kw.isEmpty()) return;
+    emit searchTriggered(kw);
 }
 
 void SideNav::setUserLoggedIn(const QString& name, const QString& avatarSeed)

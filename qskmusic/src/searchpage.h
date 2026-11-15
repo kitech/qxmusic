@@ -31,10 +31,12 @@ private:
     int songRowAt(const QPointF& localPos) const;
     void updatePlayingMarker();
 
+    bool m_ytm = false;              // launchArgs.site == "ytm"：走 yt-dlp 搜索/取流
     QskTextField* m_field = nullptr;
     StatusLine* m_status = nullptr;
     QskLinearBox* m_rows = nullptr;
     QList<Song> m_songs;
+    QList<YtmSong> m_ytmSongs;
     QList<QPair<qint64, QskTextLabel*>> m_playingMarkers;   // songId → 标识列
 };
 

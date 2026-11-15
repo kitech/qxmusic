@@ -33,6 +33,7 @@ struct PlaylistInfo
     QString cover;
     int trackCount = 0;
     QList<Song> songs;
+    qint64 updatedAtMs = 0;   /* NCM 歌单更新时间（0=无） */
 };
 
 /* 站点电台（djradio）：电台 + 节目 */

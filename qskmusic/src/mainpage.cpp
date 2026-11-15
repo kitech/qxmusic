@@ -7,6 +7,7 @@
 #include "icongen.h"
 #include "radiolist.h"
 #include "chipframe.h"
+#include "ncmapi.h"
 #include <QskLinearBox.h>
 #include <QskTextLabel.h>
 #include <QskPushButton.h>
@@ -458,6 +459,22 @@ void HomePage::showSiteMenu()
         const int i = ids.indexOf(index);
         if (i <= 0) {
             m_siteBtn->setText(tr("163 Music"));
+        } else if (i == 6) {                       /* YouTube Music */
+            /* 安卓无 yt-dlp：入口隐藏（桌面-only） */
+#ifdef Q_OS_ANDROID
+            m_siteBtn->setText(tr("163 Music"));
+            ToastPopup::show(this, tr("This site is coming soon"));
+#else
+            m_siteBtn->setText(tr("YouTube Music"));
+            if (!NcmApi::instance().ytmAvailable()) {
+                ToastPopup::show(this, tr("yt-dlp not found: YouTube Music unavailable"));
+                m_siteBtn->setText(tr("163 Music"));
+            } else if (auto* pm = pageManager()) {
+                QVariantMap args;
+                args.insert("site", QStringLiteral("ytm"));
+                pm->open("search", args);
+            }
+#endif
         } else {
             qDebug() << "[SITE] switch pending:" << i;
             ToastPopup::show(this, tr("This site is coming soon"));

@@ -53,6 +53,25 @@ static std::string qToStdString(const QString& s)
     const QByteArray b = qToUtf8(s);
     return std::string(b.data(), (size_t)b.size());
 }
+
+/* YouTube Music 代理：YTM_PROXY 环境变量优先，缺省本地 10809（测试口径）。
+ * Qt3 无 qgetenv/qputenv，统一用 std::getenv / setenv。 */
+static QString ytmProxyFromEnv()
+{
+    const char* p = std::getenv("YTM_PROXY");
+    if (p && *p) return qFromUtf8(p);
+    return QString::fromUtf8("http://127.0.0.1:10809");
+}
+
+static void setEnvVar(const char* name, const QByteArray& value)
+{
+#ifdef Q_OS_WIN
+    _putenv_s(name, value.data());
+#else
+    if (value.isEmpty()) unsetenv(name);
+    else setenv(name, value.data(), 1);
+#endif
+}
 #include <fstream>
 
 #include "app_icon.xpm"
@@ -248,6 +267,9 @@ MainWindow::MainWindow(QWidget* parent)
     , m_ncmBusy(false)
     , m_ncmOffset(0)
     , m_ncmHasMore(false)
+    , m_currentSite(qFromUtf8("ncm"))
+    , m_ytmProxy(ytmProxyFromEnv())
+    , m_ytmStreaming(false)
     , m_ncmSrcPlaylist(0)
     , m_ncmSrcTrack(-1)
     , m_ncmLastToastMs(0)
@@ -305,6 +327,12 @@ MainWindow::MainWindow(QWidget* parent)
     // 启动事件轮询引擎（对照 qldox mainwindow.cpp:630-631）
     EventPoller::start();
     Api::setEventTarget(this);
+    /* 解除布局对窗口最小尺寸的钳制：布局 min 宽偏大时（mac/Qt4 常见）
+     * resize/夹取会被顶到 minimumSizeHint，窗口照样超屏。
+     * Qt3 无此 API（linux 无此症状），Qt4/Qt5/Qt6 走 NoConstraint。 */
+#ifndef QT3_BUILD
+    layout()->setSizeConstraint(QLayout::SetNoConstraint);
+#endif
     /* 空格=全局播放/暂停（app 级拦截；输入控件/外来顶窗豁免，见 eventFilter） */
     qApp->installEventFilter(this);
 }
@@ -467,6 +495,10 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onNcmDjHot(int, const QString&)));
         QObject::connect(m_ncm, SIGNAL(djProgramsLoaded(int, const QString&, qint64)),
                          this, SLOT(onNcmDjPrograms(int, const QString&, qint64)));
+        QObject::connect(m_ncm, SIGNAL(ytmSearchLoaded(int, const QString&)),
+                         this, SLOT(onYtmSearchDone(int, const QString&)));
+        QObject::connect(m_ncm, SIGNAL(ytmStreamLoaded(int, const QString&)),
+                         this, SLOT(onYtmStreamDone(int, const QString&)));
         QObject::connect(contentView, SIGNAL(radioSelected(qint64)),
                          this, SLOT(onRadioSelected(qint64)));
         /* 登录态启动即做收藏双向合并（未登录静默跳过，本地功能不受影响） */
@@ -494,6 +526,11 @@ void MainWindow::buildCentralWidget()
     /* 网络电台地区子分类：内置清单，不依赖 libncm（!NCM_ENABLE 构建也可用） */
     QObject::connect(sideNav, SIGNAL(netRadioRegionSelected(const QString&)),
                      this, SLOT(onNetRadioRegion(const QString&)));
+    /* 音乐站点 / 搜索（YouTube Music 桌面端可用；163 搜索暂无后端） */
+    QObject::connect(sideNav, SIGNAL(siteChanged(const QString&)),
+                     this, SLOT(onSiteChanged(const QString&)));
+    QObject::connect(sideNav, SIGNAL(searchTriggered(const QString&)),
+                     this, SLOT(onSearchTriggered(const QString&)));
     QObject::connect(contentView, SIGNAL(playlistActivated(qint64)),
                      this, SLOT(onNcmPlaylistActivated(qint64)));
     QObject::connect(contentView, SIGNAL(loadMoreRequested()),
@@ -1042,6 +1079,19 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
 
 void MainWindow::onTrackActivated(int playlistId, int trackIndex)
 {
+    const Playlist* pl = findPlaylist(m_library, playlistId);
+    if (pl && trackIndex >= 0 && trackIndex < (int)pl->tracks.size()) {
+        const Track& t = pl->tracks[trackIndex];
+        /* YouTube Music：t.url = "ytm:<videoId>" → 先取直链再播 */
+        if (t.url.startsWith(QString::fromUtf8("ytm:")) && m_ncm && m_ncmAvailable) {
+            m_curPlaylistId = playlistId;
+            m_curTrackIndex = trackIndex;
+            if (playerBar) { playerBar->setTrack(t); playerBar->setPlaying(false); }
+            SharedStatusBar::instance()->showMessage(_("ncm.loading"), 0);
+            m_ncm->ytmStream(t.url.mid(4));
+            return;
+        }
+    }
     playTrack(playlistId, trackIndex);
 }
 
@@ -1420,6 +1470,14 @@ void MainWindow::onAudioState(int state)
      * （cxaudio State：0=Stopped 1=Playing 2=Paused 3=Buffering 4=Error） */
     ALOG_INFO(qFromUtf8("audioState=%1").arg(state));
     if (playerBar) playerBar->setPlaying(state == 1);
+    /* 电台行 spinner 收尾：出声即停；错误复位 ▶ */
+    if (state == 1 || state == 3) {
+        contentView->setNetBuffering(false);
+    } else if (state == 4) {
+        contentView->setNetBuffering(false);
+        contentView->setPlayingNetRadioIndex(-1);
+        contentView->setPlayingStationRid(0);
+    }
 }
 
 void MainWindow::onAudioFinished()
@@ -1428,6 +1486,9 @@ void MainWindow::onAudioFinished()
         m_liveStream = false;
         if (playerBar) playerBar->setLive(false);
         /* 直播流正常结束（断流/切台）：停留原地，不 advanceNext */
+        contentView->setNetBuffering(false);
+        contentView->setPlayingNetRadioIndex(-1);
+        contentView->setPlayingStationRid(0);
         return;
     }
     if (m_repeatMode == 2 && m_curTrackIndex >= 0) {
@@ -1803,6 +1864,8 @@ void MainWindow::onNcmPlaylistTracks(int rc, const QString& json, int localId)
     p.creator = pl ? cJSONStr(pl, "creator", "") : "";
     p.coverUrl = p.coverSeed;
     p.trackCount = pl ? (int)cJSONInt(pl, "track_count", 0) : 0;
+    /* 歌单更新时间（列表页/详情标题行显示用；0=无） */
+    p.ncmUpdatedAtMs = pl ? (qint64)cJSONInt(pl, "updated_at_ms", 0) : 0;
 
     static int nextTrackId = 100;
     cJSON* tracks = cJSON_GetObjectItem(root, "tracks");
@@ -1828,6 +1891,7 @@ void MainWindow::onNcmPlaylistTracks(int rc, const QString& json, int localId)
                                cJSONStr(it, "cover", ""),
                                cJSONInt(it, "album_id", 0));
         t.playable = cJSONBool(it, "playable", true);
+        t.publishMs = (qint64)cJSONInt(it, "publish_ms", 0);   /* 专辑上架（0=无） */
         cJSON* aids = cJSON_GetObjectItem(it, "artist_ids");
         if (aids && cJSON_GetArraySize(aids) > 0) {
             cJSON* a0 = cJSON_GetArrayItem(aids, 0);
@@ -2124,8 +2188,128 @@ void MainWindow::onNcmDjHot(int rc, const QString& json)
 void MainWindow::onRadioSelected(qint64 rid)
 {
     if (!m_ncm || !m_ncmAvailable || rid <= 0) return;
+    contentView->setPlayingStationRid(rid);   /* 卡片序号位 ▶ */
     SharedStatusBar::instance()->showMessage(_("radio.loading"), 0);
     m_ncm->loadDjPrograms(rid, 50, 0, 0);
+}
+
+/* ── YouTube Music（yt-dlp；桌面端） ── */
+
+void MainWindow::onSiteChanged(const QString& site)
+{
+    m_currentSite = site;
+    if (site == qFromUtf8("ytm")) {
+        const bool ready = (m_ncm && m_ncmAvailable);
+        ToastWidget::showCenter(this,
+            _(ready ? "site.ytm_ready" : "site.ytm_unavailable"),
+            ready ? ToastWidget::Info : ToastWidget::Warning, 2200);
+    }
+}
+
+void MainWindow::onSearchTriggered(const QString& text)
+{
+    if (qStringIsBlank(text)) return;
+    if (m_currentSite != qFromUtf8("ytm")) {
+        /* 163 搜索后端未接入：提示切站点（避免静默无响应） */
+        ToastWidget::showCenter(this, _("site.search_ncm_todo"),
+                                ToastWidget::Info, 2500);
+        return;
+    }
+    if (!m_ncm || !m_ncmAvailable || m_ncmBusy) return;
+    m_ncmBusy = true;
+    SharedStatusBar::instance()->showMessage(_("ncm.loading"), 0);
+    m_ncm->ytmSearch(text, 30);
+}
+
+void MainWindow::onYtmSearchDone(int rc, const QString& json)
+{
+    m_ncmBusy = false;
+    SharedStatusBar::instance()->clearMessage();
+    if (rc != NCM_OK) {
+        showNcmError(rc, _("site.youtube"));
+        return;
+    }
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) return;
+    /* 新建一个本地歌单承载搜索结果；videoId 暂存 t.url = "ytm:<vid>"（点击再取流） */
+    Playlist p;
+    p.id = 1;
+    for (size_t i = 0; i < m_library.size(); ++i)
+        if (m_library[i].id >= p.id) p.id = m_library[i].id + 1;
+    p.name = _("site.youtube");
+    p.coverSeed = "ytm";
+    p.ncmId = 0;
+    p.creator = _("site.youtube");
+    p.trackCount = 0;
+
+    static int nextYtmTrackId = 900000;
+    cJSON* arr = cJSON_GetObjectItem(root, "songs");
+    for (int i = 0; arr && i < cJSON_GetArraySize(arr); ++i) {
+        cJSON* it = cJSON_GetArrayItem(arr, i);
+        if (!it) continue;
+        const QString vid = cJSONStr(it, "id", "");
+        if (vid.isEmpty()) continue;
+        Track t;
+        t.id = nextYtmTrackId++;
+        t.ncmId = 0;
+        t.albumId = 0;
+        t.title = cJSONStr(it, "name", "");
+        QString artists;
+        cJSON* ar = cJSON_GetObjectItem(it, "artists");
+        for (int a = 0; ar && a < cJSON_GetArraySize(ar); ++a) {
+            cJSON* ai = cJSON_GetArrayItem(ar, a);
+            if (ai && ai->type == cJSON_String && ai->valuestring) {
+                if (!artists.isEmpty()) artists += qFromUtf8("/");
+                artists += qFromUtf8(ai->valuestring);
+            }
+        }
+        t.artist = artists;
+        t.album = QString();
+        t.durationMs = (int)cJSONInt(it, "duration_ms", 0);
+        t.coverSeed = QString("ytm-%1").arg(vid.left(8));
+        t.url = QString::fromUtf8("ytm:") + vid;   /* 取流标记（onTrackActivated 拦截） */
+        t.playable = true;
+        p.tracks.push_back(t);
+    }
+    cJSON_Delete(root);
+    p.trackCount = (int)p.tracks.size();
+    if (p.tracks.empty()) {
+        ToastWidget::showCenter(this, _("ncm.error_not_found"),
+                                ToastWidget::Warning, 2000);
+        return;
+    }
+    m_library.push_back(p);
+    const int newId = p.id;
+    sideNav->setLibrary(m_library);
+    contentView->setLibrary(m_library);
+    sideNav->setCurrentPlaylist(newId);
+    contentView->showPlaylist(newId);
+}
+
+void MainWindow::onYtmStreamDone(int rc, const QString& json)
+{
+    SharedStatusBar::instance()->clearMessage();
+    if (rc != NCM_OK) {
+        showNcmError(rc, _("site.youtube"));
+        return;
+    }
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) return;
+    const QString url = cJSONStr(root, "url", "");
+    cJSON_Delete(root);
+    if (url.isEmpty()) return;
+    /* googlevideo 直链必须走代理（实测直连超时）：ffmpeg/mpv 读 http_proxy 环境变量，
+     * 起播后清除以免影响网易云直连 */
+    const QByteArray proxy = qToUtf8(m_ytmProxy);
+    setEnvVar("http_proxy", proxy);
+    setEnvVar("https_proxy", proxy);
+    m_ytmStreaming = true;
+    playNcmResolved(url, _("site.youtube"));
+    /* 起播后清除（Qt3 无 qunsetenv；setEnvVar 空值即 unsetenv），
+     * 避免影响网易云直连 */
+    setEnvVar("http_proxy", QByteArray());
+    setEnvVar("https_proxy", QByteArray());
+    m_ytmStreaming = false;
 }
 
 void MainWindow::onNcmDjPrograms(int rc, const QString& json, qint64 rid)
@@ -2178,6 +2362,8 @@ void MainWindow::onNetRadioStream(int index)
     }
     m_liveStream = true;
     ensureEngine();
+    contentView->setPlayingNetRadioIndex(index);   /* 行首 ▶（spinner 由缓冲态接管） */
+    contentView->setNetBuffering(true);            /* 流未出声前 spinner */
     audioEngine->open(QString::fromUtf8(s.url));
     audioEngine->play();
     /* PlayerBar 显示台名（独立流播放：不进 NCM 队列/resolve 链路） */
@@ -2368,6 +2554,11 @@ void MainWindow::onNcmAuthRequired(const QString&) {}
 void MainWindow::onNcmDjHot(int, const QString&) {}
 void MainWindow::onNcmDjPrograms(int, const QString&, qint64) {}
 void MainWindow::onRadioSelected(qint64) {}
+/* !NCM_ENABLE：YouTube Music 依赖 libncm（yt-dlp 经 Go core），整段置空 */
+void MainWindow::onSiteChanged(const QString&) {}
+void MainWindow::onSearchTriggered(const QString&) {}
+void MainWindow::onYtmSearchDone(int, const QString&) {}
+void MainWindow::onYtmStreamDone(int, const QString&) {}
 
 /* 网络电台：内置清单不依赖 libncm（!NCM_ENABLE 构建同样可用） */
 void MainWindow::onNetRadioRegion(const QString& regionKey)
@@ -2390,6 +2581,8 @@ void MainWindow::onNetRadioStream(int index)
     }
     m_liveStream = true;
     ensureEngine();
+    contentView->setPlayingNetRadioIndex(index);   /* 行首 ▶（spinner 由缓冲态接管） */
+    contentView->setNetBuffering(true);            /* 流未出声前 spinner */
     audioEngine->open(QString::fromUtf8(s.url));
     audioEngine->play();
     Track t;

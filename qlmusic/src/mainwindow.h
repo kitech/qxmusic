@@ -107,6 +107,11 @@ private slots:
     /* 网络电台（内置清单） */
     void onNetRadioRegion(const QString& regionKey);
     void onNetRadioStream(int index);
+    /* YouTube Music（yt-dlp；桌面端） */
+    void onSiteChanged(const QString& site);
+    void onSearchTriggered(const QString& text);
+    void onYtmSearchDone(int rc, const QString& json);
+    void onYtmStreamDone(int rc, const QString& json);
 
 private:
     struct MenuItemRef {
@@ -193,6 +198,9 @@ private:
     bool m_ncmBusy;
     QString m_ncmCatKey;     /* 当前分类（kHotViewKey=热门歌单） */
     QString m_ncmListTitle;  /* 列表标题 */
+    QString m_currentSite;   /* 音乐站点："ncm"(默认) / "ytm"（YouTube Music） */
+    QString m_ytmProxy;      /* YTM 代理（默认 http://127.0.0.1:10809；YTM_PROXY 覆盖） */
+    bool m_ytmStreaming;     /* 当前播放的是 YTM 直链（http_proxy 已置，收尾清除） */
     QStringList m_ncmAllCats;   /* 暂未使用：备用扁平分类 */
     int m_ncmOffset;
     std::vector<RemotePlaylistCard> m_ncmPendingCards;

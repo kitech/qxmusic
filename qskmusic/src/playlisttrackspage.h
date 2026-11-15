@@ -42,6 +42,7 @@ private:
     QskTextLabel* m_header = nullptr;
     IconItem* m_plCover = nullptr;      // 歌单封面（顶栏 48dp）
     QskTextLabel* m_count = nullptr;
+    QskTextLabel* m_updated = nullptr;   /* 歌单更新时间（有值才显示） */
     StatusLine* m_status = nullptr;
 };
 

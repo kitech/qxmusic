@@ -35,6 +35,7 @@ import (
 	"qx163/ncm/internal/client"
 	"qx163/ncm/internal/errs"
 	"qx163/ncm/internal/httplog"
+	"qx163/ncm/internal/ytm"
 	"qx163/ncm/internal/version"
 )
 
@@ -795,6 +796,79 @@ func ncm_lyric(h *C.ncm_client, songID C.int64_t, out **C.char) C.int32_t {
 			return C.int32_t(errs.InvalidArg)
 		}
 		res, err := catalog.Lyric(int64(songID))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+/* ---------------- YouTube Music（exec yt-dlp；详见 internal/ytm/ytm.go） ---------------- */
+
+//export ncm_ytm_available
+func ncm_ytm_available() C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if ytm.Available() {
+			return 0
+		}
+		return C.int32_t(errs.NotImplemented)
+	})
+}
+
+//export ncm_ytm_set_proxy
+func ncm_ytm_set_proxy(p *C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if p != nil {
+			ytm.SetProxy(C.GoString(p))
+		}
+		return 0
+	})
+}
+
+//export ncm_ytm_search
+func ncm_ytm_search(h *C.ncm_client, keywords *C.char, limit C.int32_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		if keywords == nil {
+			if out != nil {
+				*out = nil
+			}
+			return C.int32_t(errs.InvalidArg)
+		}
+		if limit <= 0 {
+			limit = 30
+		}
+		res, err := ytm.Search(C.GoString(keywords), int(limit))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_ytm_stream
+func ncm_ytm_stream(h *C.ncm_client, videoID *C.char, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		if videoID == nil {
+			if out != nil {
+				*out = nil
+			}
+			return C.int32_t(errs.InvalidArg)
+		}
+		res, err := ytm.Stream(C.GoString(videoID))
 		if err != nil {
 			return fail(out, err)
 		}

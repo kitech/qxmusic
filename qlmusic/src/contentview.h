@@ -7,6 +7,7 @@
 #include <qwidget.h>
 #include <qrect.h>
 #include <qstringlist.h>
+#include <qtimer.h>
 
 class LimeScrollBar;
 
@@ -26,7 +27,12 @@ class ContentView : public QWidget {
 public:
     explicit ContentView(QWidget* parent = 0);
     void setLibrary(const std::vector<Playlist>& lib);
-    void setPlayingTrackId(qint64 ncmId);   /* 正在播放的 NCM 曲目（0=无） */    void retranslateUi();
+    void setPlayingTrackId(qint64 ncmId);   /* 正在播放的 NCM 曲目（0=无） */
+    /* 电台播放态：正在播放行 + 缓冲 spinner（MainWindow 在点台/引擎回调处设置） */
+    void setPlayingNetRadioIndex(int idx);  /* 网络电台行（-1=无） */
+    void setPlayingStationRid(qint64 rid);  /* 站点电台 rid（0=无） */
+    void setNetBuffering(bool on);          /* true=▶ 变 spinner */
+    void retranslateUi();
 
     /* PlaylistListMode：NCM 歌单列表（热门歌单/分类列表） */
     void showPlaylistList(const QString& title, const std::vector<RemotePlaylistCard>& cards,
@@ -55,6 +61,7 @@ public slots:
     void showPlaylist(int playlistId);
 
     void onScroll(int value);
+    void onSpinnerTick();
 
 signals:
     void trackActivated(int playlistId, int trackIndex);
@@ -120,6 +127,12 @@ private:
     int m_current;
     bool m_hoverRefresh;     /* 标题行 ⟳ 悬停态 */
     qint64 m_playingNcmId;   /* 正在播放的 NCM 曲目 id（0=无，本地曲不标） */
+    /* 电台播放态：正在播放行 + 缓冲 spinner（netradio 行 & 站点电台卡片） */
+    int m_playingNetIdx;     /* 网络电台正在播放行（-1=无） */
+    qint64 m_playingRid;     /* 站点电台正在播放 rid（0=无） */
+    bool m_netBuffering;     /* true = 行首 ▶ 变 spinner */
+    int m_spinnerTick;       /* spinner 帧序（0..7） */
+    QTimer* m_bufTimer;
     int m_playlistId;    int m_headerH;
     int m_rowH;
     QString m_playAll;
