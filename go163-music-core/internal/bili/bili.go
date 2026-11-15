@@ -39,7 +39,7 @@ const (
 var (
 	mu    sync.Mutex
 	sess  string // SESSDATA（可选；大会员才出 Hi-Res）
-	httpc = &http.Client{Timeout: 15 * time.Second}
+	httpc = &http.Client{Timeout: 30 * time.Second}
 	emTag = regexp.MustCompile(`<[^>]+>`)
 )
 

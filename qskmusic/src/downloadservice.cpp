@@ -70,7 +70,7 @@ void DownloadService::startNext()
     /* 下载头：NCM 与 B站统一由 resolve 出参给出（Referer/UA/Cookie…） */
     for (auto it = task.headers.constBegin(); it != task.headers.constEnd(); ++it)
         req.setRawHeader(it.key().toUtf8(), it.value().toUtf8());
-    req.setTransferTimeout(30000);   /* 30s 无数据流动即中止 → finished 走错误路径 */
+    req.setTransferTimeout(60000);   /* 30s 无数据流动即中止 → finished 走错误路径 */
     auto* reply = m_nam->get(req);
     auto* f = new QFile(dst + QStringLiteral(".part"), this);
     f->open(QIODevice::WriteOnly | QIODevice::Truncate);

@@ -524,10 +524,10 @@ int fetchRemoteTask(const NcmTask& t, NcmService* svc, std::string& json)
     curl_easy_setopt(h, CURLOPT_PROGRESSDATA, &ctx);
     curl_easy_setopt(h, CURLOPT_NOPROGRESS, 0L);
     curl_easy_setopt(h, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(h, CURLOPT_CONNECTTIMEOUT, 10L);
+    curl_easy_setopt(h, CURLOPT_CONNECTTIMEOUT, 20L);
     /* 停滞中止：30s 平均 <1B/s → abort（只杀停滞，不限总时长） */
     curl_easy_setopt(h, CURLOPT_LOW_SPEED_LIMIT, 1L);
-    curl_easy_setopt(h, CURLOPT_LOW_SPEED_TIME, 30L);
+    curl_easy_setopt(h, CURLOPT_LOW_SPEED_TIME, 60L);
     /* 全仓统一 UA（与图片/Go 侧一致，见 docs/图片缓存协议.md §7） */
     curl_easy_setopt(h, CURLOPT_USERAGENT,
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
