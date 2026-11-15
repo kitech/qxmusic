@@ -43,7 +43,8 @@
       "hongkong": "HongKong",
       "asia": "Asia",
       "international": "International"
-    }
+    },
+    "connecting": "Connecting to radio…"
   },
   "site": {
     "label": "Music Site",

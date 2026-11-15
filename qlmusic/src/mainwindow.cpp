@@ -1502,8 +1502,10 @@ void MainWindow::onAudioState(int state)
     /* 电台行 spinner 收尾：出声即停；错误复位 ▶ */
     if (state == 1 || state == 3) {
         contentView->setNetBuffering(false);
+        if (m_liveStream) SharedStatusBar::instance()->clearMessage();
     } else if (state == 4) {
         contentView->setNetBuffering(false);
+        if (m_liveStream) SharedStatusBar::instance()->clearMessage();
         contentView->setPlayingNetRadioIndex(-1);
         contentView->setPlayingStationRid(0);
     }
@@ -2554,8 +2556,8 @@ void MainWindow::onNetRadioStream(int index)
     ensureEngine();
     contentView->setPlayingNetRadioIndex(index);   /* 行首 ▶（spinner 由缓冲态接管） */
     contentView->setNetBuffering(true);            /* 流未出声前 spinner */
-    audioEngine->open(QString::fromUtf8(s.url));
-    audioEngine->play();
+    /* 网络源异步打开：DNS/TCP/TLS/HLS 在后台线程，UI 不再冻 4–5s */
+    audioEngine->openAsync(QString::fromUtf8(s.url));
     /* PlayerBar 显示台名（独立流播放：不进 NCM 队列/resolve 链路） */
     Track t;
     t.id = index + 1;
@@ -2574,7 +2576,7 @@ void MainWindow::onNetRadioStream(int index)
         playerBar->setLive(s.hls);
     }
     SharedStatusBar::instance()->showMessage(
-        _("radio.playing") + qFromUtf8(" ") + t.title, 3000);
+        _("radio.connecting") + qFromUtf8(" ") + t.title, 0);
 }
 
 void MainWindow::showNcmError(int rc, const QString& op)
@@ -2775,8 +2777,8 @@ void MainWindow::onNetRadioStream(int index)
     ensureEngine();
     contentView->setPlayingNetRadioIndex(index);   /* 行首 ▶（spinner 由缓冲态接管） */
     contentView->setNetBuffering(true);            /* 流未出声前 spinner */
-    audioEngine->open(QString::fromUtf8(s.url));
-    audioEngine->play();
+    /* 网络源异步打开：DNS/TCP/TLS/HLS 在后台线程，UI 不再冻 4–5s */
+    audioEngine->openAsync(QString::fromUtf8(s.url));
     Track t;
     t.id = index + 1;
     t.ncmId = 0;
@@ -2794,7 +2796,7 @@ void MainWindow::onNetRadioStream(int index)
         playerBar->setLive(s.hls);
     }
     SharedStatusBar::instance()->showMessage(
-        _("radio.playing") + qFromUtf8(" ") + t.title, 3000);
+        _("radio.connecting") + qFromUtf8(" ") + t.title, 0);
 }
 
 #endif /* NCM_ENABLE */

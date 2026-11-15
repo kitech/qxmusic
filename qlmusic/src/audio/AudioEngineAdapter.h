@@ -5,6 +5,9 @@
 #include "cxaudio.hpp"
 
 #include <vector>
+#include <thread>
+#include <mutex>
+#include <atomic>
 
 /* Qt wrapper around cxaudio::Player. Engine callbacks arrive on worker threads;
  * they are marshalled to this object's thread (the UI thread) via posted events,
@@ -32,6 +35,8 @@ public:
     std::vector<OutputDevice> outputDevices();
 
     void open(const QString& uri);
+    /* 异步打开：网络源（https/HLS）用它，避免 UI 线程阻塞数秒 */
+    void openAsync(const QString& uri);
     void play();
     void pause();
     void toggle();
@@ -54,6 +59,11 @@ protected:
     void customEvent(CustomEventBase* e);
 
 private:
+    std::mutex m_mx;
+    std::thread m_openThread;
+    std::atomic<int> m_openGen{0};
+    void joinOpen();
+
     cxaudio::Player m_player;
     QString m_requested;
 };

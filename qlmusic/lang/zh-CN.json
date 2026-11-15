@@ -43,7 +43,8 @@
       "hongkong": "香港",
       "asia": "亚洲",
       "international": "国际"
-    }
+    },
+    "connecting": "正在连接电台…"
   },
   "site": {
     "label": "音乐站点",

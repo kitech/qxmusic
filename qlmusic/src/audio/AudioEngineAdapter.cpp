@@ -29,7 +29,15 @@ AudioEngineAdapter::AudioEngineAdapter(QObject* parent)
 AudioEngineAdapter::~AudioEngineAdapter()
 {
     m_player.setCallback(cxaudio::Player::Callback());
+    joinOpen();
+    std::lock_guard<std::mutex> lk(m_mx);
     m_player.stop();
+}
+
+void AudioEngineAdapter::joinOpen()
+{
+    if (m_openThread.joinable())
+        m_openThread.join();
 }
 
 void AudioEngineAdapter::setBackend(const QString& id)
@@ -68,6 +76,7 @@ std::vector<AudioEngineAdapter::OutputDevice> AudioEngineAdapter::outputDevices(
 
 void AudioEngineAdapter::open(const QString& uri)
 {
+    std::lock_guard<std::mutex> lk(m_mx);
     /* Player::open 返回 bool，失败原因在 lastError()。经 EvError 事件
      * 走既有 onAudioError → 状态栏 + 停止播放态，避免“UI 已播放
      * 但引擎静默失败”的不可见状态。 */
@@ -77,11 +86,34 @@ void AudioEngineAdapter::open(const QString& uri)
     }
 }
 
-void AudioEngineAdapter::play() { m_player.play(); }
-void AudioEngineAdapter::pause() { m_player.pause(); }
+void AudioEngineAdapter::openAsync(const QString& uri)
+{
+    const int gen = ++m_openGen;
+    {
+        std::lock_guard<std::mutex> lk(m_mx);
+        m_player.stop();
+    }
+    joinOpen();
+    const QByteArray ua = qToUtf8(uri);
+    const std::string u(ua.data(), (size_t)ua.size());
+    m_openThread = std::thread([this, u, gen]() {
+        std::lock_guard<std::mutex> lk(m_mx);
+        if (gen != m_openGen.load()) return;      /* 已被更新的点击替代 */
+        if (m_player.open(u.c_str())) {
+            if (gen == m_openGen.load()) m_player.play();
+        } else {
+            QApplication::postEvent(this, new AudioEngineEvent(
+                cxaudio::EvError, 0, 0, qFromUtf8(m_player.lastError())));
+        }
+    });
+}
+
+void AudioEngineAdapter::play() { std::lock_guard<std::mutex> lk(m_mx); m_player.play(); }
+void AudioEngineAdapter::pause() { std::lock_guard<std::mutex> lk(m_mx); m_player.pause(); }
 
 void AudioEngineAdapter::toggle()
 {
+    std::lock_guard<std::mutex> lk(m_mx);
     int st = m_player.state();
     if (st == cxaudio::Playing)
         m_player.pause();
@@ -89,9 +121,9 @@ void AudioEngineAdapter::toggle()
         m_player.play();
 }
 
-void AudioEngineAdapter::stop() { m_player.stop(); }
-void AudioEngineAdapter::seek(int ms) { m_player.seek(ms); }
-void AudioEngineAdapter::setVolume(int v) { m_player.setVolume(v); }
+void AudioEngineAdapter::stop() { std::lock_guard<std::mutex> lk(m_mx); m_player.stop(); }
+void AudioEngineAdapter::seek(int ms) { std::lock_guard<std::mutex> lk(m_mx); m_player.seek(ms); }
+void AudioEngineAdapter::setVolume(int v) { std::lock_guard<std::mutex> lk(m_mx); m_player.setVolume(v); }
 
 int AudioEngineAdapter::position() const { return (int)m_player.position(); }
 int AudioEngineAdapter::duration() const { return (int)m_player.duration(); }
