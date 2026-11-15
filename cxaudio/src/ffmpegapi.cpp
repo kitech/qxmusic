@@ -84,6 +84,21 @@ std::string findLib(const std::string& dir, const std::string& base, int major) 
 
 } /* namespace */
 
+/* 轻量探测：dlopen 候选库，判断 ABI major 与 https 协议支持 */
+struct ProbeResult { bool abi; bool https; };
+
+static ProbeResult probeLib(const std::string& path, int wantMajor) {
+    ProbeResult r = {false, false};
+    Library probe;
+    if (!probe.open(path)) return r;
+    auto ver  = (unsigned (*)())probe.sym("avformat_version");
+    auto find = (int (*)(const char*))probe.sym("avio_find_protocol");
+    if (!ver) return r;
+    r.abi = (ver() >> 16) == (unsigned)wantMajor;
+    r.https = find && find("https") != 0;
+    return r;
+}
+
 bool loadFfmpegApi(FfmpegApi* api, std::string* err) {
     std::memset(api, 0, sizeof(*api));
 
@@ -105,9 +120,20 @@ bool loadFfmpegApi(FfmpegApi* api, std::string* err) {
             std::vector<std::string> more = librarySearchDirs("");
             dirs.insert(dirs.end(), more.begin(), more.end());
         }
+        /* 1) 逐个候选轻量探测；2) 优先 ABI 兼容且 https 可用者；
+         * 3) 都无 https 时退回首个 ABI 兼容者（降级由调用方处理） */
+        std::string firstAbi;
         for (size_t d = 0; d < dirs.size() && fmtPath.empty(); ++d) {
-            fmtPath = findLib(dirs[d], "avformat", kMajor);
+            std::string cand = findLib(dirs[d], "avformat", kMajor);
+            if (cand.empty()) continue;
+            ProbeResult pr = probeLib(cand, kMajor);
+            CXA_LOG("ffmpeg probe: %s abi=%d https=%d", cand.c_str(),
+                    pr.abi ? 1 : 0, pr.https ? 1 : 0);
+            if (!pr.abi) continue;
+            if (pr.https) { fmtPath = cand; break; }
+            if (firstAbi.empty()) firstAbi = cand;
         }
+        if (fmtPath.empty()) fmtPath = firstAbi;
     }
     if (fmtPath.empty()) {
         if (err) *err = "libavformat not found";
@@ -187,6 +213,8 @@ bool loadFfmpegApi(FfmpegApi* api, std::string* err) {
     api->av_frame_unref = (void (*)(AVFrame*))sym("av_frame_unref");
     api->av_strerror = (int (*)(int, char*, size_t))sym("av_strerror");
     api->avio_find_protocol = (int (*)(const char*))sym("avio_find_protocol");
+    api->avformat_configuration = (const char* (*)())sym("avformat_configuration");
+    api->av_version_info = (const char* (*)())sym("av_version_info");
     api->av_rescale_q = (int64_t (*)(int64_t, AVRational, AVRational))sym("av_rescale_q");
     api->av_channel_layout_default =
         (void (*)(AVChannelLayout*, int))sym("av_channel_layout_default");
@@ -234,12 +262,17 @@ bool loadFfmpegApi(FfmpegApi* api, std::string* err) {
     gLoadedPath = fmtPath;
     api->loaded_path = gLoadedPath.c_str();
     gHttps = api->avio_find_protocol && api->avio_find_protocol("https") != 0;
-    CXA_LOG("ffmpeg https/tls support: %s", gHttps ? "yes" : "NO (no openssl/gnutls/securetransport)");
+    CXA_LOG("ffmpeg loaded: %s version=%s https=%s", fmtPath.c_str(),
+            api->av_version_info ? api->av_version_info() : "?",
+            gHttps ? "yes" : "NO");
+    if (api->avformat_configuration)
+        CXA_LOG("ffmpeg configuration: %s", api->avformat_configuration());
     return true;
 }
 
 const char* ffmpegLoadedPath() { return gLoadedPath.c_str(); }
 bool ffmpegHttpsSupported() { return gHttps; }
+bool ffmpegLoadedHttps() { return gHttps; }
 
 } /* namespace cx */
 

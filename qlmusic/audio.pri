@@ -104,3 +104,34 @@ SOURCES += \
 unix:!macx: LIBS += -ldl -lpthread -lm
 macx: LIBS += -framework CoreFoundation -framework CoreAudio -framework AudioToolbox
 win32: LIBS += -lole32 -lwinmm -luser32
+
+# ── FFmpeg 头路径（仅 ABI 布局；TLS 能力运行时决定）──────────────
+# 找不到头 → cxaudio ffmpeg 后端编成 stub（"backend not built at compile time"），
+# 与运行库是否带 SSL/gnutls/securetransport 无关（运行期探测 https）。
+FFMPEG_INCDIR = $$(FFMPEG_INCDIR)                    # 手动覆盖优先
+isEmpty(FFMPEG_INCDIR) {
+    FFMPEG_PC = $$system(pkg-config --cflags-only-I libavformat 2>/dev/null)
+    !isEmpty(FFMPEG_PC) {
+        FFMPEG_INCDIR = $$system(pkg-config --cflags-only-I libavformat 2>/dev/null | sed 's/-I//g')
+    } else: macx:exists(/opt/homebrew/include/libavformat/avformat.h) {
+        FFMPEG_INCDIR = /opt/homebrew/include
+    } else: macx:exists(/usr/local/include/libavformat/avformat.h) {
+        FFMPEG_INCDIR = /usr/local/include
+    } else: macx:exists(/opt/local/include/libavformat/avformat.h) {
+        FFMPEG_INCDIR = /opt/local/include          # MacPorts
+    } else: exists(/opt/vcpkg/installed/x64-osx-dynamic/include/libavformat/avformat.h) {
+        FFMPEG_INCDIR = /opt/vcpkg/installed/x64-osx-dynamic/include
+    } else: exists(/usr/include/libavformat/avformat.h) {
+        FFMPEG_INCDIR = /usr/include            # 系统默认路径（Linux 常见）
+    } else: exists(/usr/local/include/libavformat/avformat.h) {
+        FFMPEG_INCDIR = /usr/local/include
+    }
+}
+!isEmpty(FFMPEG_INCDIR) {
+    INCLUDEPATH += $$FFMPEG_INCDIR
+    message("FFmpeg headers: $$FFMPEG_INCDIR (ABI only; TLS at runtime)")
+} else {
+    message("FFmpeg headers: not found in known prefixes (compiler default path may still work; else set FFMPEG_INCDIR)")
+}
+# 逃生阀：头在非标准位置（需自行提供 INCLUDEPATH）
+ffmpeg_force: DEFINES += CXAUDIO_FFMPEG_FORCE

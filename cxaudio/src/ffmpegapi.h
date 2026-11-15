@@ -4,7 +4,9 @@
 /* FFmpeg is hot-loaded and never linked; its headers are only present on
  * desktop toolchains (Android ships no FFmpeg headers). When they are absent
  * this header declares nothing and ffmpegapi.cpp compiles to an empty unit. */
-#if defined(__has_include)
+#if defined(CXAUDIO_FFMPEG_FORCE)
+#  define CXAUDIO_FFMPEGAPI_HEADERS 1
+#elif defined(__has_include)
 #  if __has_include(<libavformat/avformat.h>) && __has_include(<libavcodec/avcodec.h>) && \
       __has_include(<libswresample/swresample.h>)
 #    define CXAUDIO_FFMPEGAPI_HEADERS 1
@@ -64,6 +66,8 @@ struct FfmpegApi {
     /* 诊断：实际加载的 libavformat 路径 + https(TLS) 能力 */
     const char* loaded_path;
     int (*avio_find_protocol)(const char*);
+    const char* (*avformat_configuration)();
+    const char* (*av_version_info)();
 
     SwrContext* (*swr_alloc)();
     int (*swr_init)(SwrContext*);
@@ -92,6 +96,7 @@ bool loadFfmpegApi(FfmpegApi* api, std::string* err);
 /* 诊断接口（core.cpp 组装错误提示用；未加载时返回空串/false） */
 const char* ffmpegLoadedPath();
 bool ffmpegHttpsSupported();
+bool ffmpegLoadedHttps();
 
 } /* namespace cx */
 
