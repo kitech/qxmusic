@@ -213,6 +213,9 @@ private:
     bool m_autoSkip;            /* 播放失败自动跳下一首（默认开） */
     bool m_liveStream = false;  /* 网络电台直播流：不自动连播/不出进度 */
     int m_errSkipRun;           /* 连续失败计数，成功播放清零 */
+    /* 同一曲失败去重：engine State=4 与 errorOccurred 可能对同一次失败双发 */
+    int m_skipGuardPlaylist = -1;
+    int m_skipGuardTrack = -1;
     int m_autoSkipMenuIndex;    /* Tool 菜单 check 项（updateBackendChecks 范式） */
     enum { kErrSkipStopAt = 99 };   /* 连续失败止损阈值（foo_skip 惯例量级） */
     /* 音量 + NCM 下载指示（播放条） */

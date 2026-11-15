@@ -1040,6 +1040,8 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
     const Track& t = pl->tracks[trackIndex];
     m_curPlaylistId = playlistId;
     m_curTrackIndex = trackIndex;
+    m_skipGuardPlaylist = -1;   /* 新曲：清失败去重标记 */
+    m_skipGuardTrack = -1;
     playerBar->setTrack(t);
     loadLyricsForTrack(t);               /* 本地 .lrc 同步读；无则 NCM 异步兜底 */
     queuePanel->setCurrentTrack(t);
@@ -1298,6 +1300,24 @@ void MainWindow::advanceNext(bool fromAuto)
  * 返回 true=已跳播下一首；false=已止损停播 */
 bool MainWindow::skipOnError(const QString& why)
 {
+    /* 队列失效（刷新/切站点后本地 id 变化）或已到尾且不循环：
+     * 明确提示并停播，避免"看起来卡住、需手点"的静默失败 */
+    const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
+    const bool hasNext = pl && !pl->tracks.empty()
+        && (m_curTrackIndex + 1 < (int)pl->tracks.size() || m_repeatMode == 1);
+    if (!hasNext) {
+        ALOG_WARN(qFromUtf8("Playback skip: no next (playlist=%1 idx=%2) why=%3")
+                      .arg(m_curPlaylistId).arg(m_curTrackIndex).arg(why));
+        playerBar->setPlaying(false);
+        SharedStatusBar::instance()->showMessageTyped(
+            _("player.error_skip_stop").arg(kErrSkipStopAt), StatusError, 5000);
+        return false;
+    }
+    /* 同一次失败可能由 State=4 与 errorOccurred 双通道触发：同曲只跳一次 */
+    if (m_skipGuardPlaylist == m_curPlaylistId && m_skipGuardTrack == m_curTrackIndex)
+        return true;
+    m_skipGuardPlaylist = m_curPlaylistId;
+    m_skipGuardTrack = m_curTrackIndex;
     if (++m_errSkipRun >= kErrSkipStopAt) {
         m_errSkipRun = 0;
         ALOG_ERROR(qFromUtf8("Playback skip stop: run=%1 stop, why=%2")
@@ -1472,6 +1492,13 @@ void MainWindow::onAudioState(int state)
      * （cxaudio State：0=Stopped 1=Playing 2=Paused 3=Buffering 4=Error） */
     ALOG_INFO(qFromUtf8("audioState=%1").arg(state));
     if (playerBar) playerBar->setPlaying(state == 1);
+    /* 成功起播即断"连续失败"链：此前只在初始化/止损时归零，
+     * 版权曲（NoResource/GEO）零散失败会跨曲累计到 99 → 停止连播 */
+    if (state == 1)
+        m_errSkipRun = 0;
+    /* 引擎 Error（解码失败/无效流，可能没有 error 文案）：与 onAudioError 同策略 */
+    if (state == 4 && !m_liveStream && m_autoSkip)
+        skipOnError(qFromUtf8("engine error state"));
     /* 电台行 spinner 收尾：出声即停；错误复位 ▶ */
     if (state == 1 || state == 3) {
         contentView->setNetBuffering(false);
@@ -1917,6 +1944,7 @@ void MainWindow::playNcmResolved(const QString& url, const QString& level)
     ensureEngine();
     audioEngine->open(url);
     audioEngine->play();
+    m_errSkipRun = 0;   /* 起播成功：连续失败链归零（cache-first/下载完成路径） */
     SharedStatusBar::instance()->showMessage(
         _("ncm.loaded_quality") + qFromUtf8(" ") + level, 3000);
 }
@@ -1997,6 +2025,7 @@ void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
     }
     cJSON* root = cJSON_Parse(cjsonUtf8(json));
     if (!root) {
+        if (m_autoSkip && skipOnError(_("ncm.playing"))) return;
         showNcmError(NCM_ERR_UPSTREAM, _("ncm.playing"));
         return;
     }

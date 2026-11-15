@@ -59,11 +59,18 @@ private:
     explicit Playback(QObject* parent = nullptr);
 
     int firstPlayableAtOrAfter(int from) const;   // 预跳过灰歌；无则 -1
+    /* 版权/解码/下载失败统一出口：计数 + 跳下一首（同曲去重） */
+    void onStreamFailure(const QString& why);
+    /* 起播统一入口（成功归零失败计数、歌词预取） */
+    void startPlayback(const QUrl& url);
 
     QList<Song> m_queue;
     int m_current = -1;
     bool m_resolving = false;
     bool m_playing = false;
+    qint64 m_failedSongId = 0;    // 已因失败跳过的曲目（同曲只跳一次）
+    qint64 m_waitDownloadId = 0;  // headers 非空：等待下载完成后播本地文件
+    QString m_waitSuffix;
     int m_positionMs = 0;
     bool m_resumeOnFocusGain = false;        // 瞬时丢失后是否恢复
     QElapsedTimer m_toggleDebounce;          // Qt 媒体键 + MediaSession 双通道去重
