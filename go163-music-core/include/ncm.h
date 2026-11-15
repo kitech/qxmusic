@@ -156,6 +156,11 @@ NCM_API char *NCM_CALL ncm_version(void);
  * 需要观察歌单列表 / 歌曲列表的网络行为时开启，日常可关闭减少噪音。 */
 NCM_API void NCM_CALL ncm_set_http_log(int32_t on);
 
+/* 超时（秒；0 = 关闭超时）。默认：元数据 API 60s / 取链 API 30s；
+ * 媒体/CDN 不设总超时（下载侧停滞中止）。 */
+NCM_API void NCM_CALL ncm_set_http_timeout(int32_t seconds);
+NCM_API void NCM_CALL ncm_set_http_timeout_resolve(int32_t seconds);
+
 /* Bilibili Music（视频音轨）。
  * 与网易云完全同形：top_playlists / playlist_tracks / stream / search，
  * 其中 stream 出参含 "headers"（Referer/UA/Cookie…），由 C++ 下载器逐条带。

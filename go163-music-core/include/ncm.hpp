@@ -357,6 +357,14 @@ public:
     ncm_set_http_log(on ? 1 : 0);
   }
 
+  /* 超时（秒；0 = 不限制）：元数据 API 默认 60s，取链 API 默认 30s */
+  static void set_http_timeout(int seconds) noexcept {
+    ncm_set_http_timeout(seconds);
+  }
+  static void set_http_timeout_resolve(int seconds) noexcept {
+    ncm_set_http_timeout_resolve(seconds);
+  }
+
   /* ---- Bilibili Music（视频音轨；与网易云同形，下载由调用方带着 headers 完成）---- */
 
   [[nodiscard]] Status bili_top_playlists(int32_t page, std::string &out_json) {

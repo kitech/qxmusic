@@ -11,6 +11,7 @@
 package ytm
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -169,7 +170,10 @@ func Stream(videoID string) (StreamResult, error) {
 
 func run(extra ...string) ([]byte, error) {
 	argv := append([]string{"--proxy", proxyAddr(), "--no-warnings"}, extra...)
-	cmd := exec.Command(binPath(), argv...)
+	/* 子进程硬超时：yt-dlp 卡网时避免 UI 永久等待（搜索/取链各 60s） */
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, binPath(), argv...)
 	var stderr strings.Builder
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()

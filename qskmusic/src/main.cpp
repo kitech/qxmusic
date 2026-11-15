@@ -391,7 +391,10 @@ int main(int argc, char* argv[])
         });
     QObject::connect(&pb, &Playback::progressMsChanged, playerBar, &PlayerBar::setProgressMs);
     QObject::connect(&pb, &Playback::durationMsChanged, playerBar, &PlayerBar::setDurationMs);
-    QObject::connect(&pb, &Playback::playError, playerBar, [playerBar](const QString& msg) {
+    /* code 预留细分（1 取链 / 2 播放 / 3 下载 / 4 焦点 / 5 止损 / 6 队尾） */
+    QObject::connect(&pb, &Playback::playError, playerBar,
+                     [playerBar](const QString& msg, int code) {
+        qDebug() << "[playError] code=" << code << msg;
         ToastPopup::show(playerBar, msg);
     });
     QObject::connect(playerBar, &PlayerBar::playPauseRequested, &pb, &Playback::togglePause);

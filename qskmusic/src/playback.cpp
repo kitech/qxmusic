@@ -38,7 +38,7 @@ Playback::Playback(QObject* parent)
      * 静默停住需手点；与 resolve 失败同策略：计数 + 自动下一首 */
     connect(ap, &AudioPlayer::playError, this, [this](const QString& id) {
         if (id.toLongLong() != currentSongId()) return;
-        onStreamFailure(tr("Playback failed"));
+        onStreamFailure(tr("Playback failed"), ErrPlayback);
     });
 
     auto& ncm = NcmApi::instance();
@@ -52,7 +52,7 @@ Playback::Playback(QObject* parent)
                 /* 统一失败出口（版权曲 NoResource/GEO）：计数 + 跳下一首 */
                 onStreamFailure(err == QStringLiteral("NoResource")
                     ? tr("Unavailable track, no playable source")
-                    : tr("Failed to resolve play URL: %1").arg(err));
+                    : tr("Failed to resolve play URL: %1").arg(err), ErrResolve);
                 return;
             }
             QString suffix = QUrl(url).path().section(QLatin1Char('.'), -1);
@@ -88,7 +88,7 @@ Playback::Playback(QObject* parent)
                     DownloadService::instance().filePath(id, m_waitSuffix)));
             } else if (pct == -2) {
                 m_waitDownloadId = 0;
-                onStreamFailure(tr("Download failed"));
+                onStreamFailure(tr("Download failed"), ErrDownload);
             }
         });
     connect(&ncm, &NcmApi::lyricDone, this,
@@ -98,7 +98,7 @@ Playback::Playback(QObject* parent)
             Q_EMIT lyricReady(songId, lrc);   // 弹层据此实时刷新
         });
     connect(&ncm, &NcmApi::playFailReceived, this, [this](qint64, const QString& reason) {
-        Q_EMIT playError(tr("Playback failed: %1, skipping").arg(reason));
+        Q_EMIT playError(tr("Playback failed: %1, skipping").arg(reason), ErrPlayback);
         playIndex(m_current + 1);
     });
 }
@@ -137,7 +137,8 @@ void Playback::startPlayback(const QUrl& url)
     if (!KeepAlive::requestAudioFocus()) {
         m_playing = false;
         Q_EMIT playingChanged(false);
-        Q_EMIT playError(QString::fromUtf8("其他应用正在使用音频，请稍后重试"));
+        Q_EMIT playError(QString::fromUtf8("其他应用正在使用音频，请稍后重试"),
+                         ErrAudioFocus);
         return;
     }
     AudioPlayer::instance()->playUrl(QString::number(currentSongId()), url);
@@ -149,21 +150,25 @@ void Playback::startPlayback(const QUrl& url)
     NcmApi::instance().lyricAsync(currentSongId());   /* 歌词预取 */
 }
 
-void Playback::onStreamFailure(const QString& why)
+void Playback::onStreamFailure(const QString& why, int code)
 {
     const qint64 id = currentSongId();
+    /* 上下文前缀（歌名）：错误内容保持引擎/解析层原文，不改写 */
+    const QString full = currentTitle().isEmpty()
+        ? why : (currentTitle() + QStringLiteral(": ") + why);
     if (id != 0 && m_failedSongId == id)   /* 同曲只跳一次（playError+resolve 双通道去重） */
         return;
     m_failedSongId = id;
     m_resolving = false;
     Q_EMIT resolvingChanged(false);
-    Q_EMIT playError(why);
+    Q_EMIT playError(full, code);
     if (++m_errSkipRun >= 99) {
         m_errSkipRun = 0;
         m_playing = false;
         KeepAlive::abandonAudioFocus();
         Q_EMIT playingChanged(false);
-        Q_EMIT playError(QString::fromUtf8("连续 99 首播放失败，已停止连播"));
+        Q_EMIT playError(QString::fromUtf8("连续 99 首播放失败，已停止连播"),
+                         ErrSkipStop);
         return;
     }
     playIndex(m_current + 1);
@@ -176,17 +181,19 @@ void Playback::playIndex(int index)
              << "resolving=" << m_resolving;
     if (index < 0 || index >= m_queue.size()) {
         KeepAlive::abandonAudioFocus();
+        Q_EMIT playError(tr("End of queue"), ErrNoNext);   /* 便于 UI 区分自然停止 */
         return;   // 越界 = 队尾，自然停止
     }
 
     // 灰歌：保留原 toast 提示；随后预跳到下一可播曲目（qlmusic 跳过语义）
     if (!m_queue.at(index).playable) {
-        Q_EMIT playError(tr("Unavailable track, no playable source"));
+        Q_EMIT playError(tr("Unavailable track, no playable source"), ErrResolve);
         const int usable = firstPlayableAtOrAfter(index + 1);
         if (usable < 0) {
             m_playing = false;
             KeepAlive::abandonAudioFocus();
             Q_EMIT playingChanged(false);
+            Q_EMIT playError(tr("No playable track left"), ErrNoNext);
             return;
         }
         index = usable;
@@ -252,7 +259,7 @@ void Playback::resume()
         return;
     if (!ap->pausedId().isEmpty()) {
         if (!KeepAlive::requestAudioFocus()) {
-            Q_EMIT playError(tr("Audio focus lost, cannot resume"));
+            Q_EMIT playError(tr("Audio focus lost, cannot resume"), ErrAudioFocus);
             return;
         }
         ap->resume();

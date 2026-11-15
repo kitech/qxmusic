@@ -18,6 +18,17 @@ class Playback : public QObject
 {
     Q_OBJECT
 public:
+    /* 播放错误码：接收端可据此细分处理（Toast/换源/重试/后端提示…） */
+    enum ErrorCode {
+        ErrResolve    = 1,   /* 取链失败（NCM rc / B站 stream / 版权） */
+        ErrPlayback   = 2,   /* AudioPlayer/QMediaPlayer 解码/网络播放失败 */
+        ErrDownload   = 3,   /* DownloadService 失败（带 headers 直链下载） */
+        ErrAudioFocus = 4,   /* 系统音频焦点被占用 */
+        ErrSkipStop   = 5,   /* 连续失败达到止损阈值（99） */
+        ErrNoNext     = 6,   /* 队列到头 / 无下一首 */
+    };
+    Q_ENUM(ErrorCode)
+
     static Playback& instance();
 
     void setQueue(const QList<Song>& songs, int startIndex);
@@ -51,7 +62,7 @@ Q_SIGNALS:
     void resolvingChanged(bool resolving);
     void progressMsChanged(int ms);
     void durationMsChanged(int ms);
-    void playError(const QString& message);
+    void playError(const QString& message, int code);
     // 歌词到达/失败（空文本=无歌词）→ 弹层实时刷新（修复"永远加载中"）
     void lyricReady(qint64 songId, const QString& text);
 
@@ -60,7 +71,7 @@ private:
 
     int firstPlayableAtOrAfter(int from) const;   // 预跳过灰歌；无则 -1
     /* 版权/解码/下载失败统一出口：计数 + 跳下一首（同曲去重） */
-    void onStreamFailure(const QString& why);
+    void onStreamFailure(const QString& why, int code = ErrResolve);
     /* 起播统一入口（成功归零失败计数、歌词预取） */
     void startPlayback(const QUrl& url);
 

@@ -28,6 +28,7 @@ import (
 	"runtime/cgo"
 	"runtime/debug"
 	"sync"
+	"time"
 	"unsafe"
 
 	"qx163/ncm/internal/auth"
@@ -280,6 +281,28 @@ func ncm_version() (ret *C.char) {
 //export ncm_set_http_log
 func ncm_set_http_log(on C.int32_t) {
 	guardVoid(func() { httplog.SetEnabled(on != 0) })
+}
+
+//export ncm_set_http_timeout
+func ncm_set_http_timeout(seconds C.int32_t) {
+	guardVoid(func() {
+		if seconds <= 0 {
+			httplog.SetTimeout(0)
+			return
+		}
+		httplog.SetTimeout(time.Duration(seconds) * time.Second)
+	})
+}
+
+//export ncm_set_http_timeout_resolve
+func ncm_set_http_timeout_resolve(seconds C.int32_t) {
+	guardVoid(func() {
+		if seconds <= 0 {
+			httplog.SetTimeoutResolve(0)
+			return
+		}
+		httplog.SetTimeoutResolve(time.Duration(seconds) * time.Second)
+	})
 }
 
 //export ncm_set_event_cb

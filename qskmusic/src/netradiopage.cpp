@@ -4,6 +4,7 @@
 #include "toastpopup.h"
 #include "audioplayer.h"
 
+#include <QQuickItem>
 #include <QskLinearBox.h>
 #include <QskTextLabel.h>
 #include <QskPushButton.h>
@@ -93,9 +94,12 @@ void NetRadioPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
             row->setPreferredHeight(48);
 
             auto* marker = new QskTextLabel(QString(), row);
-            marker->setPreferredWidth(14);
+            marker->setPreferredWidth(21);              /* 14 → 21（加大 50%） */
             marker->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
             marker->setTextColor(QColor(0x3d, 0x8b, 0xfd));
+            /* 字形放大 50%（QSkinny 字体角色无中间档，用 scale 稳定放大） */
+            marker->setTransformOrigin(QQuickItem::Center);
+            marker->setScale(1.5);
 
             auto* label = new QskTextLabel(
                 elided(QString::fromUtf8(s.name), 24)

@@ -462,6 +462,9 @@ void ContentView::paintEvent(QPaintEvent*)
     bold.setBold(true);
     QFont small = font();
     small.setPointSize(qMax(7, small.pointSize() - 1));
+    /* 行首播放标识：比 small 大 50%（电台/曲目 ▶ 与 spinner 共用） */
+    QFont markerFont = small;
+    markerFont.setPointSize(qMax(10, small.pointSize() * 3 / 2));
 
     /* ── 标题区 ── */
     if (m_mode == TracksMode) {
@@ -567,9 +570,9 @@ void ContentView::paintEvent(QPaintEvent*)
 
                 /* 正在播放标识：非本地曲、ncmId 命中 → 序号前 ▶ */
                 if (t.ncmId > 0 && t.ncmId == m_playingNcmId) {
-                    p.setFont(small);
+                    p.setFont(markerFont);
                     p.setPen(pal.accent);
-                    p.drawText(QRect(2, y, 14, row.h),
+                    p.drawText(QRect(2, y, 21, row.h),
                                Qt::AlignVCenter | Qt::AlignLeft,
                                QString::fromUtf8("▶"));
                 }
@@ -577,9 +580,9 @@ void ContentView::paintEvent(QPaintEvent*)
                 if (m_netRadioMode && (int)row.index == m_playingNetIdx) {
                     static const char* kSpin[8] =
                         {"⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧"};
-                    p.setFont(small);
+                    p.setFont(markerFont);
                     p.setPen(pal.accent);
-                    p.drawText(QRect(2, y, 14, row.h),
+                    p.drawText(QRect(2, y, 21, row.h),
                                Qt::AlignVCenter | Qt::AlignLeft,
                                m_netBuffering
                                    ? QString::fromUtf8(kSpin[m_spinnerTick])
@@ -646,9 +649,9 @@ void ContentView::paintEvent(QPaintEvent*)
             if (m_radioList && c.id == m_playingRid) {
                 static const char* kSpin[8] =
                     {"⠋","⠙","⠹","⠸","⠼","⠴","⠦","⠧"};
-                p.setFont(small);
+                p.setFont(markerFont);
                 p.setPen(pal.accent);
-                p.drawText(QRect(2, y, 14, row.h),
+                p.drawText(QRect(2, y, 21, row.h),
                            Qt::AlignVCenter | Qt::AlignLeft,
                            m_netBuffering
                                ? QString::fromUtf8(kSpin[m_spinnerTick])
