@@ -44,7 +44,8 @@
       "asia": "亞洲",
       "international": "國際"
     },
-    "connecting": "正在連線電台…"
+    "connecting": "正在連線電台…",
+    "no_response": "電台無回應（逾時）"
   },
   "site": {
     "label": "音樂站點",

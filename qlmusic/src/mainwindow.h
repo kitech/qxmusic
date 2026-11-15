@@ -108,6 +108,7 @@ private slots:
     /* 网络电台（内置清单） */
     void onNetRadioRegion(const QString& regionKey);
     void onNetRadioStream(int index);
+    void onRadioWatchdog();   /* 异步 open 60s 无结果 → 提示并复位 */
     /* YouTube Music（yt-dlp；桌面端） */
     void onSiteChanged(const QString& site);
     void onSearchTriggered(const QString& text);
@@ -160,6 +161,7 @@ private:
     /* rc + 上游 message 的真实错误串 */
     QString ncmErrorDetail(int rc, const QString& json) const;
     QString m_liveTitle;      /* 网络电台正在播的台名 */
+    QTimer* m_radioWatchdog = 0;
     void playNcmResolved(const QString& url, const QString& level);
     /* cache-first：点歌入口零网查缓存（sidecar level 匹配 + size 校验）；
      * 命中回 file:// 路径并带出 level 串（业界 InnerTune/Spotify 一致模式） */

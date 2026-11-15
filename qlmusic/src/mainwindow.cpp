@@ -1017,6 +1017,11 @@ void MainWindow::ensureEngine()
     audioEngine = new AudioEngineAdapter(this);
     QObject::connect(audioEngine, SIGNAL(positionChanged(int)), this, SLOT(onAudioPosition(int)));
     QObject::connect(audioEngine, SIGNAL(durationChanged(int)), this, SLOT(onAudioDuration(int)));
+    m_radioWatchdog = new QTimer(this);
+#ifndef QT3_BUILD
+    m_radioWatchdog->setSingleShot(true);
+#endif
+    QObject::connect(m_radioWatchdog, SIGNAL(timeout()), this, SLOT(onRadioWatchdog()));
     QObject::connect(audioEngine, SIGNAL(stateChanged(int)), this, SLOT(onAudioState(int)));
     QObject::connect(audioEngine, SIGNAL(finished()), this, SLOT(onAudioFinished()));
     QObject::connect(audioEngine, SIGNAL(errorOccurred(const QString&)),
@@ -1503,9 +1508,11 @@ void MainWindow::onAudioState(int state)
     if (state == 1 || state == 3) {
         contentView->setNetBuffering(false);
         if (m_liveStream) SharedStatusBar::instance()->clearMessage();
+        if (m_radioWatchdog) m_radioWatchdog->stop();
     } else if (state == 4) {
         contentView->setNetBuffering(false);
         if (m_liveStream) SharedStatusBar::instance()->clearMessage();
+        if (m_radioWatchdog) m_radioWatchdog->stop();
         contentView->setPlayingNetRadioIndex(-1);
         contentView->setPlayingStationRid(0);
     }
@@ -2538,6 +2545,16 @@ void MainWindow::onNetRadioRegion(const QString& regionKey)
         _(qToUtf8(radiolist::regionTitleKey(regionKey)).data()));
 }
 
+void MainWindow::onRadioWatchdog()
+{
+    if (!m_liveStream) return;
+    m_liveStream = false;
+    contentView->setNetBuffering(false);
+    contentView->setPlayingNetRadioIndex(-1);
+    SharedStatusBar::instance()->clearMessage();
+    reportPlaybackError(_("radio.no_response"));
+}
+
 void MainWindow::onNetRadioStream(int index)
 {
     if (index < 0) return;
@@ -2558,6 +2575,11 @@ void MainWindow::onNetRadioStream(int index)
     contentView->setNetBuffering(true);            /* 流未出声前 spinner */
     /* 网络源异步打开：DNS/TCP/TLS/HLS 在后台线程，UI 不再冻 4–5s */
     audioEngine->openAsync(QString::fromUtf8(s.url));
+    #ifdef QT3_BUILD
+    if (m_radioWatchdog) m_radioWatchdog->start(60000, true);
+#else
+    if (m_radioWatchdog) m_radioWatchdog->start(60000);
+#endif
     /* PlayerBar 显示台名（独立流播放：不进 NCM 队列/resolve 链路） */
     Track t;
     t.id = index + 1;
@@ -2779,6 +2801,11 @@ void MainWindow::onNetRadioStream(int index)
     contentView->setNetBuffering(true);            /* 流未出声前 spinner */
     /* 网络源异步打开：DNS/TCP/TLS/HLS 在后台线程，UI 不再冻 4–5s */
     audioEngine->openAsync(QString::fromUtf8(s.url));
+    #ifdef QT3_BUILD
+    if (m_radioWatchdog) m_radioWatchdog->start(60000, true);
+#else
+    if (m_radioWatchdog) m_radioWatchdog->start(60000);
+#endif
     Track t;
     t.id = index + 1;
     t.ncmId = 0;

@@ -44,7 +44,8 @@
       "asia": "Asia",
       "international": "International"
     },
-    "connecting": "Connecting to radio…"
+    "connecting": "Connecting to radio…",
+    "no_response": "Radio not responding (timeout)"
   },
   "site": {
     "label": "Music Site",
