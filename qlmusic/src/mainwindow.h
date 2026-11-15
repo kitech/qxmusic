@@ -110,6 +110,7 @@ private slots:
     /* YouTube Music（yt-dlp；桌面端） */
     void onSiteChanged(const QString& site);
     void onSearchTriggered(const QString& text);
+    void onSearchLoaded(int rc, const QString& json);
     void onYtmSearchDone(int rc, const QString& json);
     void onYtmStreamDone(int rc, const QString& json);
 

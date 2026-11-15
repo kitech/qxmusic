@@ -357,6 +357,38 @@ public:
     ncm_set_http_log(on ? 1 : 0);
   }
 
+  /* ---- Bilibili Music（视频音轨；与网易云同形，下载由调用方带着 headers 完成）---- */
+
+  [[nodiscard]] Status bili_top_playlists(int32_t page, std::string &out_json) {
+    return fetch([&](char **o) { return ncm_bili_top_playlists(h_, page, o); }, out_json);
+  }
+  /* 扁平排行（{"songs":[...]}；top_playlists 的底层数据源） */
+  [[nodiscard]] Status bili_ranking(int32_t page, std::string &out_json) {
+    return fetch([&](char **o) { return ncm_bili_ranking(h_, page, o); }, out_json);
+  }
+  [[nodiscard]] Status bili_playlist_tracks(int64_t id, int32_t limit, int32_t offset,
+                                            std::string &out_json) {
+    return fetch([&](char **o) {
+      return ncm_bili_playlist_tracks(h_, id, limit, offset, o);
+    }, out_json);
+  }
+  [[nodiscard]] Status bili_search(std::string_view keywords, int32_t page,
+                                   std::string &out_json) {
+    detail::InStr k(keywords);
+    return fetch([&](char **o) { return ncm_bili_search(h_, k.get(), page, o); },
+                 out_json);
+  }
+  /* out_json: {"song_id","url","format","size","expires_ms","level","title","cover",
+   *            "headers":{"Referer":..,"User-Agent":..}} */
+  [[nodiscard]] Status bili_stream(int64_t aid, std::string &out_json) {
+    return fetch([&](char **o) { return ncm_bili_stream(h_, aid, o); }, out_json);
+  }
+  /* 可选：SESSDATA（大会员才出 Hi-Res；空串清除） */
+  static void set_bili_cookie(std::string_view sessdata) {
+    detail::InStr s(sessdata);
+    ncm_bili_set_cookie(s.get());
+  }
+
   /* ---- YouTube Music（外部 yt-dlp）---- */
 
   [[nodiscard]] static bool ytm_available() {

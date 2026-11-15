@@ -48,13 +48,13 @@
     <name>HomePage</name>
     <message>
         <location filename="../src/mainpage.cpp" line="64"/>
-        <location filename="../src/mainpage.cpp" line="499"/>
+        <location filename="../src/mainpage.cpp" line="511"/>
         <source>Not signed in</source>
         <translation>未登入</translation>
     </message>
     <message>
         <location filename="../src/mainpage.cpp" line="66"/>
-        <location filename="../src/mainpage.cpp" line="502"/>
+        <location filename="../src/mainpage.cpp" line="514"/>
         <source>Tap to sign in</source>
         <translation>點擊登入</translation>
     </message>
@@ -73,9 +73,9 @@
         <location filename="../src/mainpage.cpp" line="111"/>
         <location filename="../src/mainpage.cpp" line="445"/>
         <location filename="../src/mainpage.cpp" line="461"/>
-        <location filename="../src/mainpage.cpp" line="465"/>
-        <location filename="../src/mainpage.cpp" line="471"/>
-        <location filename="../src/mainpage.cpp" line="481"/>
+        <location filename="../src/mainpage.cpp" line="477"/>
+        <location filename="../src/mainpage.cpp" line="483"/>
+        <location filename="../src/mainpage.cpp" line="493"/>
         <source>163 Music</source>
         <translation>163音樂</translation>
     </message>
@@ -217,28 +217,30 @@
     </message>
     <message>
         <location filename="../src/mainpage.cpp" line="446"/>
+        <location filename="../src/mainpage.cpp" line="465"/>
+        <location filename="../src/mainpage.cpp" line="471"/>
         <source>Bilibili Music</source>
         <translation>bili音樂</translation>
     </message>
     <message>
         <location filename="../src/mainpage.cpp" line="446"/>
-        <location filename="../src/mainpage.cpp" line="468"/>
+        <location filename="../src/mainpage.cpp" line="480"/>
         <source>YouTube Music</source>
         <translation>youtube音樂</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="466"/>
-        <location filename="../src/mainpage.cpp" line="480"/>
+        <location filename="../src/mainpage.cpp" line="478"/>
+        <location filename="../src/mainpage.cpp" line="492"/>
         <source>This site is coming soon</source>
         <translation>該站點即將支援</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="470"/>
+        <location filename="../src/mainpage.cpp" line="482"/>
         <source>yt-dlp not found: YouTube Music unavailable</source>
         <translation>未找到 yt-dlp：YouTube Music 不可用</translation>
     </message>
     <message>
-        <location filename="../src/mainpage.cpp" line="501"/>
+        <location filename="../src/mainpage.cpp" line="513"/>
         <source>Signed in</source>
         <translation>已登入</translation>
     </message>
@@ -334,7 +336,7 @@
     <name>Playback</name>
     <message>
         <location filename="../src/playback.cpp" line="48"/>
-        <location filename="../src/playback.cpp" line="138"/>
+        <location filename="../src/playback.cpp" line="139"/>
         <source>Unavailable track, no playable source</source>
         <translation>灰色歌曲，無可播資源</translation>
     </message>
@@ -344,12 +346,12 @@
         <translation>取得播放連結失敗：%1</translation>
     </message>
     <message>
-        <location filename="../src/playback.cpp" line="92"/>
+        <location filename="../src/playback.cpp" line="93"/>
         <source>Playback failed: %1, skipping</source>
         <translation>播放失敗：%1，切換下一首</translation>
     </message>
     <message>
-        <location filename="../src/playback.cpp" line="209"/>
+        <location filename="../src/playback.cpp" line="210"/>
         <source>Audio focus lost, cannot resume</source>
         <translation>音訊焦點被佔用，無法恢復播放</translation>
     </message>

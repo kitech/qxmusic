@@ -4,6 +4,9 @@
 #include <QObject>
 #include <QString>
 #include <QList>
+#include <QMap>
+#include <QHash>
+#include <QMutex>
 
 #include "ncm.hpp"
 
@@ -57,6 +60,15 @@ public:
     void likeAsync(qint64 songId, bool on);   // 收藏/取消收藏（需登录）
     void songDetailAsync(const QString& ids); // 批量歌曲详情（逗号分隔 id）
 
+    /* ---- 站点切换："ncm"(默认) / "bili"：解析/搜索按站点分流到对应 libncm 接口 ---- */
+    void setSite(const QString& site) { m_site = site; }
+    QString site() const { return m_site; }
+    /* 下载头（resolve 出参 headers；Referer/UA/Cookie…，NCM 与 B站同契约） */
+    QMap<QString, QString> streamHeaders(qint64 songId) const {
+        QMutexLocker lk(const_cast<QMutex*>(&m_hm));
+        return m_headers.value(songId);
+    }
+
     /* ---- YouTube Music（外部 yt-dlp + 代理，默认 http://127.0.0.1:10809）---- */
     static bool ytmAvailable();              // yt-dlp 在 PATH？
     void ytmSearchAsync(const QString& keywords, int limit);
@@ -80,6 +92,9 @@ private:
     explicit NcmApi(QObject* parent = nullptr);
 
     ncm::Client m_client;
+    QString m_site = QStringLiteral("ncm");
+    mutable QMutex m_hm;
+    QHash<qint64, QMap<QString, QString>> m_headers;
 };
 
 #endif

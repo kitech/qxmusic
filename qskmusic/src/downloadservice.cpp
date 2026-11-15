@@ -36,15 +36,21 @@ bool DownloadService::isCached(qint64 id, const QString& suffix) const
     return QFile::exists(filePath(id, suffix));
 }
 
-void DownloadService::enqueue(qint64 id, const QString& url, const QString& suffix)
+void DownloadService::enqueue(qint64 id, const QString& url, const QString& suffix,
+                              const QMap<QString, QString>& headers)
 {
     if (id <= 0 || url.isEmpty() || isCached(id, suffix))
         return;
     for (const auto& t : m_queue)
-        if (t.first == id) return;
+        if (t.id == id) return;
     if (m_activeId == id) return;
 
-    m_queue.enqueue({ id, { url, suffix } });
+    Task task;
+    task.id = id;
+    task.url = url;
+    task.suffix = suffix;
+    task.headers = headers;
+    m_queue.enqueue(task);
     if (m_activeId == 0)
         startNext();
 }
@@ -56,11 +62,14 @@ void DownloadService::startNext()
         return;
     }
     const auto task = m_queue.dequeue();
-    m_activeId = task.first;
-    const QString url = task.second.first;
-    const QString dst = filePath(task.first, task.second.second);
+    m_activeId = task.id;
+    const QString url = task.url;
+    const QString dst = filePath(task.id, task.suffix);
 
     QNetworkRequest req{ QUrl(url) };
+    /* 下载头：NCM 与 B站统一由 resolve 出参给出（Referer/UA/Cookie…） */
+    for (auto it = task.headers.constBegin(); it != task.headers.constEnd(); ++it)
+        req.setRawHeader(it.key().toUtf8(), it.value().toUtf8());
     req.setTransferTimeout(30000);   /* 30s 无数据流动即中止 → finished 走错误路径 */
     auto* reply = m_nam->get(req);
     auto* f = new QFile(dst + QStringLiteral(".part"), this);

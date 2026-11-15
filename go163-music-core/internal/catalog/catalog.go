@@ -87,6 +87,8 @@ type SourceResult struct {
 	Size      int64  `json:"size"`
 	ExpiresMS int64  `json:"expires_ms"`
 	Level     string `json:"level,omitempty"`
+	/* 下载器逐条 set 的请求头（Referer/UA/Cookie…）；与 B站 resolve 完全同构 */
+	Headers map[string]string `json:"headers,omitempty"`
 }
 
 type CheckMusicResult struct {
@@ -660,6 +662,12 @@ func finishSource(songID int64, quality int32, d rawURLData) (SourceResult, erro
 	out.URL = d.URL
 	out.Format = d.Type
 	out.Size = int64(d.Size)
+	/* 网易云 CDN 不校验 Referer；按"两站完全一致"契约统一带上下载头 */
+	out.Headers = map[string]string{
+		"Referer": "https://music.163.com/",
+		"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 " +
+			"(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+	}
 	if d.Expi > 0 {
 		out.ExpiresMS = int64(d.Expi) * 1000
 	}

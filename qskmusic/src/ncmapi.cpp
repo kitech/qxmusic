@@ -100,7 +100,9 @@ void NcmApi::searchAsync(const QString& keywords, int limit)
     const std::string kw = keywords.toStdString();
     std::thread([this, kw, limit]() {
         std::string json;
-        const auto st = m_client.search(kw, limit, json);
+        const auto st = (m_site == QStringLiteral("bili"))
+            ? m_client.bili_search(kw, 1, json)
+            : m_client.search(kw, limit, json);
         QList<Song> songs;
         QString err;
         if (st != ncm::Status::Ok) {
@@ -115,22 +117,34 @@ void NcmApi::searchAsync(const QString& keywords, int limit)
 
 void NcmApi::resolveAsync(qint64 songId, int quality)
 {
-    std::thread([this, songId, quality]() {
+    const QString site = m_site;
+    std::thread([this, songId, quality, site]() {
         std::string json;
-        const auto st = m_client.resolve_source(songId,
-            static_cast<ncm::Quality>(quality), json);
+        const auto st = (site == QStringLiteral("bili"))
+            ? m_client.bili_stream(songId, json)          /* aid → 直链+headers */
+            : m_client.resolve_source(songId,
+                  static_cast<ncm::Quality>(quality), json);
         QString url, err;
+        QMap<QString, QString> headers;
         if (st != ncm::Status::Ok) {
             err = statusText(st);
         } else {
             const auto o = QJsonDocument::fromJson(
                 QByteArray::fromStdString(json)).object();
             url = o.value("url").toString();
+            const auto hs = o.value("headers").toObject();
+            for (auto it = hs.begin(); it != hs.end(); ++it)
+                headers.insert(it.key(), it.value().toString());
             if (url.isEmpty())
                 err = QStringLiteral("no url");
         }
-        qDebug() << "[qskmusic] ncm resolve:" << songId
-                 << (err.isEmpty() ? QStringLiteral("ok") : err);
+        {
+            QMutexLocker lk(&m_hm);
+            m_headers.insert(songId, headers);
+        }
+        qDebug() << "[qskmusic] ncm resolve:" << songId << site
+                 << (err.isEmpty() ? QStringLiteral("ok") : err)
+                 << "headers=" << headers.size();
         Q_EMIT resolveDone(songId, url, err);
     }).detach();
 }

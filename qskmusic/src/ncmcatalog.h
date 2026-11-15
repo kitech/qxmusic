@@ -76,6 +76,8 @@ public:
     /* 站点电台：热门电台 + 节目列表 */
     void loadDjHotAsync(int cateId, int limit, int offset);
     void loadDjProgramsAsync(qint64 rid, int limit, int offset);
+    /* 站点切换："ncm"(默认) / "bili"（音乐区榜单作为歌单，JSON 同形） */
+    void setSite(const QString& s) { m_site = s; }
 
 Q_SIGNALS:
     void categoriesDone(const QStringList& hot,
@@ -91,6 +93,7 @@ private:
     explicit NcmCatalog(QObject* parent = nullptr);
 
     ncm::Client m_client;
+    QString m_site = QStringLiteral("ncm");
 };
 
 #endif

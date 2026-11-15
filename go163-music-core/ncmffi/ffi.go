@@ -24,19 +24,20 @@ import (
 	"encoding/json"
 	"io"
 	"log"
-	"runtime/debug"
 	"regexp"
 	"runtime/cgo"
+	"runtime/debug"
 	"sync"
 	"unsafe"
 
 	"qx163/ncm/internal/auth"
+	"qx163/ncm/internal/bili"
 	"qx163/ncm/internal/catalog"
 	"qx163/ncm/internal/client"
 	"qx163/ncm/internal/errs"
 	"qx163/ncm/internal/httplog"
-	"qx163/ncm/internal/ytm"
 	"qx163/ncm/internal/version"
+	"qx163/ncm/internal/ytm"
 )
 
 const clientMagic = C.NCM_CLIENT_MAGIC
@@ -803,8 +804,102 @@ func ncm_lyric(h *C.ncm_client, songID C.int64_t, out **C.char) C.int32_t {
 	})
 }
 
-/* ---------------- YouTube Music（exec yt-dlp；详见 internal/ytm/ytm.go） ---------------- */
+/* ---------------- Bilibili Music（视频音轨；详见 internal/bili/bili.go）
+ * 只取直链：下载由 UI 侧自行完成（音轨 CDN 必须带 Referer，见 Stream 出参）。 ---------------- */
 
+//export ncm_bili_ranking
+func ncm_bili_ranking(h *C.ncm_client, page C.int32_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := bili.Ranking(int(page))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_bili_search
+func ncm_bili_search(h *C.ncm_client, keywords *C.char, page C.int32_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		if keywords == nil {
+			if out != nil {
+				*out = nil
+			}
+			return C.int32_t(errs.InvalidArg)
+		}
+		res, err := bili.Search(C.GoString(keywords), int(page))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_bili_stream
+func ncm_bili_stream(h *C.ncm_client, aid C.int64_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := bili.StreamByAid(int64(aid))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_bili_top_playlists
+func ncm_bili_top_playlists(h *C.ncm_client, page C.int32_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := bili.TopPlaylists(int(page))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_bili_playlist_tracks
+func ncm_bili_playlist_tracks(h *C.ncm_client, id C.int64_t,
+	limit, offset C.int32_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := bili.PlaylistTracks(int64(id), int(limit), int(offset))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_bili_set_cookie
+func ncm_bili_set_cookie(c *C.char) {
+	guardVoid(func() { bili.SetCookie(C.GoString(c)) })
+}
+
+/* ---------------- YouTube Music（exec yt-dlp；详见 internal/ytm/ytm.go） ---------------- */
 //export ncm_ytm_available
 func ncm_ytm_available() C.int32_t {
 	apiMu.Lock()

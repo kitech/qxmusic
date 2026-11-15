@@ -459,6 +459,18 @@ void HomePage::showSiteMenu()
         const int i = ids.indexOf(index);
         if (i <= 0) {
             m_siteBtn->setText(tr("163 Music"));
+            NcmCatalog::instance().setSite(QStringLiteral("ncm"));
+            NcmApi::instance().setSite(QStringLiteral("ncm"));
+        } else if (i == 5) {                       /* Bilibili Music（视频音轨，国内直连） */
+            m_siteBtn->setText(tr("Bilibili Music"));
+            NcmCatalog::instance().setSite(QStringLiteral("bili"));
+            NcmApi::instance().setSite(QStringLiteral("bili"));
+            if (auto* pm = pageManager()) {
+                QVariantMap args;
+                args.insert("cat", QStringLiteral("__hot__"));
+                args.insert("title", tr("Bilibili Music"));
+                pm->open("playlists", args);      /* 原歌单列表页，数据源=音乐区榜单 */
+            }
         } else if (i == 6) {                       /* YouTube Music */
             /* 安卓无 yt-dlp：入口隐藏（桌面-only） */
 #ifdef Q_OS_ANDROID

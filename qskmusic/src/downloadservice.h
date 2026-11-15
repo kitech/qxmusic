@@ -4,7 +4,7 @@
 #include <QObject>
 #include <QString>
 #include <QQueue>
-#include <QPair>
+#include <QMap>
 
 class QNetworkAccessManager;
 
@@ -20,7 +20,9 @@ class DownloadService : public QObject
 public:
     static DownloadService& instance();
 
-    void enqueue(qint64 songId, const QString& url, const QString& suffix);
+    /* headers：逐条 set（Referer/UA/Cookie…）；NCM 与 B站同一条路径 */
+    void enqueue(qint64 songId, const QString& url, const QString& suffix,
+                 const QMap<QString, QString>& headers = {});
     bool isCached(qint64 songId, const QString& suffix) const;
     QString filePath(qint64 songId, const QString& suffix) const;
 
@@ -34,7 +36,8 @@ private:
     static QString dirPath();
 
     QNetworkAccessManager* m_nam = nullptr;
-    QQueue<QPair<qint64, QPair<QString, QString>>> m_queue;
+    struct Task { qint64 id; QString url; QString suffix; QMap<QString, QString> headers; };
+    QQueue<Task> m_queue;
     qint64 m_activeId = 0;
 };
 

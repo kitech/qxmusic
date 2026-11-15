@@ -156,6 +156,22 @@ NCM_API char *NCM_CALL ncm_version(void);
  * 需要观察歌单列表 / 歌曲列表的网络行为时开启，日常可关闭减少噪音。 */
 NCM_API void NCM_CALL ncm_set_http_log(int32_t on);
 
+/* Bilibili Music（视频音轨）。
+ * 与网易云完全同形：top_playlists / playlist_tracks / stream / search，
+ * 其中 stream 出参含 "headers"（Referer/UA/Cookie…），由 C++ 下载器逐条带。
+ * 歌单 id：音乐区总榜=3，其余为分区 tid（tname 聚合）；
+ * stream 收 aid（内部映射 aid→bvid）。 */
+NCM_API int32_t NCM_CALL ncm_bili_top_playlists(ncm_client *client, int32_t page,
+                                                char **out_json);
+NCM_API int32_t NCM_CALL ncm_bili_ranking(ncm_client *client, int32_t page, char **out_json);
+NCM_API int32_t NCM_CALL ncm_bili_playlist_tracks(ncm_client *client, int64_t id,
+                                                  int32_t limit, int32_t offset,
+                                                  char **out_json);
+NCM_API int32_t NCM_CALL ncm_bili_search(ncm_client *client, NCM_CPARAM char *keywords,
+                                         int32_t page, char **out_json);
+NCM_API int32_t NCM_CALL ncm_bili_stream(ncm_client *client, int64_t aid, char **out_json);
+NCM_API void NCM_CALL ncm_bili_set_cookie(NCM_CPARAM char *sessdata);
+
 /* YouTube Music（外部 yt-dlp 提取；详见 internal/ytm/ytm.go）。
  * 代理默认 http://127.0.0.1:10809（YTM_PROXY 环境变量可在启动时覆盖）。
  * ncm_ytm_search 出参 JSON 形状与 ncm_song_detail 一致（{"songs":[...]}，

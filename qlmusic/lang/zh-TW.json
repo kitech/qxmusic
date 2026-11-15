@@ -52,11 +52,13 @@
     "baidu": "百度音樂",
     "kugou": "酷狗音樂",
     "kuwo": "酷我音樂",
-    "bili": "bili音樂",
+    "bili": "B站音樂",
     "youtube": "youtube音樂",
     "ytm_ready": "YouTube Music 已啟用（yt-dlp + 代理）",
     "ytm_unavailable": "未找到 yt-dlp：YouTube Music 不可用",
-    "search_ncm_todo": "163 站點搜尋暫未開放（可用 YouTube Music 站點）"
+    "search_ncm_todo": "163 站點搜尋暫未開放（可用 YouTube Music 站點）",
+    "bili_list": "B站歌單",
+    "bili_unavailable": "B站音樂未啟用（需 libncm）"
   },
   "ncm": {
     "auth_required": "此操作需要登入，請先掃碼登入",

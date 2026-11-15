@@ -78,10 +78,15 @@ void SideNav::onSiteChanged(const QString& site)
 {
     const bool youtube = site.contains(QString::fromUtf8("youtube"))
                       || site.contains(QString::fromUtf8("YouTube"));
+    const bool bili = site.contains(QString::fromUtf8("bili"))
+                   || site.contains(QString::fromUtf8("Bili"));
     ALOG_INFO(QString::fromUtf8("SideNav site=%1 (%2)")
-                  .arg(site, youtube ? qFromUtf8("ytm") : qFromUtf8("placeholder")));
+                  .arg(site, youtube ? qFromUtf8("ytm")
+                           : (bili ? qFromUtf8("bili") : qFromUtf8("ncm"))));
     if (youtube)
         emit siteChanged(QString::fromUtf8("ytm"));
+    else if (bili)
+        emit siteChanged(QString::fromUtf8("bili"));
     else
         emit siteChanged(QString::fromUtf8("ncm"));
 }

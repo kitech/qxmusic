@@ -56,6 +56,7 @@ enum {
     NcmTaskDjPrograms, /* 电台节目列表 */
     NcmTaskYtmSearch,  /* YouTube Music：yt-dlp 搜索（t.cat=关键词） */
     NcmTaskYtmStream,  /* YouTube Music：取直链（t.url=videoId） */
+    NcmTaskSearch,     /* 站点搜索（ncm_search / ncm_bili_search 内部分流） */
     NcmTaskQuit,       /* 哨兵：worker 收到即退出线程 */
 };
 
@@ -73,6 +74,8 @@ struct NcmTask {
     int localId;       /* UI 本地歌单句柄 */
     int quality;
     std::string url;   /* NcmTaskFetch：远程 URL */
+    /* NcmTaskFetch：下载头（"Name: Value\n…"），NCM 与 B站同一条路径 */
+    std::string header_lines;
     std::string extra; /* NcmTaskFetch：level 展示字段（透传 UI 状态栏） */
     std::string title;   /* NcmTaskFetch：Track.title → ID3 TIT2 + 歌名软链 */
     std::string artist;  /* NcmTaskFetch：Track.artist → ID3 TPE1 */
@@ -102,7 +105,12 @@ public:
     /* 纯下载：curl → .part → ID3v2.4 前置 → rename → <id>.meta sidecar
      * → 歌名软链。命中/音质判定全在 UI 层（cache-first），worker 不检测 */
     void fetchRemote(qint64 songId, const QString& url, const QString& level,
-                     const QString& title, const QString& artist, const QString& album);
+                     const QString& title, const QString& artist, const QString& album,
+                     const QString& headerLines = QString());
+    /* 站点切换："ncm"(默认) / "bili"；execTask 按站点分流到对应 libncm 接口 */
+    void setSite(const QString& site);
+    /* 搜索（站点内部分流：ncm_search / ncm_bili_search） */
+    void search(const QString& keywords);
     void loadSongDetail(const QString& ids);
     void loadLyric(qint64 songId);   /* 歌词兜底（本地 .lrc 优先后的网络侧） */
     void loadArtist(qint64 artistId); /* 艺人详情（头像 URL） */
@@ -138,6 +146,7 @@ signals:
     void djProgramsLoaded(int rc, const QString& json, qint64 rid);
     void ytmSearchLoaded(int rc, const QString& json);
     void ytmStreamLoaded(int rc, const QString& json);
+    void searchLoaded(int rc, const QString& json);
     void authRequired(const QString& op);
     /* 下载进度（worker curl 回调节流 200ms 投递；pct 0-100） */
     void downloadProgress(qint64 songId, int pct);
@@ -155,6 +164,7 @@ private:
     ncm_client* m_client;
     NcmWorker* m_worker;
     int m_seq;
+    QString m_site;   /* "ncm"(默认) / "bili" */
 };
 
 #endif /* NCM_SERVICE_H */

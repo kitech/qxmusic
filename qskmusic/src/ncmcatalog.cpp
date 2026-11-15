@@ -89,11 +89,14 @@ void NcmCatalog::loadTopPlaylistsAsync(const QString& cat,
 {
     qDebug() << "[qsk] ncm req top_playlists cat=" << cat
              << "order=" << order << "limit=" << limit << "offset=" << offset;
+    const QString site = m_site;
     const std::string c = cat.toStdString();
     const std::string o = order.toStdString();
-    std::thread([this, c, o, limit, offset]() {
+    std::thread([this, c, o, limit, offset, site]() {
         std::string json;
-        const auto st = m_client.top_playlists(c, o, limit, offset, json);
+        const auto st = (site == QStringLiteral("bili"))
+            ? m_client.bili_top_playlists(offset / (limit > 0 ? limit : 30) + 1, json)
+            : m_client.top_playlists(c, o, limit, offset, json);
         QList<PlaylistCard> cards;
         bool more = false;
         QString err;
@@ -124,9 +127,12 @@ void NcmCatalog::loadTopPlaylistsAsync(const QString& cat,
 void NcmCatalog::loadPlaylistTracksAsync(qint64 playlistId)
 {
     qDebug() << "[qsk] ncm req playlist_tracks id=" << playlistId;
-    std::thread([this, playlistId]() {
+    const QString site = m_site;
+    std::thread([this, playlistId, site]() {
         std::string json;
-        const auto st = m_client.playlist_tracks(playlistId, json);
+        const auto st = (site == QStringLiteral("bili"))
+            ? m_client.bili_playlist_tracks(playlistId, 50, 0, json)
+            : m_client.playlist_tracks(playlistId, json);
         PlaylistInfo info;
         info.id = playlistId;
         QString err;

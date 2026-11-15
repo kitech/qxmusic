@@ -80,7 +80,8 @@ Playback::Playback(QObject* parent)
             QString suffix = QUrl(url).path().section(QLatin1Char('.'), -1);
             if (suffix.isEmpty() || suffix.size() > 5)
                 suffix = QStringLiteral("mp3");
-            DownloadService::instance().enqueue(songId, url, suffix);
+            DownloadService::instance().enqueue(songId, url, suffix,
+                NcmApi::instance().streamHeaders(songId));   /* NCM 与 B站统一带头 */
         });
     connect(&ncm, &NcmApi::lyricDone, this,
         [this](qint64 songId, const QString& lrc, const QString&) {

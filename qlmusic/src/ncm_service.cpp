@@ -298,8 +298,31 @@ private:
 };
 
 NcmService::NcmService(QObject* parent)
-    : QObject(parent), m_client(0), m_worker(0), m_seq(0)
+    : QObject(parent), m_client(0), m_worker(0), m_seq(0),
+      m_site(qFromUtf8("ncm"))
 {
+}
+
+void NcmService::setSite(const QString& site)
+{
+    m_site = site.isEmpty() ? QString::fromUtf8("ncm") : site;
+    ALOG_INFO(qFromUtf8("NCM site -> %1").arg(m_site));
+}
+
+void NcmService::search(const QString& keywords)
+{
+    if (!m_worker) return;
+    NcmTask t;
+    t.kind = NcmTaskSearch;
+    t.op = "search";
+#ifdef QT3_BUILD
+    t.cat = keywords.utf8();
+#else
+    t.cat = keywords.toUtf8().constData();
+#endif
+    t.limit = 30;
+    t.offset = 1;
+    m_worker->push(t);
 }
 
 NcmService::~NcmService()
@@ -510,7 +533,24 @@ int fetchRemoteTask(const NcmTask& t, NcmService* svc, std::string& json)
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0");
     curl_easy_setopt(h, CURLOPT_NOSIGNAL, 1L);
+    /* 下载头（"Name: Value" 逐行；NCM 与 B站同一条路径，由 resolve 出参 headers 提供） */
+    struct curl_slist* hdrs = 0;
+    if (!t.header_lines.empty()) {
+        std::string lines = t.header_lines;
+        size_t pos = 0;
+        while (pos <= lines.size()) {
+            size_t nl = lines.find('\n', pos);
+            std::string line = lines.substr(pos,
+                nl == std::string::npos ? std::string::npos : nl - pos);
+            if (!line.empty() && line != "\r")
+                hdrs = curl_slist_append(hdrs, line.c_str());
+            if (nl == std::string::npos) break;
+            pos = nl + 1;
+        }
+        if (hdrs) curl_easy_setopt(h, CURLOPT_HTTPHEADER, hdrs);
+    }
     CURLcode cr = curl_easy_perform(h);
+    if (hdrs) curl_slist_free_all(hdrs);
     curl_easy_cleanup(h);
     long nbyte = ftell(fp);
     fclose(fp);
@@ -553,13 +593,19 @@ int fetchRemoteTask(const NcmTask& t, NcmService* svc, std::string& json)
 }
 
 void NcmService::fetchRemote(qint64 songId, const QString& url, const QString& level,
-                             const QString& title, const QString& artist, const QString& album)
+                             const QString& title, const QString& artist, const QString& album,
+                             const QString& headerLines)
 {
     if (!m_worker) return;
     NcmTask t;
     t.kind = NcmTaskFetch;
     t.op = "fetch";
     t.id = songId;
+#ifdef QT3_BUILD
+    t.header_lines = headerLines.utf8();
+#else
+    t.header_lines = headerLines.toUtf8().constData();
+#endif
 #ifdef QT3_BUILD
     t.url = url.utf8();
     t.extra = level.utf8();
@@ -702,8 +748,14 @@ void NcmService::execTask(const NcmTask& t)
     }
     case NcmTaskTopPlaylists: {
         char* out = 0;
-        rc = ncm_top_playlists(m_client, t.cat.c_str(), t.order.c_str(),
-                               t.limit, t.offset, &out);
+        if (m_site == qFromUtf8("bili")) {
+            /* 站点分流：同形 JSON（playlists 数组） */
+            const int page = t.offset / (t.limit > 0 ? t.limit : 30) + 1;
+            rc = ncm_bili_top_playlists(m_client, page, &out);
+        } else {
+            rc = ncm_top_playlists(m_client, t.cat.c_str(), t.order.c_str(),
+                                   t.limit, t.offset, &out);
+        }
         if (rc == NCM_OK && out) json = out;
         if (out) ncm_free_string(out);
         break;
@@ -717,14 +769,21 @@ void NcmService::execTask(const NcmTask& t)
     }
     case NcmTaskPlaylistTracks: {
         char* out = 0;
-        rc = ncm_playlist_tracks(m_client, t.id, &out);
+        if (m_site == qFromUtf8("bili"))
+            rc = ncm_bili_playlist_tracks(m_client, t.id,
+                                          t.limit > 0 ? t.limit : 50, t.offset, &out);
+        else
+            rc = ncm_playlist_tracks(m_client, t.id, &out);
         if (rc == NCM_OK && out) json = out;
         if (out) ncm_free_string(out);
         break;
     }
     case NcmTaskResolve: {
         char* out = 0;
-        rc = ncm_resolve_source(m_client, t.id, t.quality, &out);
+        if (m_site == qFromUtf8("bili"))
+            rc = ncm_bili_stream(m_client, t.id, &out);   /* aid → 直链+headers */
+        else
+            rc = ncm_resolve_source(m_client, t.id, t.quality, &out);
         if (rc == NCM_OK && out) json = out;
         if (out) ncm_free_string(out);
         break;
@@ -786,6 +845,16 @@ void NcmService::execTask(const NcmTask& t)
     case NcmTaskYtmSearch: {
         char* out = 0;
         rc = ncm_ytm_search(m_client, t.cat.c_str(), t.limit, &out);
+        if (rc == NCM_OK && out) json = out;
+        if (out) ncm_free_string(out);
+        break;
+    }
+    case NcmTaskSearch: {
+        char* out = 0;
+        if (m_site == qFromUtf8("bili"))
+            rc = ncm_bili_search(m_client, t.cat.c_str(), t.offset > 0 ? t.offset : 1, &out);
+        else
+            rc = ncm_search(m_client, t.cat.c_str(), t.limit > 0 ? t.limit : 30, &out);
         if (rc == NCM_OK && out) json = out;
         if (out) ncm_free_string(out);
         break;
@@ -863,6 +932,10 @@ void NcmService::handleResult(NcmResultEvent* e)
     }
     if (op == qFromUtf8("dj_programs")) {
         emit djProgramsLoaded(e->rc, json, e->id);
+        return;
+    }
+    if (op == qFromUtf8("search")) {
+        emit searchLoaded(e->rc, json);
         return;
     }
     if (op == qFromUtf8("ytm_search")) {

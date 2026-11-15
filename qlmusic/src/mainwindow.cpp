@@ -495,6 +495,8 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onNcmDjHot(int, const QString&)));
         QObject::connect(m_ncm, SIGNAL(djProgramsLoaded(int, const QString&, qint64)),
                          this, SLOT(onNcmDjPrograms(int, const QString&, qint64)));
+        QObject::connect(m_ncm, SIGNAL(searchLoaded(int, const QString&)),
+                         this, SLOT(onSearchLoaded(int, const QString&)));
         QObject::connect(m_ncm, SIGNAL(ytmSearchLoaded(int, const QString&)),
                          this, SLOT(onYtmSearchDone(int, const QString&)));
         QObject::connect(m_ncm, SIGNAL(ytmStreamLoaded(int, const QString&)),
@@ -2000,6 +2002,14 @@ void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
     }
     QString url = cJSONStr(root, "url", "");
     QString level = cJSONStr(root, "level", "");
+    /* 下载头（NCM 与 B站同契约）："Name: Value\n…" → curl 逐条 set */
+    QString headerLines;
+    cJSON* hs = cJSON_GetObjectItem(root, "headers");
+    for (cJSON* it = hs ? hs->child : 0; it; it = it->next) {
+        if (!it->string || it->type != cJSON_String || !it->valuestring) continue;
+        headerLines += qFromUtf8(it->string) + qFromUtf8(": ")
+                     + qFromUtf8(it->valuestring) + qFromUtf8("\n");
+    }
     cJSON_Delete(root);
 
     Playlist* pl = 0;
@@ -2025,14 +2035,17 @@ void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
      *    （worker 线程 curl），再以 file:// 走本地解码链 —— 无 ffmpeg
      *    dylib 的设备（mac 零安装）也保证可播 */
     const QString req = audioEngine->requestedBackend();
-    const bool direct = (req == qFromUtf8("ffmpeg") || req == qFromUtf8("mpv"));
+    bool direct = (req == qFromUtf8("ffmpeg") || req == qFromUtf8("mpv"));
+    /* 带下载头（B站音轨必须 Referer）→ 强制走 curl 落盘，禁止后端直连 */
+    if (!headerLines.isEmpty())
+        direct = false;
     if (!direct && (url.startsWith(qFromUtf8("http://")) ||
                     url.startsWith(qFromUtf8("https://")))) {
         SharedStatusBar::instance()->showMessage(_("ncm.caching"), 3000);
         /* 下载指示：跟踪当前曲 fetchRemote（worker 节流 progress→主线程） */
         m_dlSongId = t.ncmId;
         if (playerBar) playerBar->setDownloadState(t.ncmId, -1);
-        m_ncm->fetchRemote(t.ncmId, url, level, t.title, t.artist, t.album);
+        m_ncm->fetchRemote(t.ncmId, url, level, t.title, t.artist, t.album, headerLines);
         /* 开始下载托盘气泡（Qt4 原生 / Qt3 自绘，见 systemtrayicon-showmessage 文档） */
         sticonShowStatusMessage(QString::fromUtf8("开始下载: %1").arg(t.title),
                                 SticonInfo, 3000);
@@ -2203,12 +2216,39 @@ void MainWindow::onSiteChanged(const QString& site)
         ToastWidget::showCenter(this,
             _(ready ? "site.ytm_ready" : "site.ytm_unavailable"),
             ready ? ToastWidget::Info : ToastWidget::Warning, 2200);
+        if (m_ncm) m_ncm->setSite(qFromUtf8("ncm"));   /* YTM 自走 yt-dlp，NCM 通道复位 */
+        return;
     }
+    if (site == qFromUtf8("bili")) {
+        if (m_ncm) m_ncm->setSite(qFromUtf8("bili"));
+        /* 与原流程一致：直接走「热门歌单」入口（数据源=音乐区榜单） */
+        m_ncmListTitle = _("site.bili_list");
+        if (sideNav) sideNav->setCurrentCategory(QString("__hot__"));
+        m_ncmCatKey = QString("__hot__");
+        m_ncmOffset = 0;
+        m_ncmPendingCards.clear();
+        requestTopPlaylists(QString("__hot__"), 0);
+        return;
+    }
+    /* 切回网易云 */
+    if (m_ncm) m_ncm->setSite(qFromUtf8("ncm"));
+    m_ncmCatKey = QString("__hot__");
+    m_ncmOffset = 0;
+    m_ncmPendingCards.clear();
+    requestTopPlaylists(QString("__hot__"), 0);
 }
 
 void MainWindow::onSearchTriggered(const QString& text)
 {
     if (qStringIsBlank(text)) return;
+    /* B站：走站点搜索（与网易云同一 NcmService 通道，内部按站点分流） */
+    if (m_currentSite == qFromUtf8("bili")) {
+        if (!m_ncm || !m_ncmAvailable || m_ncmBusy) return;
+        m_ncmBusy = true;
+        SharedStatusBar::instance()->showMessage(_("ncm.loading"), 0);
+        m_ncm->search(text);
+        return;
+    }
     if (m_currentSite != qFromUtf8("ytm")) {
         /* 163 搜索后端未接入：提示切站点（避免静默无响应） */
         ToastWidget::showCenter(this, _("site.search_ncm_todo"),
@@ -2219,6 +2259,67 @@ void MainWindow::onSearchTriggered(const QString& text)
     m_ncmBusy = true;
     SharedStatusBar::instance()->showMessage(_("ncm.loading"), 0);
     m_ncm->ytmSearch(text, 30);
+}
+
+/* B站搜索：与网易云同形 {"songs":[...]}，直接建临时歌单；
+ * 曲目 ncmId=aid → 点歌走既有 resolve_source 链路（站点内部转 ncm_bili_stream） */
+void MainWindow::onSearchLoaded(int rc, const QString& json)
+{
+    m_ncmBusy = false;
+    SharedStatusBar::instance()->clearMessage();
+    if (rc != NCM_OK) {
+        showNcmError(rc, _("site.bili"));
+        return;
+    }
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) return;
+    Playlist p;
+    p.id = 1;
+    for (size_t i = 0; i < m_library.size(); ++i)
+        if (m_library[i].id >= p.id) p.id = m_library[i].id + 1;
+    p.name = _("site.bili");
+    p.coverSeed = "bili";
+    p.ncmId = 0;
+    p.creator = _("site.bili");
+    p.trackCount = 0;
+
+    static int nextBiliTrackId = 950000;
+    cJSON* arr = cJSON_GetObjectItem(root, "songs");
+    for (int i = 0; arr && i < cJSON_GetArraySize(arr); ++i) {
+        cJSON* it = cJSON_GetArrayItem(arr, i);
+        if (!it) continue;
+        const qint64 aid = (qint64)cJSONInt(it, "id", 0);
+        if (aid <= 0) continue;
+        QString artists;
+        cJSON* ar = cJSON_GetObjectItem(it, "artists");
+        for (int a = 0; ar && a < cJSON_GetArraySize(ar); ++a) {
+            cJSON* ai = cJSON_GetArrayItem(ar, a);
+            if (ai && ai->type == cJSON_String && ai->valuestring) {
+                if (!artists.isEmpty()) artists += qFromUtf8("/");
+                artists += qFromUtf8(ai->valuestring);
+            }
+        }
+        Track t = makeNcmTrack(nextBiliTrackId++, aid,
+                               cJSONStr(it, "name", ""), artists, QString(),
+                               (int)cJSONInt(it, "duration_ms", 0),
+                               cJSONStr(it, "cover", ""), 0);
+        t.playable = cJSONBool(it, "playable", true);
+        t.publishMs = (qint64)cJSONInt(it, "publish_ms", 0);
+        p.tracks.push_back(t);
+    }
+    cJSON_Delete(root);
+    p.trackCount = (int)p.tracks.size();
+    if (p.tracks.empty()) {
+        ToastWidget::showCenter(this, _("ncm.error_not_found"),
+                                ToastWidget::Warning, 2000);
+        return;
+    }
+    m_library.push_back(p);
+    const int newId = p.id;
+    sideNav->setLibrary(m_library);
+    contentView->setLibrary(m_library);
+    sideNav->setCurrentPlaylist(newId);
+    contentView->showPlaylist(newId);
 }
 
 void MainWindow::onYtmSearchDone(int rc, const QString& json)
@@ -2557,6 +2658,7 @@ void MainWindow::onRadioSelected(qint64) {}
 /* !NCM_ENABLE：YouTube Music 依赖 libncm（yt-dlp 经 Go core），整段置空 */
 void MainWindow::onSiteChanged(const QString&) {}
 void MainWindow::onSearchTriggered(const QString&) {}
+void MainWindow::onSearchLoaded(int, const QString&) {}
 void MainWindow::onYtmSearchDone(int, const QString&) {}
 void MainWindow::onYtmStreamDone(int, const QString&) {}
 
