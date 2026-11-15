@@ -76,6 +76,9 @@ bool Core::open(const std::string& uri) {
         end = 3;                            /* auto：全序 */
     }
 
+    /* 不做"能力预检跳过"：每个候选后端都真实尝试一次，
+     * 错误取其后端运行时原文（如 open_input: Protocol not found）。 */
+
     cbs_.onState = [this](int st) { dispatch(kEvState, st, 0, ""); };
     cbs_.onPosition = [this](int64_t pos, int64_t dur) {
         dispatch(kEvPosition, pos, dur, "");
@@ -86,6 +89,7 @@ bool Core::open(const std::string& uri) {
     };
 
     std::string lastErr;
+    std::string errChain;   /* 每个后端失败原文（UI 展示）：faad: … | ffmpeg: … */
     for (int i = start; i < end; ++i) {
         const std::string id = kOrder[i];
         if (id == "faad")
@@ -98,6 +102,7 @@ bool Core::open(const std::string& uri) {
         if (!backend_) {
             lastErr = "backend not compiled: " + id;
             CXA_LOG("backend try=%s fail err=%s", id.c_str(), lastErr.c_str());
+            errChain += (errChain.empty() ? "" : " | ") + id + ": " + lastErr;
             continue;
         }
         backend_->setCallbacks(&cbs_);
@@ -111,13 +116,17 @@ bool Core::open(const std::string& uri) {
             CXA_LOG("backend try=%s ok", id.c_str());
             return true;
         }
-        lastErr = err;
+        lastErr = err;   /* 运行时原文，不改写 */
         CXA_LOG("backend try=%s fail err=%s", id.c_str(), err.c_str());
+        errChain += (errChain.empty() ? "" : " | ") + id + ": " + err;
         backend_.reset();
     }
 
     std::lock_guard<std::mutex> lk(mutex_);
-    lastError_ = lastErr.empty() ? std::string("no backend available") : lastErr;
+    /* 各后端运行时原文全保留（不再只留最后一个，也不做预检改写） */
+    lastError_ = errChain.empty()
+        ? (lastErr.empty() ? std::string("no backend available") : lastErr)
+        : errChain;
     return false;
 }
 

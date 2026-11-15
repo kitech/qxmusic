@@ -13,6 +13,10 @@
 namespace cx {
 namespace {
 
+/* 诊断：最近一次成功加载的 libavformat 路径与 https 能力 */
+std::string gLoadedPath;
+bool gHttps = false;
+
 std::string dirName(const std::string& path) {
     size_t p = path.find_last_of("/\\");
     return p == std::string::npos ? std::string(".") : path.substr(0, p);
@@ -112,6 +116,7 @@ bool loadFfmpegApi(FfmpegApi* api, std::string* err) {
         return false;
     }
 
+    CXA_LOG("ffmpeg libavformat loaded: %s", fmtPath.c_str());
     std::string dir = dirName(fmtPath);
 
     static std::vector<Library*> libs;
@@ -181,6 +186,7 @@ bool loadFfmpegApi(FfmpegApi* api, std::string* err) {
     api->av_frame_free = (void (*)(AVFrame**))sym("av_frame_free");
     api->av_frame_unref = (void (*)(AVFrame*))sym("av_frame_unref");
     api->av_strerror = (int (*)(int, char*, size_t))sym("av_strerror");
+    api->avio_find_protocol = (int (*)(const char*))sym("avio_find_protocol");
     api->av_rescale_q = (int64_t (*)(int64_t, AVRational, AVRational))sym("av_rescale_q");
     api->av_channel_layout_default =
         (void (*)(AVChannelLayout*, int))sym("av_channel_layout_default");
@@ -225,8 +231,15 @@ bool loadFfmpegApi(FfmpegApi* api, std::string* err) {
             return false;
         }
     }
+    gLoadedPath = fmtPath;
+    api->loaded_path = gLoadedPath.c_str();
+    gHttps = api->avio_find_protocol && api->avio_find_protocol("https") != 0;
+    CXA_LOG("ffmpeg https/tls support: %s", gHttps ? "yes" : "NO (no openssl/gnutls/securetransport)");
     return true;
 }
+
+const char* ffmpegLoadedPath() { return gLoadedPath.c_str(); }
+bool ffmpegHttpsSupported() { return gHttps; }
 
 } /* namespace cx */
 

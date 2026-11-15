@@ -8,6 +8,7 @@
 #include "ncm_service.h"
 #include "ConfigDialog.h"   /* SettingsChangedMap 类型随 Q_OBJECT 槽声明完整 */
 #include <qmainwindow.h>
+#include <qdatetime.h>
 #include <qwidget.h>
 #include <qlabel.h>
 #include <qpushbutton.h>
@@ -151,6 +152,14 @@ private:
     /* NCM 视图流转（UI 线程，禁止直接调 ncm_* 阻塞调用） */
     void requestTopPlaylists(const QString& catKey, int offset);
     void showNcmError(int rc, const QString& op);
+    /* 引擎错误可见化：Toast + 状态栏（同因 2s 限频；原样展示运行时文本） */
+    void showPlaybackErrorOnce(const QString& msg);
+    /* 播放类错误统一出口：上下文（电台/节目/歌曲）+ 后端运行时原文，不改写 */
+    void reportPlaybackError(const QString& detail);
+    QString playbackContext() const;
+    /* rc + 上游 message 的真实错误串 */
+    QString ncmErrorDetail(int rc, const QString& json) const;
+    QString m_liveTitle;      /* 网络电台正在播的台名 */
     void playNcmResolved(const QString& url, const QString& level);
     /* cache-first：点歌入口零网查缓存（sidecar level 匹配 + size 校验）；
      * 命中回 file:// 路径并带出 level 串（业界 InnerTune/Spotify 一致模式） */
@@ -213,6 +222,8 @@ private:
     bool m_autoSkip;            /* 播放失败自动跳下一首（默认开） */
     bool m_liveStream = false;  /* 网络电台直播流：不自动连播/不出进度 */
     int m_errSkipRun;           /* 连续失败计数，成功播放清零 */
+    QString m_lastPlaybackError;      /* 同因限频（Toast 降噪） */
+    QTime m_lastPlaybackErrorTimer;   /* Qt3 无 QElapsedTimer */
     /* 同一曲失败去重：engine State=4 与 errorOccurred 可能对同一次失败双发 */
     int m_skipGuardPlaylist = -1;
     int m_skipGuardTrack = -1;

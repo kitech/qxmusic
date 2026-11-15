@@ -1533,20 +1533,52 @@ void MainWindow::onAudioError(const QString& msg)
         m_liveStream = false;
         if (playerBar) playerBar->setLive(false);
         playerBar->setPlaying(false);
-        ToastWidget::showCenter(this, _("radio.stream_error"),
-            ToastWidget::Warning, 3000);
-        SharedStatusBar::instance()->showMessage(
-            _("player.error") + qFromUtf8(": ") + msg, 5000);
+        /* 只报一条：台名 + 引擎运行时原文（后端链已在 core 聚合） */
+        reportPlaybackError(msg);
         return;
     }
+    /* 任何引擎错误先给可见反馈（Toast 非模态，不阻塞连播）；
+     * autoskip 只决定"是否跳下一首"，不再吞掉具体原因 */
+    reportPlaybackError(msg);
     if (m_autoSkip) {
         ALOG_WARN(msg);
         skipOnError(msg);
         return;
     }
     playerBar->setPlaying(false);
+}
+
+/* 引擎错误可见化：同因 2s 限频；内容 100% 来自运行时，不做预检改写 */
+void MainWindow::showPlaybackErrorOnce(const QString& msg)
+{
+    const QString full = msg;
+    if (full == m_lastPlaybackError && m_lastPlaybackErrorTimer.isValid()
+        && m_lastPlaybackErrorTimer.elapsed() < 2000)
+        return;
+    m_lastPlaybackError = full;
+    m_lastPlaybackErrorTimer.start();
+    ToastWidget::showCenter(this, full, ToastWidget::Warning, 3500);
     SharedStatusBar::instance()->showMessage(
-        _("player.error") + qFromUtf8(": ") + msg, 5000);
+        _("player.error") + qFromUtf8(": ") + full, 5000);
+}
+
+/* 当前播放上下文（网络电台台名 / 歌曲名）；纯标签，不改错误内容 */
+QString MainWindow::playbackContext() const
+{
+    if (m_liveStream && !m_liveTitle.isEmpty())
+        return _("radio.net_radio") + qFromUtf8(" · ") + m_liveTitle;
+    if (const Playlist* pl = findPlaylist(m_library, m_curPlaylistId)) {
+        if (m_curTrackIndex >= 0 && m_curTrackIndex < (int)pl->tracks.size())
+            return pl->tracks[m_curTrackIndex].title;
+    }
+    return _("player.error");
+}
+
+void MainWindow::reportPlaybackError(const QString& detail)
+{
+    const QString full = playbackContext() + qFromUtf8(": ") + detail;
+    ALOG_WARN(qFromUtf8("Playback error: %1").arg(full));
+    showPlaybackErrorOnce(full);
 }
 
 void MainWindow::onMenu1Stub() {}
@@ -1635,6 +1667,31 @@ static QString cJSONStr(cJSON* obj, const char* key, const QString& def)
     cJSON* n = cJSON_GetObjectItem(obj, key);
     if (!n || n->type != cJSON_String || !n->valuestring) return def;
     return qFromUtf8(n->valuestring);
+}
+
+/* rc → 固定文案 + rc 数值 + 上游 message（保留可核对信息） */
+QString MainWindow::ncmErrorDetail(int rc, const QString& json) const
+{
+    QString base;
+    switch (rc) {
+    case NCM_ERR_NETWORK:     base = _("ncm.error_network"); break;
+    case NCM_ERR_CAPTCHA:     base = _("ncm.error_captcha"); break;
+    case NCM_ERR_GEO_BLOCK:   base = _("ncm.error_geo"); break;
+    case NCM_ERR_NOT_FOUND:   base = _("ncm.error_not_found"); break;
+    case NCM_ERR_NO_RESOURCE: base = _("ncm.error_no_resource"); break;
+    case NCM_ERR_TRIAL_ONLY:  base = _("ncm.error_trial"); break;
+    default:                  base = _("ncm.error_generic"); break;
+    }
+    QString extra;
+    if (!json.isEmpty()) {
+        cJSON* root = cJSON_Parse(cjsonUtf8(json));
+        if (root) {
+            const QString m = cJSONStr(root, "message", "");
+            if (!m.isEmpty()) extra = qFromUtf8(" — ") + m;
+            cJSON_Delete(root);
+        }
+    }
+    return QString("%1 (rc=%2)%3").arg(base).arg(rc).arg(extra);
 }
 
 static qint64 cJSONInt(cJSON* obj, const char* key, qint64 def)
@@ -2019,8 +2076,9 @@ void MainWindow::onNcmSource(int rc, const QString& json, qint64 /*songId*/)
                 }
         }
         ALOG_WARN(qFromUtf8("NCM source fail rc=%1").arg(rc));
-        if (m_autoSkip && skipOnError(_("ncm.playing"))) return;
-        showNcmError(rc, _("ncm.playing"));
+        reportPlaybackError(ncmErrorDetail(rc, json));
+        if (m_autoSkip)
+            skipOnError(_("ncm.playing"));
         return;
     }
     cJSON* root = cJSON_Parse(cjsonUtf8(json));
@@ -2094,8 +2152,9 @@ void MainWindow::onNcmFetched(int rc, const QString& json, qint64 songId)
     }
     if (rc != NCM_OK) {
         ALOG_WARN(qFromUtf8("NCM fetch fail rc=%1 -> skip?").arg(rc));
-        if (m_autoSkip && skipOnError(_("ncm.caching"))) return;
-        showNcmError(rc, _("ncm.caching"));
+        reportPlaybackError(ncmErrorDetail(rc, json));
+        if (m_autoSkip)
+            skipOnError(_("ncm.caching"));
         return;
     }
     cJSON* root = cJSON_Parse(cjsonUtf8(json));
@@ -2491,6 +2550,7 @@ void MainWindow::onNetRadioStream(int index)
         return;
     }
     m_liveStream = true;
+    m_liveTitle = QString::fromUtf8(s.name);
     ensureEngine();
     contentView->setPlayingNetRadioIndex(index);   /* 行首 ▶（spinner 由缓冲态接管） */
     contentView->setNetBuffering(true);            /* 流未出声前 spinner */
@@ -2711,6 +2771,7 @@ void MainWindow::onNetRadioStream(int index)
         return;
     }
     m_liveStream = true;
+    m_liveTitle = QString::fromUtf8(s.name);
     ensureEngine();
     contentView->setPlayingNetRadioIndex(index);   /* 行首 ▶（spinner 由缓冲态接管） */
     contentView->setNetBuffering(true);            /* 流未出声前 spinner */

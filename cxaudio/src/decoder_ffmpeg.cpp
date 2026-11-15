@@ -330,11 +330,11 @@ class FfmpegProvider : public DecoderProvider {
 public:
     const char* id() const override { return "ffmpeg"; }
     bool available(std::string* err) override {
-        if (err) *err = "ffmpeg backend not built (headers missing/too old)";
+        if (err) *err = "ffmpeg backend not built at compile time (libavformat/avcodec headers missing or too old)";
         return false;
     }
     Decoder* create(const std::string&, std::string* err) override {
-        if (err) *err = "ffmpeg backend not built (headers missing/too old)";
+        if (err) *err = "ffmpeg backend not built at compile time (libavformat/avcodec headers missing or too old)";
         return 0;
     }
 };

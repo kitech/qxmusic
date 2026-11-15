@@ -99,7 +99,8 @@
     "dl_downloading": "Downloading %1%",
     "dl_busy": "Downloading…",
     "dl_failed": "Download failed",
-    "error": "Playback error"
+    "error": "Playback error",
+    "ffmpeg_no_tls": "Current ffmpeg lacks https(TLS): switch audio backend to mpv, or install ffmpeg built with openssl/gnutls (loaded path is logged as \"ffmpeg libavformat loaded\")"
   },
   "queue": {
     "title": "Play Queue"

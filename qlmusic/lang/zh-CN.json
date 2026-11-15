@@ -99,7 +99,8 @@
     "dl_downloading": "下载中 %1%",
     "dl_busy": "下载中…",
     "dl_failed": "下载失败",
-    "error": "播放错误"
+    "error": "播放错误",
+    "ffmpeg_no_tls": "当前 ffmpeg 缺少 https(TLS) 支持：请改用 mpv 音频后端，或安装带 openssl/gnutls 的 ffmpeg（实际加载路径见日志 ffmpeg libavformat loaded）"
   },
   "queue": {
     "title": "播放队列"

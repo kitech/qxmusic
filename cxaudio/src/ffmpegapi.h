@@ -61,6 +61,10 @@ struct FfmpegApi {
     int64_t (*av_rescale_q)(int64_t, AVRational, AVRational);
     void (*av_channel_layout_default)(AVChannelLayout*, int);
 
+    /* 诊断：实际加载的 libavformat 路径 + https(TLS) 能力 */
+    const char* loaded_path;
+    int (*avio_find_protocol)(const char*);
+
     SwrContext* (*swr_alloc)();
     int (*swr_init)(SwrContext*);
     int (*swr_convert)(SwrContext*, uint8_t**, int, const uint8_t**, int);
@@ -84,6 +88,10 @@ struct FfmpegApi {
 };
 
 bool loadFfmpegApi(FfmpegApi* api, std::string* err);
+
+/* 诊断接口（core.cpp 组装错误提示用；未加载时返回空串/false） */
+const char* ffmpegLoadedPath();
+bool ffmpegHttpsSupported();
 
 } /* namespace cx */
 
