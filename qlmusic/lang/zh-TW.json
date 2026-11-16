@@ -105,7 +105,8 @@
     "ffmpeg_no_tls": "目前 ffmpeg 缺少 https(TLS) 支援：請改用 mpv 音訊後端，或安裝帶 openssl/gnutls 的 ffmpeg（實際載入路徑見日誌 ffmpeg libavformat loaded）"
   },
   "queue": {
-    "title": "播放佇列"
+    "title": "播放佇列",
+    "last_session": "上次播放佇列"
   },
   "audio": {
     "backend": {

@@ -105,7 +105,8 @@
     "ffmpeg_no_tls": "Current ffmpeg lacks https(TLS): switch audio backend to mpv, or install ffmpeg built with openssl/gnutls (loaded path is logged as \"ffmpeg libavformat loaded\")"
   },
   "queue": {
-    "title": "Play Queue"
+    "title": "Play Queue",
+    "last_session": "Last session queue"
   },
   "audio": {
     "backend": {

@@ -7,6 +7,7 @@
 #include <QElapsedTimer>
 
 #include "ncmapi.h"
+#include "queuestore.h"
 
 /*
  * 全局播放控制器（qlmusic MainWindow 集中处理播放的等价物）：
@@ -51,6 +52,11 @@ public:
     qint64 currentSongId() const;   // 0 = 无在播
     QString currentTitle() const;
 
+    // 播放队列持久化（musiccom::QueueStore，queue.json 原子写）
+    void initQueueStore(const QString& dir);              // main.cpp 启动调用一次
+    void restoreLoaded();                                 // 启动恢复（摆队列不自动播）
+    void saveState();                                     // current<0 不写（保留旧快照）
+
     // 歌词缓存（播放成功即预取；LyricPopup 直接取）
     bool lyricCached(qint64 songId) const { return m_lrcSongId == songId && !m_lrcText.isEmpty(); }
     const QString& lrcText() const { return m_lrcText; }
@@ -88,6 +94,7 @@ private:
     int m_errSkipRun = 0;   // 连续播放失败计数（qlmusic skipOnError 同义，阈值 99）
     qint64 m_lrcSongId = 0;
     QString m_lrcText;
+    musiccom::QueueStore* m_store = nullptr;   // 队列持久化（initQueueStore 创建）
 };
 
 #endif

@@ -25,6 +25,7 @@ class AudioEngineAdapter;
 class QSplitter;
 class QTimer;
 namespace musiccom { class FavoriteStore; }
+namespace musiccom { class QueueStore; }
 
 class MainWindow : public QMainWindow {
     Q_OBJECT
@@ -144,6 +145,8 @@ private:
     void buildTray();
     /* 收藏：从 FavoriteStore 重建"我的收藏"歌单并刷新两端视图 */
     void refreshFavPlaylist();
+    void saveQueueState();            /* 队列快照落盘（current<0 时不写，保留旧快照） */
+    void restoreQueueSnapshot();      /* 启动恢复：临时歌单摆队列，不自动播 */
 
     void ensureEngine();
     void playTrack(int playlistId, int trackIndex);
@@ -197,7 +200,7 @@ private:
     QSplitter* bodySplitter;
     std::vector<Playlist> m_library;
     musiccom::FavoriteStore* m_favs;
-    QStringList m_favPendingDetailIds;   /* 账号同步缺快照的 id（批量 song_detail） */
+    musiccom::QueueStore* m_queueStore;   /* 播放队列持久化（queue.json，重启恢复） */    QStringList m_favPendingDetailIds;   /* 账号同步缺快照的 id（批量 song_detail） */
     AudioEngineAdapter* audioEngine;
     int m_curPlaylistId;
     int m_curTrackIndex;

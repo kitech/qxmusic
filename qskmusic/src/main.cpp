@@ -325,6 +325,10 @@ int main(int argc, char* argv[])
     Favorites::instance().init(QStandardPaths::writableLocation(
         QStandardPaths::AppLocalDataLocation));
 
+    // 播放队列持久化存储（queue.json，与收藏同目录；恢复在下方接线后做）
+    Playback::instance().initQueueStore(QStandardPaths::writableLocation(
+        QStandardPaths::AppLocalDataLocation));
+
     // ── 全局唯一播放条 + 队列/歌词弹层（qlmusic 主窗体底部播放条正統）──
     auto* playerBar = new PlayerBar(rootBox);
     // 全宽细线进度（贴播放条上沿，业界 mini-player 惯例）：
@@ -539,6 +543,14 @@ int main(int argc, char* argv[])
 
     // Tab/Shift+Tab 手动焦点管理（QSkinny 默认关闭 tab focus 链）
     window.installEventFilter(new MyTabFocus(&window));
+
+    // 退出兜底：saveState 内部有 current<0 守卫（本会话未点播 → 不覆盖旧快照）
+    QObject::connect(&app, &QCoreApplication::aboutToQuit, []() {
+        Playback::instance().saveState();
+    });
+
+    // 启动恢复：摆上次队列 + 高亮当前曲（paused，不自动 resolve，零联网）
+    Playback::instance().restoreLoaded();
 
     // 全局键过滤（返回键 + 空格播控 + 焦点释放）
     app.installEventFilter(new GlobalKeyFilter(pageManager));

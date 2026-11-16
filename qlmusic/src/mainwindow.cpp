@@ -25,6 +25,7 @@
 #include "toastwidget.h"
 #include "userinfopanel.h"
 #include "favoritestore.h"   /* musiccom：本地收藏 JSON 存储（Qt 版本无关） */
+#include "queuestore.h"      /* musiccom：播放队列持久化（queue.json） */
 #include "radiolist.h"       /* musiccom：网络电台内置清单 */
 
 #ifdef NCM_ENABLE
@@ -448,8 +449,11 @@ void MainWindow::buildCentralWidget()
         qMkdir(favDir, true);
         m_favs = new musiccom::FavoriteStore(qToStdString(favDir));
         m_favs->load();
+        m_queueStore = new musiccom::QueueStore(qToStdString(favDir));
+        m_queueStore->load();
     }
     refreshFavPlaylist();
+    restoreQueueSnapshot();
 
     QObject::connect(sideNav, SIGNAL(playlistSelected(int)),
                      contentView, SLOT(showPlaylist(int)));
@@ -861,6 +865,7 @@ void MainWindow::closeEvent(QCloseEvent* event)
         event->ignore();
         return;
     }
+    saveQueueState();   /* 兜底（内部有 current<0 守卫，未开始不覆盖旧快照） */
     event->accept();
 }
 
@@ -1047,6 +1052,7 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
     const Track& t = pl->tracks[trackIndex];
     m_curPlaylistId = playlistId;
     m_curTrackIndex = trackIndex;
+    saveQueueState();           /* 队列/当前曲变更即落盘（原子写） */
     m_skipGuardPlaylist = -1;   /* 新曲：清失败去重标记 */
     m_skipGuardTrack = -1;
     playerBar->setTrack(t);
@@ -1097,6 +1103,7 @@ void MainWindow::onTrackActivated(int playlistId, int trackIndex)
         if (t.url.startsWith(QString::fromUtf8("ytm:")) && m_ncm && m_ncmAvailable) {
             m_curPlaylistId = playlistId;
             m_curTrackIndex = trackIndex;
+            saveQueueState();
             if (playerBar) { playerBar->setTrack(t); playerBar->setPlaying(false); }
             SharedStatusBar::instance()->showMessage(_("ncm.loading"), 0);
             m_ncm->ytmStream(t.url.mid(4));
@@ -2961,6 +2968,91 @@ void MainWindow::onNetRadioStream(int index)
 /* 置于 NCM 条件编译之外：未链接 libncm 的构建（Qt3/mac）本地收藏照常可用 */
 
 namespace { const int kFavPlaylistId = 1000; }
+
+/* 队列快照落盘：current<0（本会话从未点播）→ 不写，保留上次会话的文件 */
+void MainWindow::saveQueueState()
+{
+    if (!m_queueStore) return;
+    const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
+    if (!pl || m_curTrackIndex < 0
+        || m_curTrackIndex >= (int)pl->tracks.size()) return;
+    std::vector<musiccom::QueueItem> items;
+    items.reserve(pl->tracks.size());
+    for (size_t i = 0; i < pl->tracks.size(); ++i) {
+        const Track& t = pl->tracks[i];
+        if (t.ncmId <= 0 && t.url.isEmpty())
+            continue;              /* 两头都空（无取链键无 URI）不入快照 */
+        musiccom::QueueItem q;
+        q.id = t.ncmId;            /* 统一取链键（B站=aid；YTM/本地走 url 槽） */
+        q.url = qToStdString(t.url);
+        q.name = qToStdString(t.title);
+        q.artists = qToStdString(t.artist);
+        q.album = qToStdString(t.album);
+        q.coverUrl = qToStdString(t.coverUrl);
+        q.durationMs = t.durationMs;
+        q.albumId = t.albumId;
+        q.playable = t.playable ? 1 : 0;
+        items.push_back(q);
+    }
+    m_queueStore->set(items, m_curTrackIndex);
+    m_queueStore->save();
+}
+
+/* 启动恢复：队列快照 → 临时本地歌单（id=-77，ncmId=0）挂进 m_library，
+ * 摆队列 + 高亮（不自动 resolve/播放，启动零联网）。current=-1 则只摆队列。 */
+void MainWindow::restoreQueueSnapshot()
+{
+    if (!m_queueStore || m_queueStore->items().empty()) return;
+
+    /* 防御：历史恢复歌单只留一份 */
+    for (size_t i = m_library.size(); i-- > 0;)
+        if (m_library[i].id == -77)
+            m_library.erase(m_library.begin() + i);
+
+    const std::vector<musiccom::QueueItem>& items = m_queueStore->items();
+    Playlist p;
+    p.id = -77;
+    p.ncmId = 0;
+    p.trackCount = 0;
+    p.name = _("queue.last_session");
+    for (size_t i = 0; i < items.size(); ++i) {
+        const musiccom::QueueItem& q = items[i];
+        Track t;
+        t.id = (int)(i + 1);
+        t.ncmId = q.id;
+        t.title = qFromUtf8(q.name);
+        t.artist = qFromUtf8(q.artists);
+        t.album = qFromUtf8(q.album);
+        t.coverUrl = qFromUtf8(q.coverUrl);
+        t.durationMs = (int)q.durationMs;
+        t.albumId = (int)q.albumId;
+        t.url = qFromUtf8(q.url);
+        t.playable = q.playable != 0;
+        t.publishMs = 0;
+        t.artistNcmId = 0;
+        p.tracks.push_back(t);
+    }
+    p.trackCount = (int)p.tracks.size();
+
+    m_library.push_back(p);
+    sideNav->setLibrary(m_library);
+    contentView->setLibrary(m_library);
+
+    m_curPlaylistId = -77;
+    int idx = m_queueStore->current();       /* -1 = 未开始；越界已在 store 内 clamp */
+    if (idx >= (int)p.tracks.size()) idx = -1;
+    m_curTrackIndex = idx;
+    contentView->showPlaylist(-77);
+    if (idx >= 0) {
+        queuePanel->setQueue(p.tracks, idx);
+        queuePanel->setCurrentTrack(p.tracks[idx]);
+        contentView->setPlayingTrackId(p.tracks[idx].ncmId);
+        playerBar->setTrack(p.tracks[idx]);
+        playerBar->setPlaying(false);        /* 摆好但不播 */
+    } else {
+        queuePanel->setQueue(p.tracks, -1);
+    }
+}
 
 void MainWindow::refreshFavPlaylist()
 {

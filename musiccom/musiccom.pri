@@ -6,6 +6,7 @@ HEADERS += $$MUSICCOM_DIR/iconcachecore.h \
            $$MUSICCOM_DIR/iconmem.h \
            $$MUSICCOM_DIR/icongen.h \
            $$MUSICCOM_DIR/favoritestore.h \
+           $$MUSICCOM_DIR/queuestore.h \
            $$MUSICCOM_DIR/vinylpaint.h \
            $$MUSICCOM_DIR/radiolist.h
 
@@ -13,5 +14,6 @@ SOURCES += $$MUSICCOM_DIR/iconcachecore.cpp \
            $$MUSICCOM_DIR/iconmem.cpp \
            $$MUSICCOM_DIR/icongen.cpp \
            $$MUSICCOM_DIR/favoritestore.cpp \
+           $$MUSICCOM_DIR/queuestore.cpp \
            $$MUSICCOM_DIR/vinylpaint.cpp \
            $$MUSICCOM_DIR/radiolist.cpp

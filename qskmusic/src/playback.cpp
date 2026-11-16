@@ -125,10 +125,75 @@ QString Playback::currentTitle() const
                                 : QString("%1 - %2").arg(s->name, s->artists);
 }
 
+/* Song ↔ QueueItem 转换（取链键统一：Song.id） */
+static musiccom::QueueItem toItem(const Song& s)
+{
+    musiccom::QueueItem q;
+    q.id = s.id;
+    q.name = qUtf8Printable(s.name);
+    q.artists = qUtf8Printable(s.artists);
+    q.album = qUtf8Printable(s.album);
+    q.coverUrl = qUtf8Printable(s.cover);
+    q.durationMs = s.durationMs;
+    q.albumId = s.albumId;
+    q.playable = s.playable ? 1 : 0;
+    return q;
+}
+
+static Song toSong(const musiccom::QueueItem& q)
+{
+    Song s;
+    s.id = q.id;
+    s.name = QString::fromUtf8(q.name.c_str());
+    s.artists = QString::fromUtf8(q.artists.c_str());
+    s.album = QString::fromUtf8(q.album.c_str());
+    s.cover = QString::fromUtf8(q.coverUrl.c_str());
+    s.durationMs = (int)q.durationMs;
+    s.albumId = q.albumId;
+    s.playable = q.playable != 0;
+    return s;
+}
+
+void Playback::initQueueStore(const QString& dir)
+{
+    if (m_store) return;
+    m_store = new musiccom::QueueStore(dir.toStdString());
+    m_store->load();
+}
+
+void Playback::saveState()
+{
+    if (!m_store) return;
+    if (m_current < 0 || m_current >= m_queue.size()) return;   // 未开始 → 不覆盖旧快照
+    std::vector<musiccom::QueueItem> items;
+    items.reserve(m_queue.size());
+    for (const auto& s : m_queue)
+        items.push_back(toItem(s));
+    m_store->set(items, m_current);
+    m_store->save();
+}
+
+void Playback::restoreLoaded()
+{
+    if (!m_store || m_store->items().empty()) return;
+    QList<Song> songs;
+    for (const auto& q : m_store->items())
+        songs << toSong(q);
+    int idx = m_store->current();          // 越界已在 store 内 clamp
+    if (idx >= songs.size()) idx = -1;
+    /* 摆队列 + 高亮，不 resolve/播放（启动零联网）；songChanged 让 PlayerBar
+     * 显示当前曲 paused 态 */
+    m_queue = songs;
+    m_current = idx;
+    Q_EMIT songChanged();
+}
+
 void Playback::setQueue(const QList<Song>& songs, int startIndex)
 {
     qDebug() << "[DIAG] setQueue size=" << songs.size() << "start=" << startIndex;
     m_queue = songs;
+    m_current = (startIndex >= 0 && startIndex < songs.size()) ? startIndex : -1;
+    saveState();                     // 队列建立即落盘
     playIndex(startIndex);
 }
 
@@ -201,6 +266,7 @@ void Playback::playIndex(int index)
     const auto& s = m_queue.at(index);
     if (m_resolving) return;
     m_current = index;
+    saveState();                     // 切曲即落盘（next/prev/自动推进统一走此）
     m_lrcSongId = 0;
     m_lrcText.clear();
     m_resolving = true;
