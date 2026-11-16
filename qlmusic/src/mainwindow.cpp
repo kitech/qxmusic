@@ -41,6 +41,8 @@
 #include <qtimer.h>
 #include <qmessagebox.h>
 #include <qlineedit.h>
+#include <qcheckbox.h>
+#include <qspinbox.h>
 #include <qsplitter.h>
 #include <qfile.h>
 
@@ -1144,6 +1146,81 @@ void MainWindow::updateAutoSkipCheck()
 #endif
 }
 
+/* ── config.json 存储的设置条目（qlcomp/ConfigDialog 条目协议）──────────
+ * 与 QSettings34 的音频条目分开：load() 读 Config::value（config.json），
+ * 写回经 settingsSaved(changed) 在 onSettingsSaved 里镜像到 config.json。
+ * 仅做保存/加载，不接入播放/下载/代理主流程。Qt3 无 override。 */
+class JsonBoolItem : public ConfigItemBase {
+public:
+    JsonBoolItem(const QString& key, bool def, const QString& label, QWidget* parent)
+        : m_keyName(key), m_def(def), m_value(def), m_check(new QCheckBox(label, parent)) {}
+    void load() {
+        const QString v = Config::value(m_keyName);
+        m_value = v.isEmpty() ? m_def : (v == "1");
+        m_check->setChecked(m_value);
+    }
+    QString itemKey() const { return m_keyName; }
+    QVariant widgetValue() const { return QVariant(m_check->isChecked()); }
+    bool isModified() const { return m_check->isChecked() != m_value; }
+    QCheckBox* checkBox() const { return m_check; }
+private:
+    QString m_keyName;
+    bool m_def;
+    bool m_value;
+    QCheckBox* m_check;
+};
+
+class JsonStringItem : public ConfigItemBase {
+public:
+    JsonStringItem(const QString& key, const QString& def, const QString& label, QWidget* parent)
+        : m_def(def), m_value(def), m_edit(new QLineEdit(parent)) { m_keyName = key; Q_UNUSED(label); }
+    void load() {
+        const QString v = Config::value(m_keyName);
+        m_value = v.isEmpty() ? m_def : v;
+        m_edit->setText(m_value);
+    }
+    QString itemKey() const { return m_keyName; }
+    QVariant widgetValue() const { return QVariant(m_edit->text()); }
+    bool isModified() const { return m_edit->text() != m_value; }
+    QLineEdit* lineEdit() const { return m_edit; }
+private:
+    QString m_keyName;
+    QString m_def;
+    QString m_value;
+    QLineEdit* m_edit;
+};
+
+class JsonIntItem : public ConfigItemBase {
+public:
+    JsonIntItem(const QString& key, int def, const QString& label,
+                int min, int max, QWidget* parent)
+        : m_def(def), m_value(def), m_spin(new QSpinBox(parent))
+    {
+        m_keyName = key; Q_UNUSED(label);
+#ifdef QT3_BUILD
+        m_spin->setMinValue(min);
+        m_spin->setMaxValue(max);
+#else
+        m_spin->setMinimum(min);
+        m_spin->setMaximum(max);
+#endif
+    }
+    void load() {
+        const QString v = Config::value(m_keyName);
+        m_value = v.isEmpty() ? m_def : v.toInt();
+        m_spin->setValue(m_value);
+    }
+    QString itemKey() const { return m_keyName; }
+    QVariant widgetValue() const { return QVariant(m_spin->value()); }
+    bool isModified() const { return m_spin->value() != m_value; }
+    QSpinBox* spinBox() const { return m_spin; }
+private:
+    QString m_keyName;
+    int m_def;
+    int m_value;
+    QSpinBox* m_spin;
+};
+
 void MainWindow::openSettings()
 {
     /* 双入口（Tool 菜单后端子菜单 ↔ 设置窗）共享真源：
@@ -1196,6 +1273,28 @@ void MainWindow::openSettings()
     dlg->registerConfigItem(devItem);
     dlg->registerConfigItem(qualityItem);
 
+    /* ── 网络/通用（config.json 存储）：仅保存/加载，不接入主流程 ── */
+    CategoryPage* netPage = new CategoryPage(_("settings.network_tab"), dlg);
+    JsonStringItem* proxyItem = new JsonStringItem("proxy", "", "", netPage);
+    netPage->addLabeledControl(_("settings.proxy_label"), proxyItem->lineEdit());
+    JsonBoolItem* autoProxyItem = new JsonBoolItem("proxy_auto", true, "", netPage);
+    netPage->addLabeledControl(_("settings.proxy_auto_label"), autoProxyItem->checkBox());
+    JsonBoolItem* allBkItem = new JsonBoolItem("proxy_all_backends", false, "", netPage);
+    netPage->addLabeledControl(_("settings.proxy_all_label"), allBkItem->checkBox());
+    dlg->addCategory(_("settings.network_tab"), netPage);
+    dlg->registerConfigItem(proxyItem);
+    dlg->registerConfigItem(autoProxyItem);
+    dlg->registerConfigItem(allBkItem);
+
+    CategoryPage* genPage = new CategoryPage(_("settings.general_tab"), dlg);
+    JsonBoolItem* lyricsItem = new JsonBoolItem("desktop_lyrics", true, "", genPage);
+    genPage->addLabeledControl(_("settings.desktop_lyrics_label"), lyricsItem->checkBox());
+    JsonIntItem* cacheItem = new JsonIntItem("cache_max_mb", 500, "", 0, 102400, genPage);
+    genPage->addLabeledControl(_("settings.cache_size_label"), cacheItem->spinBox());
+    dlg->addCategory(_("settings.general_tab"), genPage);
+    dlg->registerConfigItem(lyricsItem);
+    dlg->registerConfigItem(cacheItem);
+
     dlg->setSettingsName("qlmusic", "audio");
     QObject::connect(dlg, SIGNAL(settingsSaved(const SettingsChangedMap&)),
                      this, SLOT(onSettingsSaved(const SettingsChangedMap&)));
@@ -1206,6 +1305,19 @@ void MainWindow::openSettings()
 
 void MainWindow::onSettingsSaved(const SettingsChangedMap& changed)
 {
+    /* 网络/通用条目（config.json 存储）：saveSettings 只写 QSettings34，
+     * 故在此镜像写回 config.json（仅保存加载，不接主流程） */
+    if (changed.contains("proxy"))
+        Config::setValue("proxy", changed["proxy"].toString());
+    if (changed.contains("proxy_auto"))
+        Config::setValue("proxy_auto", changed["proxy_auto"].toBool() ? "1" : "0");
+    if (changed.contains("proxy_all_backends"))
+        Config::setValue("proxy_all_backends", changed["proxy_all_backends"].toBool() ? "1" : "0");
+    if (changed.contains("desktop_lyrics"))
+        Config::setValue("desktop_lyrics", changed["desktop_lyrics"].toBool() ? "1" : "0");
+    if (changed.contains("cache_max_mb"))
+        Config::setValue("cache_max_mb", QString::number(changed["cache_max_mb"].toInt()));
+
     if (changed.contains("audio/backend")) {
         QString id = backendIdForLabel(changed["audio/backend"].toString());
         if (!id.isEmpty()) {

@@ -157,7 +157,14 @@
     "test_playing": "正在播放測試音（",
     "quality_changed": "音質已切換：",
     "device_changed": "輸出裝置已選擇：",
-    "next_play": "（下次播放生效）"
+    "next_play": "（下次播放生效）",
+    "network_tab": "網路",
+    "general_tab": "一般",
+    "proxy_label": "代理",
+    "proxy_auto_label": "自動代理",
+    "proxy_all_label": "用於全部後端",
+    "desktop_lyrics_label": "顯示桌面歌詞",
+    "cache_size_label": "快取媒體上限（MB）"
   },
   "action": {
     "new": "新增",

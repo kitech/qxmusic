@@ -177,7 +177,7 @@ QPixmap categoryIcon(const QString& name, int size)
 #endif
     QFont f = p.font();
     f.setBold(true);
-    f.setPixelSize(size * 46 / 100);
+    f.setPixelSize(size * 69 / 100);   /* 有效字形加大 50% */
     p.setFont(f);
     p.setPen(Qt::white);
     p.drawText(QRect(0, 0, size, size), Qt::AlignCenter, firstGlyph(name));
@@ -326,8 +326,8 @@ QPixmap navIcon(const QString& kind, int size)
     p.drawRoundRect(QRect(0, 0, size, size), radius, radius);
 #endif
     p.setBrush(Qt::white);
-    const QRect inner(size * 18 / 100, size * 18 / 100,
-                      size * 64 / 100, size * 64 / 100);
+    const QRect inner(size * 2 / 100, size * 2 / 100,
+                      size * 96 / 100, size * 96 / 100);   /* 有效图形加大 50% */
     if (kind == QString("recommend"))      drawStar(p, inner);
     else if (kind == QString("rank"))      drawBars(p, inner);
     else if (kind == QString("mymusic"))   drawPerson(p, inner);

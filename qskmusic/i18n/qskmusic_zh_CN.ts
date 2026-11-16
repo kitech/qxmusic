@@ -736,6 +736,26 @@
         <source>English</source>
         <translation>English</translation>
     </message>
+    <message>
+        <source>Proxy</source>
+        <translation>代理</translation>
+    </message>
+    <message>
+        <source>Auto proxy</source>
+        <translation>自动代理</translation>
+    </message>
+    <message>
+        <source>Use for all backends</source>
+        <translation>用于全部后端</translation>
+    </message>
+    <message>
+        <source>Desktop lyrics</source>
+        <translation>显示桌面歌词</translation>
+    </message>
+    <message>
+        <source>Media cache limit (MB)</source>
+        <translation>缓存媒体上限（MB）</translation>
+    </message>
 </context>
 <context>
     <name>StatusLine</name>

@@ -157,7 +157,14 @@
     "test_playing": "Playing test tone (",
     "quality_changed": "Quality switched: ",
     "device_changed": "Output device selected: ",
-    "next_play": " (effective next play)"
+    "next_play": " (effective next play)",
+    "network_tab": "Network",
+    "general_tab": "General",
+    "proxy_label": "Proxy",
+    "proxy_auto_label": "Auto proxy",
+    "proxy_all_label": "Use for all backends",
+    "desktop_lyrics_label": "Show desktop lyrics",
+    "cache_size_label": "Media cache limit (MB)"
   },
   "action": {
     "new": "New",

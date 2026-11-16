@@ -7,6 +7,7 @@
 #include <QskComboBox.h>
 #include <QskLabelData.h>
 #include <QskSwitchButton.h>
+#include <QskTextField.h>
 #include <QskSeparator.h>
 #include <QskFontRole.h>
 #include <QskSkinManager.h>
@@ -150,6 +151,50 @@ void SettingsPage::buildUi()
         });
     }
 
+    // ── 网络：代理（仅保存加载，不接入播放/代理主流程） ──
+    {
+        auto* row = addRow(tr("Proxy"));
+        m_proxyField = new QskTextField(row);
+        m_proxyField->setPreferredWidth(220);
+        /* textEdited：仅用户输入触发，applySettings 的 setText 不会回写 */
+        connect(m_proxyField, &QskTextInput::textEdited, this, [](const QString& t) {
+            QSettings().setValue("proxy", t);
+        });
+    }
+    {
+        auto* row = addRow(tr("Auto proxy"));                 // 默认 true
+        m_autoProxySwitch = new QskSwitchButton(row);
+        connect(m_autoProxySwitch, &QskSwitchButton::toggled, this, [](bool on) {
+            QSettings().setValue("proxyAuto", on);
+        });
+    }
+    {
+        auto* row = addRow(tr("Use for all backends"));       // 默认 false
+        m_allBkSwitch = new QskSwitchButton(row);
+        connect(m_allBkSwitch, &QskSwitchButton::toggled, this, [](bool on) {
+            QSettings().setValue("proxyAllBackends", on);
+        });
+    }
+
+    // ── 通用 ──
+    {
+        auto* row = addRow(tr("Desktop lyrics"));             // 默认 true
+        m_lyricsSwitch = new QskSwitchButton(row);
+        connect(m_lyricsSwitch, &QskSwitchButton::toggled, this, [](bool on) {
+            QSettings().setValue("desktopLyrics", on);
+        });
+    }
+    {
+        auto* row = addRow(tr("Media cache limit (MB)"));     // 默认 500
+        m_cacheField = new QskTextField(row);
+        m_cacheField->setPreferredWidth(120);
+        connect(m_cacheField, &QskTextInput::textEdited, this, [](const QString& t) {
+            bool ok = false;
+            const int v = t.toInt(&ok);
+            if (ok && v >= 0) QSettings().setValue("cacheMaxMb", v);
+        });
+    }
+
     layout->addStretch(1);
 
     applySettings();
@@ -203,4 +248,16 @@ void SettingsPage::applySettings()
         m_langCombo->setCurrentIndex(
             systemLang ? 0
                        : (lang == "en" ? 1 : (lang == "zh-TW" ? 3 : 2)));
+
+    // 网络/通用（仅保存加载，不接入主流程）
+    if (m_proxyField)
+        m_proxyField->setText(s.value("proxy", QString()).toString());
+    if (m_autoProxySwitch)
+        m_autoProxySwitch->setChecked(s.value("proxyAuto", true).toBool());
+    if (m_allBkSwitch)
+        m_allBkSwitch->setChecked(s.value("proxyAllBackends", false).toBool());
+    if (m_lyricsSwitch)
+        m_lyricsSwitch->setChecked(s.value("desktopLyrics", true).toBool());
+    if (m_cacheField)
+        m_cacheField->setText(QString::number(s.value("cacheMaxMb", 500).toInt()));
 }

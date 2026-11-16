@@ -5,6 +5,7 @@
 
 class QskComboBox;
 class QskSwitchButton;
+class QskTextField;
 
 /*
  * 设置页（自 anystik settingspage 模板级重写：裁 Android/贴纸/字体缩放系统，
@@ -30,6 +31,13 @@ private:
     QskComboBox* m_transitionCombo = nullptr;
     QskComboBox* m_langCombo = nullptr;
     QskSwitchButton* m_darkSwitch = nullptr;
+
+    // 网络/通用配置项（仅保存加载，不接入播放/代理主流程）
+    QskTextField* m_proxyField = nullptr;
+    QskTextField* m_cacheField = nullptr;
+    QskSwitchButton* m_autoProxySwitch = nullptr;
+    QskSwitchButton* m_allBkSwitch = nullptr;
+    QskSwitchButton* m_lyricsSwitch = nullptr;
     bool m_building = false;
 };
 
