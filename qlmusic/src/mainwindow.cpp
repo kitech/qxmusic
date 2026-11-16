@@ -1633,6 +1633,8 @@ static bool isTextInputWidget(QWidget* w)
 /* Qt3 兼容：无 qobject_cast/trimmed/isAncestorOf，也无 MediaToggle 键 */
 template <typename T> static T qCast(QObject* o) { return qt_cast<T>(o); }
 static const int kMediaTogglePlayPause = Qt::Key_MediaPlay;
+static const int kMediaPrevKey = Qt::Key_MediaPrev;
+static const int kMediaNextKey = Qt::Key_MediaNext;
 static bool qStringIsBlank(const QString& s) { return s.stripWhiteSpace().isEmpty(); }
 static bool qIsAncestorOf(QWidget* ancestor, QWidget* child)
 {
@@ -1643,6 +1645,8 @@ static bool qIsAncestorOf(QWidget* ancestor, QWidget* child)
 #else
 template <typename T> static T qCast(QObject* o) { return qobject_cast<T>(o); }
 static const int kMediaTogglePlayPause = Qt::Key_MediaTogglePlayPause;
+static const int kMediaPrevKey = Qt::Key_MediaPrevious;
+static const int kMediaNextKey = Qt::Key_MediaNext;
 static bool qStringIsBlank(const QString& s) { return s.trimmed().isEmpty(); }
 static bool qIsAncestorOf(QWidget* ancestor, QWidget* child)
 {
@@ -1693,6 +1697,44 @@ bool MainWindow::eventFilter(QObject* obj, QEvent* ev)
             }
             onPlayPause();
             return true;
+        }
+        /* ── 播放条快捷键（本轮全部 dry-run：只提示，不改任何状态） ── */
+        {
+#ifdef QT3_BUILD
+            const int mCtrl = Qt::ControlButton, mShift = Qt::ShiftButton,
+                      mAlt = Qt::AltButton;
+#else
+            const int mCtrl = Qt::ControlModifier, mShift = Qt::ShiftModifier,
+                      mAlt = Qt::AltModifier;
+#endif
+            const bool ctrl  = (mods & mCtrl) != 0;
+            const bool shift = (mods & mShift) != 0;
+            const bool alt   = (mods & mAlt) != 0;
+            QString action;
+            if      (key == Qt::Key_Left  && ctrl  && !shift && !alt) action = _("hotkey.prev");
+            else if (key == Qt::Key_Right && ctrl  && !shift && !alt) action = _("hotkey.next");
+            else if (key == Qt::Key_Left  && shift && !ctrl  && !alt) action = _("hotkey.seek_back");
+            else if (key == Qt::Key_Right && shift && !ctrl  && !alt) action = _("hotkey.seek_fwd");
+            else if (key == Qt::Key_Up    && ctrl  && !shift && !alt) action = _("hotkey.vol_up");
+            else if (key == Qt::Key_Down  && ctrl  && !shift && !alt) action = _("hotkey.vol_down");
+            else if (key == Qt::Key_M     && !ctrl && !shift && !alt) action = _("hotkey.mute");
+            else if (key == Qt::Key_H     && ctrl  && !shift && !alt) action = _("hotkey.mini");
+            else if (key == kMediaPrevKey)      action = _("hotkey.prev");
+            else if (key == kMediaNextKey)      action = _("hotkey.next");
+            else if (key == Qt::Key_VolumeUp)   action = _("hotkey.vol_up");
+            else if (key == Qt::Key_VolumeDown) action = _("hotkey.vol_down");
+            else if (key == Qt::Key_VolumeMute) action = _("hotkey.mute");
+
+            if (!action.isEmpty()) {
+                QWidget* fw = qApp->focusWidget();
+                if (fw && fw->topLevelWidget() != this)
+                    return QMainWindow::eventFilter(obj, ev);
+                /* 文本输入：全部放行（M 要能打字；Ctrl/Shift+方向键要做文本操作） */
+                if (fw && isTextInputWidget(fw))
+                    return QMainWindow::eventFilter(obj, ev);
+                hotkeyStub(action);   /* 仅日志 + 状态栏提示，不执行任何动作 */
+                return true;          /* 吞键：避免列表/控件二次响应 */
+            }
         }
     } else if (ev->type() == QEvent::MouseButtonPress) {
         /* 焦点生命周期：点非输入区域 → 清输入焦点（配套规则 2） */
@@ -3364,6 +3406,13 @@ void MainWindow::onPrefetchHintTimeout()
     SharedStatusBar::instance()->showMessageTyped(
         _("prefetch.plan").arg(m_pfHintText), StatusInfo, 3000);
     m_pfHintText = QString();
+}
+
+/* 快捷键桩（本轮统一口径）：只写日志 + 状态栏提示，不改变任何播放/音量/界面状态 */
+void MainWindow::hotkeyStub(const QString& action)
+{
+    ALOG_INFO(qFromUtf8("[hotkey] %1 (stub, no action)").arg(action));
+    SharedStatusBar::instance()->showMessageTyped(action, StatusInfo, 2500);
 }
 
 /* 切曲合并拍到期：按记录的来源规划（连续切歌只算最后一次） */

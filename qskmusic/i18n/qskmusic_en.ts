@@ -735,6 +735,38 @@
         <source>Loading…</source>
         <translation>Loading…</translation>
     </message>
+    <message>
+        <source>Shortcut: previous track (stub, not executed)</source>
+        <translation>Shortcut: previous track (stub, not executed)</translation>
+    </message>
+    <message>
+        <source>Shortcut: next track (stub, not executed)</source>
+        <translation>Shortcut: next track (stub, not executed)</translation>
+    </message>
+    <message>
+        <source>Shortcut: seek back 15s (stub, not executed)</source>
+        <translation>Shortcut: seek back 15s (stub, not executed)</translation>
+    </message>
+    <message>
+        <source>Shortcut: seek forward 15s (stub, not executed)</source>
+        <translation>Shortcut: seek forward 15s (stub, not executed)</translation>
+    </message>
+    <message>
+        <source>Shortcut: volume +5 (stub, not executed)</source>
+        <translation>Shortcut: volume +5 (stub, not executed)</translation>
+    </message>
+    <message>
+        <source>Shortcut: volume -5 (stub, not executed)</source>
+        <translation>Shortcut: volume -5 (stub, not executed)</translation>
+    </message>
+    <message>
+        <source>Shortcut: toggle mute (stub, not executed)</source>
+        <translation>Shortcut: toggle mute (stub, not executed)</translation>
+    </message>
+    <message>
+        <source>Shortcut: compact UI (stub, not executed)</source>
+        <translation>Shortcut: compact UI (stub, not executed)</translation>
+    </message>
 </context>
 <context>
     <name>SongDetailPage</name>

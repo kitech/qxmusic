@@ -109,6 +109,57 @@ protected:
                 Playback::instance().togglePause();     // 空框/其他焦点：播控
                 return true;                            // 吞：防按钮二次响应
             }
+
+            /* ── 播放条快捷键（本轮 dry-run：只提示，不改任何状态） ── */
+            {
+                const int mods = int(ke->modifiers());
+                const bool ctrl  = (mods & Qt::ControlModifier) != 0;
+                const bool shift = (mods & Qt::ShiftModifier) != 0;
+                const bool alt   = (mods & Qt::AltModifier) != 0;
+                const int k = ke->key();
+                QString action;
+                if      (k == Qt::Key_Left  && ctrl  && !shift && !alt)
+                    action = QCoreApplication::translate("main", "Shortcut: previous track (stub, not executed)");
+                else if (k == Qt::Key_Right && ctrl  && !shift && !alt)
+                    action = QCoreApplication::translate("main", "Shortcut: next track (stub, not executed)");
+                else if (k == Qt::Key_Left  && shift && !ctrl  && !alt)
+                    action = QCoreApplication::translate("main", "Shortcut: seek back 15s (stub, not executed)");
+                else if (k == Qt::Key_Right && shift && !ctrl  && !alt)
+                    action = QCoreApplication::translate("main", "Shortcut: seek forward 15s (stub, not executed)");
+                else if (k == Qt::Key_Up    && ctrl  && !shift && !alt)
+                    action = QCoreApplication::translate("main", "Shortcut: volume +5 (stub, not executed)");
+                else if (k == Qt::Key_Down  && ctrl  && !shift && !alt)
+                    action = QCoreApplication::translate("main", "Shortcut: volume -5 (stub, not executed)");
+                else if (k == Qt::Key_M     && !ctrl && !shift && !alt)
+                    action = QCoreApplication::translate("main", "Shortcut: toggle mute (stub, not executed)");
+                else if (k == Qt::Key_H     && ctrl  && !shift && !alt)
+                    action = QCoreApplication::translate("main", "Shortcut: compact UI (stub, not executed)");
+                else if (k == Qt::Key_MediaPrevious)
+                    action = QCoreApplication::translate("main", "Shortcut: previous track (stub, not executed)");
+                else if (k == Qt::Key_MediaNext)
+                    action = QCoreApplication::translate("main", "Shortcut: next track (stub, not executed)");
+                else if (k == Qt::Key_VolumeUp)
+                    action = QCoreApplication::translate("main", "Shortcut: volume +5 (stub, not executed)");
+                else if (k == Qt::Key_VolumeDown)
+                    action = QCoreApplication::translate("main", "Shortcut: volume -5 (stub, not executed)");
+                else if (k == Qt::Key_VolumeMute)
+                    action = QCoreApplication::translate("main", "Shortcut: toggle mute (stub, not executed)");
+
+                if (!action.isEmpty()) {
+                    if (hasOpenModalPopup(win))
+                        return false;                   // 弹层内交给弹层
+                    QQuickItem* f = win ? win->activeFocusItem() : nullptr;
+                    if (isTextInputFocus(f))
+                        return false;                   // 文本输入：全部放行
+                    /* 提示节流：连按 600ms 内只提示一次 */
+                    if (!m_hotkeyTimer.isValid() || m_hotkeyTimer.elapsed() > 600) {
+                        m_hotkeyTimer.start();
+                        qDebug().noquote() << "[hotkey]" << action << "(stub, no action)";
+                        if (win) ToastPopup::show(win->contentItem(), action);
+                    }
+                    return true;                        // 吞键：防列表/控件二次响应
+                }
+            }
         } else if (event->type() == QEvent::MouseButtonPress
                    || event->type() == QEvent::TouchBegin) {
             // 焦点释放：点非输入区域 → 清输入焦点
@@ -167,6 +218,7 @@ private:
 
     PageManager* m_pageManager;
     QElapsedTimer m_backTimer;
+    QElapsedTimer m_hotkeyTimer;   // 快捷键提示节流（600ms）
 };
 
 } // namespace

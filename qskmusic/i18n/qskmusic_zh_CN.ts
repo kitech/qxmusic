@@ -783,6 +783,38 @@
         <source>Loading…</source>
         <translation>加载中…</translation>
     </message>
+    <message>
+        <source>Shortcut: previous track (stub, not executed)</source>
+        <translation>快捷键：上一首（仅提示，未执行）</translation>
+    </message>
+    <message>
+        <source>Shortcut: next track (stub, not executed)</source>
+        <translation>快捷键：下一首（仅提示，未执行）</translation>
+    </message>
+    <message>
+        <source>Shortcut: seek back 15s (stub, not executed)</source>
+        <translation>快捷键：快退 15 秒（仅提示，未执行）</translation>
+    </message>
+    <message>
+        <source>Shortcut: seek forward 15s (stub, not executed)</source>
+        <translation>快捷键：快进 15 秒（仅提示，未执行）</translation>
+    </message>
+    <message>
+        <source>Shortcut: volume +5 (stub, not executed)</source>
+        <translation>快捷键：音量 +5（仅提示，未执行）</translation>
+    </message>
+    <message>
+        <source>Shortcut: volume -5 (stub, not executed)</source>
+        <translation>快捷键：音量 -5（仅提示，未执行）</translation>
+    </message>
+    <message>
+        <source>Shortcut: toggle mute (stub, not executed)</source>
+        <translation>快捷键：静音切换（仅提示，未执行）</translation>
+    </message>
+    <message>
+        <source>Shortcut: compact UI (stub, not executed)</source>
+        <translation>快捷键：精简界面（仅提示，未执行）</translation>
+    </message>
 </context>
 <context>
     <name>SongDetailPage</name>

@@ -79,6 +79,8 @@ private slots:
     void onQueueSaveTimeout();    /* 队列保存 debounce 到期 → 立即落盘 */
     void onPrefetchSwitchTimeout();  /* 切曲 800ms 合并到期 → 按来源规划下一首预取 */
     void onPrefetchHintTimeout();    /* 预取提示延迟显示（避开"已播放，音质"同拍覆盖） */
+    /* 快捷键桩（本轮全部只提示不改状态：日志 + 状态栏） */
+    void hotkeyStub(const QString& action);
     void onNcmDownloadProgress(qint64 songId, int pct);
     void onAudioPosition(int ms);
     void onAudioDuration(int ms);
