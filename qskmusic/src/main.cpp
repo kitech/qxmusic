@@ -401,6 +401,11 @@ int main(int argc, char* argv[])
         qDebug() << "[playError] code=" << code << msg;
         ToastPopup::show(playerBar, msg);
     });
+    /* 队列落盘失败：Toast 提示（明细 errno 走 queue-store stderr 日志） */
+    QObject::connect(&pb, &Playback::queueSaveFailed, playerBar,
+                     [playerBar](const QString& detail) {
+        ToastPopup::show(playerBar, detail);
+    });
     QObject::connect(playerBar, &PlayerBar::playPauseRequested, &pb, &Playback::togglePause);
     QObject::connect(playerBar, &PlayerBar::prevRequested, &pb, &Playback::prev);
     QObject::connect(playerBar, &PlayerBar::nextRequested, &pb, &Playback::next);
@@ -583,6 +588,8 @@ int main(int argc, char* argv[])
             if (state == Qt::ApplicationInactive
              || state == Qt::ApplicationSuspended) {
                 QSettings().sync();
+                /* Android 后台可能被系统杀进程：退后台即落队列快照 */
+                Playback::instance().saveState();
             }
 #ifdef Q_OS_ANDROID
             if (state == Qt::ApplicationActive) {

@@ -7,6 +7,9 @@
 #include <QDebug>
 #include <QSettings>
 #include <QRandomGenerator>
+#include <QTimer>
+
+static const int kSaveDebounceMs = 300;
 
 Playback& Playback::instance()
 {
@@ -189,6 +192,8 @@ void Playback::setShuffle(bool on)
 
 void Playback::saveState()
 {
+    m_dirty = false;
+    if (m_saveTimer) m_saveTimer->stop();          /* 同步直写：撤销挂起的合并拍 */
     if (!m_store) return;
     if (m_current < 0 || m_current >= m_queue.size()) return;   // 未开始 → 不覆盖旧快照
     std::vector<musiccom::QueueItem> items;
@@ -196,7 +201,25 @@ void Playback::saveState()
     for (const auto& s : m_queue)
         items.push_back(toItem(s));
     m_store->set(items, m_current);
-    m_store->save();
+    if (!m_store->save()) {
+        qDebug() << "[queue-store] save FAILED";
+        Q_EMIT queueSaveFailed(tr("Queue save failed (disk/permission?)"));
+    }
+}
+
+/* 顺序化：内部变更点只置脏，300ms 内多次变更合并为一次落盘 */
+void Playback::markQueueDirty()
+{
+    m_dirty = true;
+    if (!m_saveTimer) {
+        m_saveTimer = new QTimer(this);
+        m_saveTimer->setSingleShot(true);
+        connect(m_saveTimer, &QTimer::timeout, this, [this]() {
+            if (m_dirty) saveState();
+        });
+    }
+    if (!m_saveTimer->isActive())
+        m_saveTimer->start(kSaveDebounceMs);
 }
 
 void Playback::restoreLoaded()
@@ -219,7 +242,7 @@ void Playback::setQueue(const QList<Song>& songs, int startIndex)
     qDebug() << "[DIAG] setQueue size=" << songs.size() << "start=" << startIndex;
     m_queue = songs;
     m_current = (startIndex >= 0 && startIndex < songs.size()) ? startIndex : -1;
-    saveState();                     // 队列建立即落盘
+    markQueueDirty();                // 队列建立 → 合并落盘（playIndex 同拍不再重复写）
     playIndex(startIndex);
 }
 
@@ -292,7 +315,7 @@ void Playback::playIndex(int index)
     const auto& s = m_queue.at(index);
     if (m_resolving) return;
     m_current = index;
-    saveState();                     // 切曲即落盘（next/prev/自动推进统一走此）
+    markQueueDirty();                // 切曲 → 合并落盘（next/prev/自动推进统一走此）
     m_lrcSongId = 0;
     m_lrcText.clear();
     m_resolving = true;

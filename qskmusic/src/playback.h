@@ -9,6 +9,8 @@
 #include "ncmapi.h"
 #include "queuestore.h"
 
+class QTimer;
+
 /*
  * 全局播放控制器（qlmusic MainWindow 集中处理播放的等价物）：
  *   队列 = QList<Song>；resolve → AudioPlayer::playUrl；
@@ -58,6 +60,7 @@ public:
     void initQueueStore(const QString& dir);              // main.cpp 启动调用一次
     void restoreLoaded();                                 // 启动恢复（摆队列不自动播）
     void saveState();                                     // current<0 不写（保留旧快照）
+    void markQueueDirty();                                // 内部变更点：置脏 + 300ms 合并落盘
 
     // 歌词缓存（播放成功即预取；LyricPopup 直接取）
     bool lyricCached(qint64 songId) const { return m_lrcSongId == songId && !m_lrcText.isEmpty(); }
@@ -71,6 +74,7 @@ Q_SIGNALS:
     void progressMsChanged(int ms);
     void durationMsChanged(int ms);
     void playError(const QString& message, int code);
+    void queueSaveFailed(const QString& detail);          // 落盘失败（Toast 提示用）
     // 歌词到达/失败（空文本=无歌词）→ 弹层实时刷新（修复"永远加载中"）
     void lyricReady(qint64 songId, const QString& text);
     void shuffleChanged(bool on);   // 乱序开关变化（PlayerBar 按钮同步）
@@ -101,6 +105,8 @@ private:
     qint64 m_lrcSongId = 0;
     QString m_lrcText;
     musiccom::QueueStore* m_store = nullptr;   // 队列持久化（initQueueStore 创建）
+    QTimer* m_saveTimer = nullptr;             // 300ms 合并保存（单拍）
+    bool m_dirty = false;                      // 自上次落盘以来队列有变
 };
 
 #endif
