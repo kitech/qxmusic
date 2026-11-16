@@ -58,7 +58,9 @@ ContentView::ContentView(QWidget* parent)
       m_playingNcmId(0), m_playlistId(-1),
       m_playingNetIdx(-1), m_playingRid(0), m_netBuffering(false),
       m_spinnerTick(0), m_bufTimer(0),
-      m_headerH(64), m_rowH(48), m_hasMore(false), m_loadingNow(false)
+      m_headerH(64), m_rowH(48), m_hasMore(false), m_loadingNow(false),
+      m_detailArtistId(0), m_artistId(0), m_artistLoading(false),
+      m_prevMode(TracksMode)
 {
     setMouseTracking(true);
     /* 缓冲 spinner 帧驱动（200ms/帧，braille 轮换） */
@@ -315,6 +317,15 @@ void ContentView::rebuildRows()
             r.h = m_rowH;
             m_rows.push_back(r);
         }
+    } else if (m_mode == ArtistMode) {
+        /* 歌手歌曲列表：与 TracksMode 同行尺寸（顶部让位头像+名字） */
+        for (size_t i = 0; i < m_artistSongs.size(); ++i) {
+            Row r;
+            r.index = (int)i;
+            r.y = topOffset() + (int)i * m_rowH;
+            r.h = m_rowH;
+            m_rows.push_back(r);
+        }
     } else if (m_mode == PlaylistListMode) {
         for (size_t i = 0; i < m_cards.size(); ++i) {
             Row r;
@@ -339,6 +350,8 @@ int ContentView::totalHeight() const
 {
     if (m_mode == TracksMode)
         return m_headerH + (int)m_rows.size() * m_rowH;
+    if (m_mode == ArtistMode)
+        return topOffset() + (int)m_rows.size() * m_rowH;
     if (m_mode == PlaylistListMode) {
         int h = m_headerH + (int)m_rows.size() * 56;
         if (m_loadingNow) h += 44;
@@ -389,6 +402,11 @@ int ContentView::rowAt(const QPoint& p) const
         if (idx < 0 || idx >= (int)m_rows.size()) return -1;
         return idx;
     }
+    if (m_mode == ArtistMode) {
+        int idx = (y - topOffset()) / m_rowH;
+        if (idx < 0 || idx >= (int)m_rows.size()) return -1;
+        return idx;
+    }
     if (m_mode == PlaylistListMode) {
         int idx = (y - m_headerH) / 56;
         if (idx < 0 || idx >= (int)m_rows.size()) return -1;
@@ -411,7 +429,7 @@ void ContentView::onScroll(int value)
 
 void ContentView::updateScrollBar()
 {
-    int viewH = height() - m_headerH;
+    int viewH = height() - topOffset();
     int totalH = totalHeight();
     int maxScroll = qMax(0, totalH - viewH);
     if (m_scrollY > maxScroll) m_scrollY = maxScroll;
@@ -465,6 +483,10 @@ void ContentView::paintEvent(QPaintEvent*)
     /* 行首播放标识：比 small 大 50%（电台/曲目 ▶ 与 spinner 共用） */
     QFont markerFont = small;
     markerFont.setPointSize(qMax(10, small.pointSize() * 3 / 2));
+
+    /* ── 详情页（歌曲/歌手）：独立绘制，不复用列表标题区 ── */
+    if (m_mode == SongDetailMode) { paintSongDetail(p); return; }
+    if (m_mode == ArtistMode)     { paintArtist(p);     return; }
 
     /* ── 标题区 ── */
     if (m_mode == TracksMode) {
@@ -755,6 +777,29 @@ void ContentView::contextMenuEvent(QContextMenuEvent* e)
 
 void ContentView::mousePressEvent(QMouseEvent* e)
 {
+    /* ── 详情页（歌曲/歌手）：返回 / 歌手名 / 歌手歌曲行 ── */
+    if (m_mode == SongDetailMode || m_mode == ArtistMode) {
+        if (m_detailBackRect.contains(e->pos())) {
+            leaveDetail();
+            return;
+        }
+        if (m_mode == SongDetailMode) {
+            if (!m_artistNameRect.isEmpty()
+                && m_artistNameRect.contains(e->pos())) {
+                emit songDetailArtistClicked(m_detailArtistId,
+                                             m_detailTrack.artist);
+            }
+            return;
+        }
+        int idx = rowAt(e->pos());
+        if (idx >= 0 && idx < (int)m_artistSongs.size()) {
+            m_current = idx;
+            emit artistTrackActivated(idx);
+            update();
+        }
+        return;
+    }
+
     /* 标题行 ⟳：NCM 歌单/列表两种模式都可能出现 */
     if ((m_mode == PlaylistListMode
             || (m_mode == TracksMode && m_pl && m_pl->ncmId > 0))
@@ -852,7 +897,7 @@ void ContentView::mouseMoveEvent(QMouseEvent* e)
         }
         return;
     }
-    if (m_mode == TracksMode || m_mode == CategoryGridMode) {
+    if (m_mode == TracksMode || m_mode == CategoryGridMode || m_mode == ArtistMode) {
         int idx = rowAt(e->pos());
         if (idx != m_hover) {
             m_hover = idx;
@@ -872,5 +917,215 @@ void ContentView::leaveEvent(QEvent* e)
     if (m_hoverRefresh) {
         m_hoverRefresh = false;
         update();
+    }
+}
+
+/* ───────────────── 详情页（歌曲 / 歌手）───────────────── */
+
+void ContentView::showSongDetail(const Track& t, qint64 artistNcmId)
+{
+    if (m_mode != SongDetailMode && m_mode != ArtistMode)
+        m_prevMode = m_mode;      /* 记住进入前视图（详情→歌手→返回仍回原视图） */
+    m_mode = SongDetailMode;
+    m_detailTrack = t;
+    m_detailArtistId = artistNcmId;
+    m_scrollY = 0;
+    rebuildRows();                /* 详情页无列表行 */
+    updateScrollBar();
+    update();
+}
+
+void ContentView::showArtist(qint64 artistId, const QString& name,
+                             const QString& avatarUrl,
+                             const std::vector<Track>& songs, bool loading)
+{
+    if (m_mode != SongDetailMode && m_mode != ArtistMode)
+        m_prevMode = m_mode;
+    m_mode = ArtistMode;
+    m_artistId = artistId;
+    m_artistName = name;
+    m_artistAvatarUrl = avatarUrl;
+    m_artistSongs = songs;
+    m_artistLoading = loading;
+    m_scrollY = 0;
+    rebuildRows();
+    updateScrollBar();
+    update();
+}
+
+void ContentView::appendArtistSongs(const std::vector<Track>& more, bool hasMore)
+{
+    m_artistSongs = more;
+    m_artistLoading = false;
+    if (m_mode != ArtistMode) return;
+    Q_UNUSED(hasMore);
+    rebuildRows();
+    updateScrollBar();
+    update();
+}
+
+void ContentView::setArtistAvatar(const QString& avatarUrl)
+{
+    m_artistAvatarUrl = avatarUrl;
+    if (m_mode == ArtistMode) update();
+}
+
+/* 详情页返回：恢复进入前视图（不打断播放） */
+void ContentView::leaveDetail()
+{
+    m_mode = m_prevMode;
+    m_scrollY = 0;
+    rebuildRows();
+    updateScrollBar();
+    update();
+}
+
+/* 列表行起始 y：歌手页顶部留 40px 给头像/名字 */
+int ContentView::topOffset() const
+{
+    return (m_mode == ArtistMode) ? (m_headerH + 40) : m_headerH;
+}
+
+void ContentView::paintSongDetail(QPainter& p)
+{
+    const StyleParams::Palette& pal = muiPalette();
+    QFont titleFont = font();
+    titleFont.setBold(true);
+    titleFont.setPointSize(qMax(10, titleFont.pointSize() + 4));
+    QFont bold = font();
+    bold.setBold(true);
+    QFont small = font();
+    small.setPointSize(qMax(7, small.pointSize() - 1));
+
+    /* 返回按钮（左上角同尺寸圆角钮） */
+    m_detailBackRect = QRect(16, 8, 76, 24);
+    p.setPen(Qt::NoPen);
+    p.setBrush(pal.hoverBg);
+    muiDrawRoundRect(p, m_detailBackRect, m_detailBackRect.height() / 2,
+                     m_detailBackRect.height() / 2);
+    p.setPen(pal.textPrimary);
+    p.setFont(small);
+    p.drawText(m_detailBackRect, Qt::AlignCenter,
+               QString::fromUtf8("← ") + m_back);
+
+    const int cx = width() / 2;
+    const int coverSize = qMin(180, qMax(120, width() / 3));
+    QPixmap cover = IconLoader::instance().rounded(
+        IconLoader::instance().cover(m_detailTrack.coverUrl,
+                                     m_detailTrack.coverSeed, coverSize),
+        coverSize, 12);
+    int y = 44;
+    if (!cover.isNull()) {
+        p.drawPixmap(cx - coverSize / 2, y, cover);
+        y += coverSize + 14;
+    }
+
+    p.setFont(titleFont);
+    p.setPen(pal.textPrimary);
+    p.drawText(QRect(40, y, width() - 80, 32), Qt::AlignHCenter,
+               m_detailTrack.title);
+    y += 38;
+
+    /* 歌手名（可点 → 歌手详情） */
+    p.setFont(bold);
+    p.setPen(pal.accent);
+    m_artistNameRect = QRect(40, y, width() - 80, 24);
+    p.drawText(m_artistNameRect, Qt::AlignHCenter, m_detailTrack.artist);
+    y += 28;
+
+    p.setFont(small);
+    p.setPen(pal.textMuted);
+    QString meta = m_detailTrack.album;
+    if (m_detailTrack.durationMs > 0) {
+        if (!meta.isEmpty()) meta += QString::fromUtf8(" · ");
+        meta += fmtMs(m_detailTrack.durationMs);
+    }
+    /* 专辑名过长会挤掉时长：按可用宽度截断（ElideRight，Qt3/4 通用） */
+    p.drawText(QRect(40, y, width() - 80, 20), Qt::AlignHCenter,
+               qElideChars(meta, qMax(12, (width() - 80) / 14), ElideRight));
+}
+
+void ContentView::paintArtist(QPainter& p)
+{
+    const StyleParams::Palette& pal = muiPalette();
+    QFont titleFont = font();
+    titleFont.setBold(true);
+    titleFont.setPointSize(qMax(10, titleFont.pointSize() + 4));
+    QFont normal = font();
+    QFont bold = font();
+    bold.setBold(true);
+    QFont small = font();
+    small.setPointSize(qMax(7, small.pointSize() - 1));
+
+    /* 返回按钮 */
+    m_detailBackRect = QRect(16, 8, 76, 24);
+    p.setPen(Qt::NoPen);
+    p.setBrush(pal.hoverBg);
+    muiDrawRoundRect(p, m_detailBackRect, m_detailBackRect.height() / 2,
+                     m_detailBackRect.height() / 2);
+    p.setPen(pal.textPrimary);
+    p.setFont(small);
+    p.drawText(m_detailBackRect, Qt::AlignCenter,
+               QString::fromUtf8("← ") + m_back);
+
+    /* 头像（圆形）+ 名字 + 歌曲数 */
+    const int av = 56;
+    QPixmap avatar;
+    if (!m_artistAvatarUrl.isEmpty())
+        avatar = IconLoader::instance().cover(m_artistAvatarUrl, m_artistName, av);
+    if (avatar.isNull())
+        avatar = IconLoader::instance().generated(m_artistName, av);
+    avatar = IconLoader::instance().rounded(avatar, av, av / 2);
+    if (!avatar.isNull()) p.drawPixmap(20, 40, avatar);
+
+    p.setFont(titleFont);
+    p.setPen(pal.textPrimary);
+    p.drawText(QRect(20 + av + 12, 40, width() - av - 60, 30),
+               Qt::AlignVCenter | Qt::AlignLeft, m_artistName);
+    p.setFont(small);
+    p.setPen(pal.textMuted);
+    p.drawText(QRect(20 + av + 12, 68, width() - av - 60, 20),
+               Qt::AlignVCenter | Qt::AlignLeft,
+               m_artistLoading ? m_loading
+                               : _("detail.hot_songs").arg((int)m_artistSongs.size()));
+
+    /* 行（复用 TracksMode 行样式：序号/封面/标题/歌手·专辑/时长） */
+    for (size_t i = 0; i < m_rows.size(); ++i) {
+        const Row& row = m_rows[i];
+        const int y = row.y - m_scrollY;
+        if (y + row.h < topOffset() || y > height()) continue;
+        const Track& t = m_artistSongs[row.index];
+        const bool hover = ((int)i == m_hover);
+
+        if (hover) {
+            p.fillRect(QRect(8, y, width() - 16, row.h), pal.hoverBg);
+        } else if ((int)i == m_current) {
+            p.fillRect(QRect(8, y, width() - 16, row.h), pal.activeBg);
+        }
+
+        p.setFont(small);
+        p.setPen(pal.textMuted);
+        p.drawText(QRect(16, y, 28, row.h), Qt::AlignVCenter | Qt::AlignRight,
+                   QString::number(row.index + 1));
+
+        QPixmap c = IconLoader::instance().rounded(
+            IconLoader::instance().cover(t.coverUrl, t.coverSeed, 36), 36, 6);
+        p.drawPixmap(56, y + (row.h - 36) / 2, c);
+
+        p.setFont(normal);
+        p.setPen(pal.textPrimary);
+        p.drawText(QRect(104, y, width() - 200, row.h),
+                   Qt::AlignVCenter | Qt::AlignLeft, t.title);
+
+        QFontMetrics fm(normal);
+        int tw = qFontWidth(fm, t.title);
+        p.setFont(small);
+        p.setPen(pal.textMuted);
+        QString sub = t.artist;
+        if (!t.album.isEmpty()) sub += QString::fromUtf8(" · ") + t.album;
+        p.drawText(QRect(104 + tw + 14, y, width() - 260 - tw, row.h),
+                   Qt::AlignVCenter | Qt::AlignLeft, sub);
+        p.drawText(QRect(width() - 90, y, 60, row.h),
+                   Qt::AlignVCenter | Qt::AlignRight, fmtMs(t.durationMs));
     }
 }

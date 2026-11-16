@@ -31,11 +31,12 @@ public:
     int kind;          /* 0=普通结果 1=need-auth */
     std::string op;    /* "top_playlists" 等，用于日志/提示 */
     int rc;            /* NCM_* 返回码 */
-    int sel;           /* 请求序号（区分新/旧响应） */
+    int sel;           /* 请求序号（区分新/旧响应）；歌手歌曲=limit */
     qint64 id;         /* song/playlist id 或本地 playlist id */
+    int off;           /* 歌手歌曲：offset（其余任务 0） */
     std::string json;  /* 成功时的出参 JSON */
     NcmResultEvent()
-        : CustomEventBase(NcmResultType), kind(0), rc(0), sel(0), id(0) {}
+        : CustomEventBase(NcmResultType), kind(0), rc(0), sel(0), id(0), off(0) {}
 };
 
 /* 任务种类 */
@@ -49,6 +50,7 @@ enum {
     NcmTaskFetch,      /* 远程 URL 本地化：curl 拉缓存 → file:// 回投 */
     NcmTaskLyric,      /* 歌词：ncm_lyric（go 侧 stub 期返回 NotImplemented → UI 落空态） */
     NcmTaskArtist,     /* 艺人详情：ncm_artist_detail（头像 URL） */
+    NcmTaskArtistSongs,/* 歌手歌曲：ncm_artist_songs（hot/time 分页） */
     NcmTaskLikeList,   /* 账号"喜欢的音乐" id 列表（需登录） */
     NcmTaskLike,       /* 收藏/取消收藏 ncm_like */
     NcmTaskDjHot,      /* 热门电台列表（站点电台） */
@@ -114,6 +116,8 @@ public:
     void loadSongDetail(const QString& ids);
     void loadLyric(qint64 songId);   /* 歌词兜底（本地 .lrc 优先后的网络侧） */
     void loadArtist(qint64 artistId); /* 艺人详情（头像 URL） */
+    void loadArtistSongs(qint64 artistId, int limit = 50, int offset = 0,
+                         const QString& order = QString("hot")); /* 歌手歌曲 */
     void likeList();                  /* 账号"喜欢的音乐" id 列表（需登录） */
     void like(qint64 songId, bool on); /* 收藏/取消收藏（需登录） */
     void loadDjHot(int cateId, int limit, int offset);          /* 站点电台：热门电台 */
@@ -140,6 +144,8 @@ signals:
     void songDetailLoaded(int rc, const QString& json, int sel);
     void lyricLoaded(qint64 songId, const QString& json);   /* raw json；UI 侧解析 */
     void artistLoaded(qint64 artistId, int rc, const QString& json);
+    void artistSongsLoaded(qint64 artistId, int rc, const QString& json,
+                           int offset, int limit);
     void likeListLoaded(int rc, const QString& json);
     void likeDone(qint64 songId, bool on, int rc);
     void djHotLoaded(int rc, const QString& json);
@@ -154,7 +160,7 @@ signals:
 private:
     void execTask(const NcmTask& t);
     void postResult(int kind, const std::string& op, int rc, int sel, qint64 id,
-                    const std::string& json);
+                    const std::string& json, int off = 0);
     void postAuthRequired(const std::string& op);
     void postProgress(qint64 songId, int pct);
 

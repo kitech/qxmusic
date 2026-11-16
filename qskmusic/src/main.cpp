@@ -28,6 +28,8 @@
 #include "logpage.h"
 #include "settingspage.h"
 #include "aboutpage.h"
+#include "songdetailpage.h"
+#include "artistpage.h"
 #include "playerbar.h"
 #include "progressline.h"
 #include <QskControl.h>
@@ -413,6 +415,20 @@ int main(int argc, char* argv[])
             QCoreApplication::translate("main", "Preload next: %1 (dry run)").arg(name));
     });
     QObject::connect(playerBar, &PlayerBar::playPauseRequested, &pb, &Playback::togglePause);
+    /* 播放条：封面/歌名 → 歌曲详情；歌手头像/歌手名 → 歌手详情 */
+    QObject::connect(playerBar, &PlayerBar::songInfoRequested, pageManager,
+                     [&pb, pageManager]() {
+        const Song* s = pb.currentSong();
+        if (!s) return;
+        pageManager->open("songdetail", { { "songId", s->id } });
+    });
+    QObject::connect(playerBar, &PlayerBar::artistRequested, pageManager,
+                     [&pb, pageManager]() {
+        const Song* s = pb.currentSong();
+        if (!s || s->artists.isEmpty()) return;
+        pageManager->open("artist", { { "artistId", s->artistIds.isEmpty() ? 0 : s->artistIds.first() },
+                                      { "name", s->artists } });
+    });
     QObject::connect(playerBar, &PlayerBar::prevRequested, &pb, &Playback::prev);
     QObject::connect(playerBar, &PlayerBar::nextRequested, &pb, &Playback::next);
     /* 随机乱序：按钮点击 → Playback 状态翻转；状态变化回同步按钮 checked */
@@ -554,10 +570,51 @@ int main(int argc, char* argv[])
         return new LogPage();
     }, {CachePolicy::Transient, LaunchMode::Standard});
 
+    pageManager->registerPage("songdetail", []() -> Page* {
+        return new SongDetailPage();
+    }, {CachePolicy::Transient, LaunchMode::Standard});
+
+    pageManager->registerPage("artist", []() -> Page* {
+        return new ArtistPage();
+    }, {CachePolicy::Transient, LaunchMode::Standard});
+
     // ── Window ──
     QskWindow window;
     window.setTitle("qskmusic");
     window.addItem(rootBox);
+
+    /* 播放条点击路由：QSkinny 的非按钮子项不接收鼠标事件，
+     * 在窗口层按场景坐标命中（封面/歌名 → 歌曲详情；歌手名/头像 → 歌手详情） */
+    {
+        struct Router : QObject {
+            PlayerBar* bar = nullptr;
+            PageManager* pm = nullptr;
+            Playback* pb = nullptr;
+            bool eventFilter(QObject* o, QEvent* e) override
+            {
+                if (e->type() == QEvent::MouseButtonRelease) {
+                    auto* me = static_cast<QMouseEvent*>(e);
+                    if (me && me->button() == Qt::LeftButton) {
+                        const int hit = bar->clickTargetAt(me->position());
+                        const Song* s = pb->currentSong();
+                        if (hit == 1 && s) {
+                            pm->open("songdetail", { { "songId", s->id } });
+                        } else if (hit == 2 && s && !s->artists.isEmpty()) {
+                            pm->open("artist", { { "artistId", s->artistIds.isEmpty() ? 0 : s->artistIds.first() },
+                                                 { "name", s->artists } });
+                        }
+                    }
+                }
+                return QObject::eventFilter(o, e);
+            }
+        };
+        auto* router = new Router;
+        router->bar = playerBar;
+        router->pm = pageManager;
+        router->pb = &pb;
+        router->setParent(&window);
+        window.installEventFilter(router);
+    }
 
     // Tab/Shift+Tab 手动焦点管理（QSkinny 默认关闭 tab focus 链）
     window.installEventFilter(new MyTabFocus(&window));

@@ -684,6 +684,23 @@ QRect PlayerBar::volumeRect() const
     return QRect(cx + 71, 19, 20, 20);
 }
 
+/* 播放条左侧信息区热点（与 paint 的坐标严格同源） */
+QRect PlayerBar::coverRect() const
+{
+    return QRect(14, 14, 52, 52);
+}
+
+QRect PlayerBar::titleRect() const
+{
+    return QRect(78, 18, width() / 2 - 100, 22);
+}
+
+/* 歌手行：头像(78..98) 与名字都算（避免"点头像没反应"） */
+QRect PlayerBar::artistRect() const
+{
+    return QRect(78, 42, width() / 2 - 100, 20);
+}
+
 QRect PlayerBar::shuffleRect() const
 {
     int cx = width() / 2;
@@ -1029,6 +1046,11 @@ void PlayerBar::mousePressEvent(QMouseEvent* e)
         emit autoSkipClicked();
     } else if (volumeRect().contains(e->pos())) {
         toggleVolumePopup();   /* 用户拍板：popup 弹滑条（非常驻） */
+    } else if (m_hasTrack && artistRect().contains(e->pos())) {
+        emit artistClicked();          /* 歌手优先于歌名（区域交叠语义更明确） */
+    } else if (m_hasTrack && (coverRect().contains(e->pos())
+                              || titleRect().contains(e->pos()))) {
+        emit songInfoClicked();
     } else if (!m_live && progressRect().contains(e->pos())) {
         m_dragging = true;
         setProgressFromX(e->pos().x());

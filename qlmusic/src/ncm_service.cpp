@@ -363,7 +363,7 @@ void NcmService::shutdown()
 }
 
 void NcmService::postResult(int kind, const std::string& op, int rc, int sel,
-                            qint64 id, const std::string& json)
+                            qint64 id, const std::string& json, int off)
 {
     NcmResultEvent* ev = new NcmResultEvent();
     ev->kind = kind;
@@ -371,6 +371,7 @@ void NcmService::postResult(int kind, const std::string& op, int rc, int sel,
     ev->rc = rc;
     ev->sel = sel;
     ev->id = id;
+    ev->off = off;
     ev->json = json;
     QApplication::postEvent(this, ev);
 }
@@ -654,6 +655,22 @@ void NcmService::loadArtist(qint64 artistId)
     m_worker->push(t);
 }
 
+/* 歌手歌曲（热门/最新）。sel 承载 limit，off 承载 offset（回投时原样带回） */
+void NcmService::loadArtistSongs(qint64 artistId, int limit, int offset,
+                                 const QString& order)
+{
+    if (artistId <= 0) return;
+    NcmTask t;
+    t.kind = NcmTaskArtistSongs;
+    t.op = "artist_songs";
+    t.id = artistId;
+    t.limit = (limit > 0) ? limit : 50;
+    t.offset = (offset > 0) ? offset : 0;
+    t.sel = t.limit;   /* sel 承载 limit（回投时原样带回） */
+    t.order = qToUtf8(order).data();
+    m_worker->push(t);
+}
+
 void NcmService::likeList()
 {
     NcmTask t;
@@ -814,6 +831,14 @@ void NcmService::execTask(const NcmTask& t)
         if (out) ncm_free_string(out);
         break;
     }
+    case NcmTaskArtistSongs: {
+        char* out = 0;
+        rc = ncm_artist_songs(m_client, t.id, t.limit, t.offset,
+                              const_cast<char*>(t.order.c_str()), &out);
+        if (rc == NCM_OK && out) json = out;
+        if (out) ncm_free_string(out);
+        break;
+    }
     case NcmTaskLikeList: {
         char* out = 0;
         rc = ncm_like_list(m_client, &out);
@@ -873,7 +898,7 @@ void NcmService::execTask(const NcmTask& t)
     if (rc == NCM_ERR_UNAUTHORIZED) {
         ALOG_WARN(qFromUtf8("NCM exec op=%1 rc=%2 needAuth").arg(qFromUtf8(t.op)).arg(rc));
         postAuthRequired(t.op);
-        postResult(0, t.op, rc, t.sel, id, std::string());
+        postResult(0, t.op, rc, t.sel, id, std::string(), t.offset);
     } else {
         ALOG_INFO(qFromUtf8("NCM exec op=%1 rc=%2 result=%3")
                       .arg(qFromUtf8(t.op)).arg(rc)
@@ -881,7 +906,7 @@ void NcmService::execTask(const NcmTask& t)
         if (rc != NCM_OK)
             ALOG_WARN(qFromUtf8("NCM exec op=%1 rc=%2 len=%3")
                           .arg(qFromUtf8(t.op)).arg(rc).arg((int)json.size()));
-        postResult(0, t.op, rc, t.sel, id, json);
+        postResult(0, t.op, rc, t.sel, id, json, t.offset);
     }
 #else
     Q_UNUSED(t);
@@ -916,6 +941,10 @@ void NcmService::handleResult(NcmResultEvent* e)
     }
     if (op == qFromUtf8("artist_detail")) {
         emit artistLoaded(e->id, e->rc, json);
+        return;
+    }
+    if (op == qFromUtf8("artist_songs")) {
+        emit artistSongsLoaded(e->id, e->rc, json, e->off, e->sel);
         return;
     }
     if (op == qFromUtf8("like_list")) {

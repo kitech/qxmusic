@@ -550,6 +550,23 @@ func ncm_artist_detail(h *C.ncm_client, id C.int64_t, out **C.char) C.int32_t {
 	})
 }
 
+//export ncm_artist_songs
+func ncm_artist_songs(h *C.ncm_client, id C.int64_t, limit C.int32_t, offset C.int32_t,
+	order *C.char, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := catalog.ArtistSongs(int64(id), int(limit), int(offset), C.GoString(order))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
 //export ncm_like_list
 func ncm_like_list(h *C.ncm_client, out **C.char) C.int32_t {
 	apiMu.Lock()

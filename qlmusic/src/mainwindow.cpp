@@ -487,6 +487,12 @@ void MainWindow::buildCentralWidget()
                      this, SLOT(onTrackActivated(int, int)));
     QObject::connect(contentView, SIGNAL(favToggled(int, int)),
                      this, SLOT(onFavToggled(int, int)));
+    /* 详情页入口（播放条 + 歌曲详情页内歌手名 + 歌手页行点击） */
+    QObject::connect(contentView,
+                     SIGNAL(songDetailArtistClicked(qint64, const QString&)),
+                     this, SLOT(onArtistDetailRequested(qint64, const QString&)));
+    QObject::connect(contentView, SIGNAL(artistTrackActivated(int)),
+                     this, SLOT(onArtistTrackActivated(int)));
 
 #ifdef NCM_ENABLE
     m_ncm = new NcmService(this);
@@ -515,6 +521,8 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onNcmLyric(qint64, const QString&)));
         QObject::connect(m_ncm, SIGNAL(artistLoaded(qint64, int, const QString&)),
                          this, SLOT(onNcmArtist(qint64, int, const QString&)));
+        QObject::connect(m_ncm, SIGNAL(artistSongsLoaded(qint64, int, const QString&, int, int)),
+                         this, SLOT(onNcmArtistSongs(qint64, int, const QString&, int, int)));
         QObject::connect(m_ncm, SIGNAL(authRequired(const QString&)),
                          this, SLOT(onNcmAuthRequired(const QString&)));
         QObject::connect(m_ncm, SIGNAL(likeListLoaded(int, const QString&)),
@@ -579,6 +587,10 @@ void MainWindow::buildCentralWidget()
     if (playerBar) {
         QObject::connect(playerBar, SIGNAL(playPauseRequested()),
                          this, SLOT(onPlayPause()));
+        QObject::connect(playerBar, SIGNAL(songInfoClicked()),
+                         this, SLOT(onSongInfoClicked()));
+        QObject::connect(playerBar, SIGNAL(artistClicked()),
+                         this, SLOT(onArtistClicked()));
         QObject::connect(playerBar, SIGNAL(prevRequested()),
                          this, SLOT(onPrev()));
         QObject::connect(playerBar, SIGNAL(nextRequested()),
@@ -2018,8 +2030,138 @@ void MainWindow::onNcmArtist(qint64 artistId, int rc, const QString& json)
     if (!root) return;
     const QString pic = cJSONStr(root, "pic_url", QString());
     cJSON_Delete(root);
-    (void)artistId;
     playerBar->setArtistAvatar(pic, QString());
+    /* 歌手详情页已打开且是同一歌手 → 头像回填 */
+    if (contentView && contentView->currentArtistId() == artistId)
+        contentView->setArtistAvatar(pic);
+}
+
+/* 歌手歌曲 → 详情页列表（结构同 tracks 元素） */
+void MainWindow::onNcmArtistSongs(qint64 artistId, int rc, const QString& json,
+                                  int offset, int limit)
+{
+    if (!contentView || contentView->currentArtistId() != artistId) return;
+    if (rc != NCM_OK) {
+        ALOG_WARN(qFromUtf8("artist songs fail rc=%1 artist=%2")
+                      .arg(rc).arg(artistId));
+        contentView->appendArtistSongs(std::vector<Track>(), false);
+        return;
+    }
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) {
+        contentView->appendArtistSongs(std::vector<Track>(), false);
+        return;
+    }
+    std::vector<Track> out;
+    static int nextArtistTrackId = 3000;
+    cJSON* songs = cJSON_GetObjectItem(root, "songs");
+    for (int i = 0; songs && i < cJSON_GetArraySize(songs); ++i) {
+        cJSON* it = cJSON_GetArrayItem(songs, i);
+        if (!it) continue;
+        const QString name = cJSONStr(it, "name", QString());
+        if (name.isEmpty()) continue;
+        QString artists;
+        cJSON* art = cJSON_GetObjectItem(it, "artists");
+        for (int a = 0; art && a < cJSON_GetArraySize(art); ++a) {
+            cJSON* ai = cJSON_GetArrayItem(art, a);
+            if (ai && ai->type == cJSON_String && ai->valuestring) {
+                if (!artists.isEmpty()) artists += qFromUtf8("/");
+                artists += qFromUtf8(ai->valuestring);
+            }
+        }
+        Track t = makeNcmTrack(nextArtistTrackId++,
+                               cJSONInt(it, "id", 0),
+                               name, artists,
+                               cJSONStr(it, "album", QString()),
+                               (int)cJSONInt(it, "duration_ms", 0),
+                               cJSONStr(it, "cover", QString()),
+                               cJSONInt(it, "album_id", 0));
+        t.playable = cJSONBool(it, "playable", true);
+        t.publishMs = (qint64)cJSONInt(it, "publish_ms", 0);
+        cJSON* aids = cJSON_GetObjectItem(it, "artist_ids");
+        if (aids && cJSON_GetArraySize(aids) > 0) {
+            cJSON* a0 = cJSON_GetArrayItem(aids, 0);
+            if (a0) t.artistNcmId = (qint64)a0->valuedouble;
+        }
+        out.push_back(t);
+    }
+    cJSON_Delete(root);
+    ALOG_INFO(qFromUtf8("artist songs: artist=%1 n=%2 offset=%3 limit=%4")
+                  .arg(artistId).arg((int)out.size()).arg(offset).arg(limit));
+    contentView->appendArtistSongs(out, false);
+}
+
+/* 播放条：封面/歌名 → 歌曲详情 */
+void MainWindow::onSongInfoClicked()
+{
+    const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
+    if (!pl || m_curTrackIndex < 0 || m_curTrackIndex >= (int)pl->tracks.size())
+        return;
+    const Track& t = pl->tracks[m_curTrackIndex];
+    contentView->showSongDetail(t, t.artistNcmId);
+}
+
+/* 播放条：歌手头像/歌手名 → 歌手详情 */
+void MainWindow::onArtistClicked()
+{
+    const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
+    if (!pl || m_curTrackIndex < 0 || m_curTrackIndex >= (int)pl->tracks.size())
+        return;
+    const Track& t = pl->tracks[m_curTrackIndex];
+    onArtistDetailRequested(t.artistNcmId, t.artist);
+}
+
+/* 歌手名匹配（多歌手串 "A/B"）：Qt3/Qt4 的包含判断不同，统一封装 */
+static bool artistNameMatches(const QString& joined, const QString& name)
+{
+#ifdef QT3_BUILD
+    return joined == name || joined.find(name) >= 0;
+#else
+    return joined == name || joined.indexOf(name) >= 0;
+#endif
+}
+
+/* 歌手详情入口（播放条、歌曲详情页共用）：
+ * 先本地同名歌手曲目零等待上屏，再异步拉头像 + 热门 50 首 */
+void MainWindow::onArtistDetailRequested(qint64 artistNcmId, const QString& artistName)
+{
+    std::vector<Track> local;
+    if (!artistName.isEmpty()) {
+        for (size_t i = 0; i < m_library.size(); ++i)
+            for (size_t j = 0; j < m_library[i].tracks.size(); ++j) {
+                const Track& t = m_library[i].tracks[j];
+                if (artistNameMatches(t.artist, artistName))
+                    local.push_back(t);
+            }
+    }
+    contentView->showArtist(artistNcmId, artistName, QString(), local,
+                            artistNcmId > 0);
+#ifdef NCM_ENABLE
+    if (artistNcmId > 0 && m_ncm && m_ncmAvailable) {
+        m_ncm->loadArtist(artistNcmId);                 /* 头像 */
+        m_ncm->loadArtistSongs(artistNcmId, 50, 0);     /* 热门 50 首 */
+    }
+#endif
+}
+
+/* 歌手页点行：整表作队列，从该行开始播 */
+void MainWindow::onArtistTrackActivated(int index)
+{
+    const std::vector<Track>& songs = contentView->artistSongs();
+    if (index < 0 || index >= (int)songs.size()) return;
+    /* 本地歌手（artistNcmId==0）也允许播放：只要求列表非空 */
+    const int pid = -88;   /* 临时歌手歌单（只作播放队列宿主，不入侧栏） */
+    for (size_t i = m_library.size(); i-- > 0;)
+        if (m_library[i].id == pid) m_library.erase(m_library.begin() + i);
+    Playlist p;
+    p.id = pid;
+    p.ncmId = 0;
+    p.name = songs[index].artist;
+    p.tracks = songs;
+    p.trackCount = (int)songs.size();
+    m_library.push_back(p);
+    m_pfSwitchSrc = "switch:click";
+    playTrack(pid, index);
 }
 
 static QStringList cJSONStrArray(cJSON* arr)

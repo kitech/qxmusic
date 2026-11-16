@@ -523,6 +523,45 @@ func ArtistDetail(id int64) (ArtistInfo, error) {
 	}, nil
 }
 
+// ArtistSongs 取歌手歌曲（/weapi/v1/artist/songs，匿名可用）。
+// order: "hot"（热门，默认）| "time"（最新）；limit 缺省 50。
+// 响应形状与 song/detail 一致：{"songs":[{id,name,ar:[...],al:{...},dt,...}]}
+func ArtistSongs(id int64, limit, offset int, order string) (SongDetailResult, error) {
+	if id <= 0 {
+		return SongDetailResult{}, errs.ErrInvalidArg
+	}
+	if limit <= 0 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	if order != "time" {
+		order = "hot"
+	}
+	svc := &nmsvc.ArtistSongsService{
+		ID:     strconv.FormatInt(id, 10),
+		Limit:  strconv.Itoa(limit),
+		Offset: strconv.Itoa(offset),
+		Order:  order,
+	}
+	code, body := svc.ArtistSongs()
+	if err := opStatus("artist_songs", "/weapi/v1/artist/songs", code, len(body)); err != nil {
+		return SongDetailResult{}, err
+	}
+	var env struct {
+		Songs []rawSong `json:"songs"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return SongDetailResult{}, fmt.Errorf("%w: artist/songs 解析失败: %v", errs.ErrBadResponse, err)
+	}
+	res := SongDetailResult{Songs: make([]Song, 0, len(env.Songs))}
+	for _, raw := range env.Songs {
+		res.Songs = append(res.Songs, convSong(raw))
+	}
+	return res, nil
+}
+
 // Search 关键词搜索（type=1 单曲，匿名可用）。
 // 响应形状与 cloudsearch 一致：{"result":{"songs":[...]}}。
 func Search(keywords string, limit int) (SongDetailResult, error) {

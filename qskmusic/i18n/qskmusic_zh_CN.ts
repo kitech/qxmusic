@@ -784,4 +784,26 @@
         <translation>加载中…</translation>
     </message>
 </context>
+<context>
+    <name>SongDetailPage</name>
+    <message>
+        <source>Song detail</source>
+        <translation>歌曲详情</translation>
+    </message>
+</context>
+<context>
+    <name>ArtistPage</name>
+    <message>
+        <source>Artist</source>
+        <translation>歌手详情</translation>
+    </message>
+    <message>
+        <source>%1 hot songs</source>
+        <translation>%1 首热门歌曲</translation>
+    </message>
+    <message>
+        <source>No artist info</source>
+        <translation>无歌手信息</translation>
+    </message>
+</context>
 </TS>

@@ -10,6 +10,8 @@
 #include <QskBoxShapeMetrics.h>
 #include <QskSizePolicy.h>
 #include <private/qquickdraghandler_p.h>
+#include <QMouseEvent>
+#include <QQuickItem>
 #include <private/qquicktaphandler_p.h>
 #include <QDebug>
 #include <QTimer>
@@ -39,6 +41,7 @@ PlayerBar::PlayerBar(QQuickItem* parent)
     m_icon->setPreferredSize(40, 40);
     m_icon->setCornerRadius(8);
     m_icon->setFallback(qximage::identicon(QStringLiteral("qskmusic"), IconItem::pxForDp(40)));
+    m_icon->installEventFilter(this);   /* 点击热区：封面 → 歌曲详情 */
 
     // ② 文本列：歌名 / 歌手（两行；左右横划切上下一首）
     auto* textCol = new QskLinearBox(Qt::Vertical, this);
@@ -47,6 +50,7 @@ PlayerBar::PlayerBar(QQuickItem* parent)
 
     m_title = new QskTextLabel(textCol);
     m_title->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
+    m_title->installEventFilter(this);   /* 点击热区：歌名 → 歌曲详情 */
 
     // 歌手行：20px 圆形头像 + 歌手文本（头像跟随当前播放曲目的首位歌手）
     auto* artistRow = new QskLinearBox(Qt::Horizontal, textCol);
@@ -56,9 +60,11 @@ PlayerBar::PlayerBar(QQuickItem* parent)
     m_artistAvatar->setPreferredSize(20, 20);
     m_artistAvatar->setShape(IconItem::Circle);
     m_artistAvatar->setVisible(false);
+    m_artistAvatar->installEventFilter(this);   /* 点击热区：头像 → 歌手详情 */
 
     m_artist = new QskTextLabel(tr("Swipe to switch tracks"), artistRow);
     m_artist->setFontRole(QskFontRole(QskFontRole::Caption, QskFontRole::Normal));
+    m_artist->installEventFilter(this);   /* 点击热区：歌手名 → 歌手详情 */
 
     // resolve 中间态：慢网取播放链接可达数秒，期间歌手行显示提示（songChanged
     // 已先行显示歌名，切曲瞬间即有反馈）；resolveDone 恢复 m_lastArtist
@@ -216,4 +222,73 @@ void PlayerBar::setDownloadProgress(int pct)
         // 100 完成 / -2 失败 / 其它：无进度（线回底槽色，常显）
         m_dlLine->setRatio(0.0);
     }
+}
+
+/* ── 播放条点击热点：封面/歌名 → 歌曲详情；歌手头像/名字 → 歌手详情 ── */
+
+/* 场景坐标命中判定：1=歌曲详情，2=歌手详情，0=无（供窗口级事件过滤器调用）。
+ * 说明：QSkinny 里非按钮子项不收鼠标事件，父子链都拿不到 press，
+ * 因此在窗口层统一路由，避免依赖子项接受事件。 */
+int PlayerBar::clickTargetAt(const QPointF& scenePos) const
+{
+    auto sceneRectOf = [](QQuickItem* it) -> QRectF {
+        if (!it || !it->isVisible() || it->width() <= 0 || it->height() <= 0)
+            return QRectF();
+        return it->mapRectToScene(QRectF(0, 0, it->width(), it->height()));
+    };
+    if (sceneRectOf(m_artistAvatar).contains(scenePos)
+        || sceneRectOf(m_artist).contains(scenePos))
+        return 2;
+    if (sceneRectOf(m_icon).contains(scenePos)
+        || sceneRectOf(m_title).contains(scenePos))
+        return 1;
+    return 0;
+}
+
+bool PlayerBar::eventFilter(QObject* obj, QEvent* ev)
+{
+    Q_UNUSED(obj);
+    Q_UNUSED(ev);
+    return QskLinearBox::eventFilter(obj, ev);
+}
+
+QRectF PlayerBar::itemRect(QQuickItem* it) const
+{
+    if (!it || !it->isVisible() || it->width() <= 0 || it->height() <= 0)
+        return QRectF();
+    const QPointF p = it->mapToItem(const_cast<PlayerBar*>(this), QPointF(0, 0));
+    return QRectF(p, QSizeF(it->width(), it->height()));
+}
+
+void PlayerBar::mousePressEvent(QMouseEvent* e)
+{
+    qDebug() << "[DIAG] PlayerBar press" << e->position();
+    if (e->button() == Qt::LeftButton) {
+        m_pressPos = e->position();
+        m_pressValid = true;
+        e->accept();
+        return;
+    }
+    QskLinearBox::mousePressEvent(e);
+}
+
+void PlayerBar::mouseReleaseEvent(QMouseEvent* e)
+{
+    if (!m_pressValid || e->button() != Qt::LeftButton) {
+        QskLinearBox::mouseReleaseEvent(e);
+        return;
+    }
+    m_pressValid = false;
+    const QPointF d = e->position() - m_pressPos;
+    if (QPointF::dotProduct(d, d) > 12.0 * 12.0) {
+        /* 位移超阈值：视为拖动（文本列横划切歌），不当作点击 */
+        QskLinearBox::mouseReleaseEvent(e);
+        return;
+    }
+    const QPointF p = e->position();
+    if (itemRect(m_artistAvatar).contains(p) || itemRect(m_artist).contains(p))
+        Q_EMIT artistRequested();
+    else if (itemRect(m_icon).contains(p) || itemRect(m_title).contains(p))
+        Q_EMIT songInfoRequested();
+    e->accept();
 }

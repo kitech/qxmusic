@@ -255,6 +255,15 @@ public:
     return fetch([&](char **o) { return ncm_artist_detail(h_, id, o); }, out_json);
   }
 
+  /* 歌手歌曲：order="hot"|"time"；出参 {"songs":[...]}（结构同 song_detail） */
+  [[nodiscard]] Status artist_songs(int64_t id, int32_t limit, int32_t offset,
+                                    std::string_view order, std::string &out_json) {
+    detail::InStr ord(order);
+    return fetch([&](char **o) {
+      return ncm_artist_songs(h_, id, limit, offset, ord.get(), o);
+    }, out_json);
+  }
+
   /* out_json: {"song_id","playable","reason"} */
   [[nodiscard]] Status check_music(int64_t id, int32_t br, std::string &out_json) {
     return fetch([&](char **o) { return ncm_check_music(h_, id, br, o); }, out_json);

@@ -194,6 +194,30 @@ void NcmApi::artistAsync(qint64 artistId)
     }).detach();
 }
 
+/* 歌手歌曲（热门 50 首）：worker 线程取 → artistSongsDone(QList<Song>, err) */
+void NcmApi::artistSongsAsync(qint64 artistId, int limit, int offset,
+                              const QString& order)
+{
+    if (artistId <= 0)
+        return;
+    const std::string ord = order.toStdString();
+    std::thread([this, artistId, limit, offset, ord]() {
+        std::string json;
+        const auto st = m_client.artist_songs(artistId, limit, offset, ord, json);
+        QList<Song> songs;
+        QString err;
+        if (st != ncm::Status::Ok) {
+            err = statusText(st);
+        } else {
+            songs = parseSongs(QByteArray::fromStdString(json));
+        }
+        qDebug() << "[qskmusic] ncm artist songs:" << artistId
+                 << "n=" << songs.size()
+                 << (err.isEmpty() ? QStringLiteral("ok") : err);
+        Q_EMIT artistSongsDone(artistId, songs, err);
+    }).detach();
+}
+
 void NcmApi::likeListAsync()
 {
     std::thread([this]() {

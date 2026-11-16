@@ -736,4 +736,26 @@
         <translation>Loading…</translation>
     </message>
 </context>
+<context>
+    <name>SongDetailPage</name>
+    <message>
+        <source>Song detail</source>
+        <translation>Song detail</translation>
+    </message>
+</context>
+<context>
+    <name>ArtistPage</name>
+    <message>
+        <source>Artist</source>
+        <translation>Artist</translation>
+    </message>
+    <message>
+        <source>%1 hot songs</source>
+        <translation>%1 hot songs</translation>
+    </message>
+    <message>
+        <source>No artist info</source>
+        <translation>No artist info</translation>
+    </message>
+</context>
 </TS>

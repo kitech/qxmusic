@@ -32,6 +32,15 @@ public:
     void setShuffleOn(bool on);          // Playback::shuffleChanged 反向同步按钮态
     void attachProgressLine(ProgressLineItem* line) { m_line = line; }
     void attachDownloadLine(ProgressLineItem* line) { m_dlLine = line; }
+    /* 场景坐标命中：1=封面/歌名（歌曲详情），2=歌手头像/名字（歌手详情），0=无 */
+    int clickTargetAt(const QPointF& scenePos) const;
+
+protected:
+    /* 播放条空白/文本区点击：封面+歌名 → 歌曲详情；歌手头像+名字 → 歌手详情
+     * （子控件 Play/队列等自带按钮优先消费，不经过这里） */
+    void mousePressEvent(QMouseEvent* e) override;
+    void mouseReleaseEvent(QMouseEvent* e) override;
+    bool eventFilter(QObject* obj, QEvent* ev) override;
 
 Q_SIGNALS:
     void playPauseRequested();
@@ -39,10 +48,15 @@ Q_SIGNALS:
     void nextRequested();      // 由文本列右划触发
     void queueRequested();
     void shuffleRequested();
+    void songInfoRequested();   // 封面/歌名 → 歌曲详情
+    void artistRequested();     // 歌手头像/歌手名 → 歌手详情
     void volumeClicked();      // 仅桌面（Android 无该按钮）
     void lyricRequested();     // 队列键长按
 
 private:
+    QRectF itemRect(QQuickItem* it) const;   /* 子项在本条坐标系下的矩形 */
+    QPointF m_pressPos;
+    bool m_pressValid = false;
     static QString fmtMs(int ms);
 
     IconItem* m_icon = nullptr;

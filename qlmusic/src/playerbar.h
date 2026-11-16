@@ -46,6 +46,8 @@ signals:
     void shuffleClicked();
     void autoSkipClicked();
     void volumeChanged(int v);
+    void songInfoClicked();     /* 封面/歌名 → 歌曲详情 */
+    void artistClicked();       /* 歌手头像/歌手名 → 歌手详情 */
 
 protected:
     void paintEvent(QPaintEvent* e);
@@ -68,6 +70,9 @@ private:
     QRect shuffleRect() const;      /* 随机乱序 开关（循环右邻） */
     QRect autoSkipRect() const;     /* 播放失败自动跳过 开关 */
     QRect volumeRect() const;       /* 喇叭（歌词区左邻；点击弹滑条） */
+    QRect coverRect() const;        /* 封面 52×52（paint 的 drawPixmap(14,14)） */
+    QRect titleRect() const;        /* 歌名行 */
+    QRect artistRect() const;       /* 歌手头像+歌手名（整条热区） */
     QRect downloadRect() const;     /* NCM 下载进度 pie 圆环（喇叭左侧） */
     QRect lyricsRect() const;       /* 右侧三行滚动歌词区（空组件占位；最右） */
     int lyricLeft() const;          /* 歌词区左缘（动态缩宽保护 progress/时间） */

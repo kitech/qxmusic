@@ -10,6 +10,7 @@
 #include <qtimer.h>
 
 class LimeScrollBar;
+class QPainter;
 
 /* 远端（NCM）歌单卡片，PlaylistListMode 数据 */
 struct RemotePlaylistCard {
@@ -56,6 +57,17 @@ public:
     /* CategoryGridMode：NCM 分类宫格 */
     void showCategoryGrid(const QStringList& cats);
 
+    /* 歌曲详情（封面/标题/歌手可点/专辑/时长） */
+    void showSongDetail(const Track& t, qint64 artistNcmId);
+    /* 歌手详情（头像+名字+歌手歌曲；songs 为空且 loading=true 表示加载中） */
+    void showArtist(qint64 artistId, const QString& name,
+                    const QString& avatarUrl, const std::vector<Track>& songs,
+                    bool loading);
+    void appendArtistSongs(const std::vector<Track>& more, bool hasMore);
+    void setArtistAvatar(const QString& avatarUrl);   /* 异步头像回填 */
+    const std::vector<Track>& artistSongs() const { return m_artistSongs; }
+    qint64 currentArtistId() const { return m_artistId; }
+
 public slots:
     /* TracksMode：本地库歌单（SideNav::playlistSelected 连接目标） */
     void showPlaylist(int playlistId);
@@ -77,6 +89,10 @@ signals:
     void categoryActivated(const QString& cat);
     void loadMoreRequested();
     void backRequested();
+    /* 详情页：歌曲详情里点歌手名 → 歌手详情 */
+    void songDetailArtistClicked(qint64 artistNcmId, const QString& artistName);
+    /* 歌手页：点某行 → 以歌手歌曲整表作队列播放（MainWindow 组队列） */
+    void artistTrackActivated(int index);
     /* 标题行 ⟳：MainWindow 按当前模式重载数据 */
     void refreshRequested();
 
@@ -90,7 +106,8 @@ protected:
     void leaveEvent(QEvent* e);
 
 public:
-    enum ViewMode { TracksMode, PlaylistListMode, CategoryGridMode };
+    enum ViewMode { TracksMode, PlaylistListMode, CategoryGridMode,
+                    SongDetailMode, ArtistMode };
     /* 远端曲目页可返回：NCM/B站/YTM 远端歌单曲目（ncmId>0）或电台节目列表 */
     ViewMode mode() const { return m_mode; }
     bool remoteTracksBack() const
@@ -152,6 +169,21 @@ private:
     QString m_loading;
     bool m_hasMore;
     bool m_loadingNow;
+    /* ── 详情页（SongDetailMode / ArtistMode）── */
+    Track m_detailTrack;         /* 歌曲详情渲染源 */
+    qint64 m_detailArtistId;     /* 歌曲详情里的歌手 id */
+    qint64 m_artistId;           /* 歌手页歌手 id */
+    QString m_artistName;
+    QString m_artistAvatarUrl;
+    std::vector<Track> m_artistSongs;
+    bool m_artistLoading;
+    ViewMode m_prevMode;         /* 详情页返回目标视图 */
+    QRect m_artistNameRect;      /* 歌曲详情里的歌手名热区 */
+    QRect m_detailBackRect;      /* 详情页返回按钮 */
+    int topOffset() const;       /* 列表行起始 y（歌手页需给头像/名字让位） */
+    void paintSongDetail(QPainter& p);
+    void paintArtist(QPainter& p);
+    void leaveDetail();          /* 详情页返回：恢复 m_prevMode */
 };
 
 #endif // CONTENTVIEW_H

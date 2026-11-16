@@ -100,6 +100,13 @@ private slots:
     void onNcmFetched(int rc, const QString& json, qint64 songId);
     void onNcmLyric(qint64 songId, const QString& json);
     void onNcmArtist(qint64 artistId, int rc, const QString& json);
+    void onNcmArtistSongs(qint64 artistId, int rc, const QString& json,
+                          int offset, int limit);
+    /* 播放条/详情页入口：歌曲详情、歌手详情 */
+    void onSongInfoClicked();
+    void onArtistClicked();
+    void onArtistDetailRequested(qint64 artistNcmId, const QString& artistName);
+    void onArtistTrackActivated(int index);
     void onNcmAuthRequired(const QString& op);
     /* 收藏：本地（favorites.json）+ 账号双向 */
     void onFavToggled(int playlistId, int trackIndex);

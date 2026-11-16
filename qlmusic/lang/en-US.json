@@ -206,5 +206,10 @@
   },
   "prefetch": {
     "plan": "Preload next \"%1\" (dry run, no download)"
+  },
+  "detail": {
+    "hot_songs": "%1 hot songs",
+    "song": "Song detail",
+    "artist": "Artist"
   }
 }
