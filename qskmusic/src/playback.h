@@ -61,6 +61,8 @@ public:
     void restoreLoaded();                                 // 启动恢复（摆队列不自动播）
     void saveState();                                     // current<0 不写（保留旧快照）
     void markQueueDirty();                                // 内部变更点：置脏 + 300ms 合并落盘
+    void maybePrefetchNext(const char* src);              // 下一首预取（dry-run：只日志/Toast）
+    int previewNextIndex() const;                         // 纯查询：下一首索引（无副作用）
 
     // 歌词缓存（播放成功即预取；LyricPopup 直接取）
     bool lyricCached(qint64 songId) const { return m_lrcSongId == songId && !m_lrcText.isEmpty(); }
@@ -75,6 +77,7 @@ Q_SIGNALS:
     void durationMsChanged(int ms);
     void playError(const QString& message, int code);
     void queueSaveFailed(const QString& detail);          // 落盘失败（Toast 提示用）
+    void prefetchPlanned(qint64 songId, const QString& name);   // dry-run 规划成功（UI 提示）
     // 歌词到达/失败（空文本=无歌词）→ 弹层实时刷新（修复"永远加载中"）
     void lyricReady(qint64 songId, const QString& text);
     void shuffleChanged(bool on);   // 乱序开关变化（PlayerBar 按钮同步）
@@ -107,6 +110,13 @@ private:
     musiccom::QueueStore* m_store = nullptr;   // 队列持久化（initQueueStore 创建）
     QTimer* m_saveTimer = nullptr;             // 300ms 合并保存（单拍）
     bool m_dirty = false;                      // 自上次落盘以来队列有变
+    /* 下一首预取（dry-run：决策链全真，动作只日志/Toast，不下载） */
+    QTimer* m_pfTimer = nullptr;               // 切曲 800ms 合并（连点只规划一次）
+    qint64 m_pfCurId = 0;                      // 已规划的当前曲 id
+    qint64 m_pfNextId = 0;                     // 已规划的下一首 id
+    bool m_pfNearEndDone = false;              // 本曲 near_end 已判定过
+    bool m_pfEnabled = true;                   // QSettings prefetch（默认开）
+    const char* m_pfSwitchSrc = "switch:other";// 本次切曲来源标注
 };
 
 #endif

@@ -77,6 +77,8 @@ private slots:
     void onVolumeChanged(int v);
     void onVolSaveTimeout();      /* 500ms Config 写盘 debounce（全文 hjson 重写卡顿根修；日志随写盘拍） */
     void onQueueSaveTimeout();    /* 队列保存 debounce 到期 → 立即落盘 */
+    void onPrefetchSwitchTimeout();  /* 切曲 800ms 合并到期 → 按来源规划下一首预取 */
+    void onPrefetchHintTimeout();    /* 预取提示延迟显示（避开"已播放，音质"同拍覆盖） */
     void onNcmDownloadProgress(qint64 songId, int pct);
     void onAudioPosition(int ms);
     void onAudioDuration(int ms);
@@ -150,6 +152,8 @@ private:
 public:
     void saveQueueState();            /* 队列快照落盘（current<0 时不写，保留旧快照；立即同步写） */
     void markQueueDirty();            /* 内部变更点：置脏 + 300ms debounce 合并落盘 */
+    void maybePrefetchNext(const char* src);   /* 下一首预取（dry-run：调用点传触发来源） */
+    int previewNextIndex() const;              /* 纯查询：下一首索引（无副作用） */
     void restoreQueueSnapshot();      /* 启动恢复：临时歌单摆队列，不自动播 */
 
     void ensureEngine();
@@ -169,7 +173,8 @@ public:
     QString ncmErrorDetail(int rc, const QString& json) const;
     QString m_liveTitle;      /* 网络电台正在播的台名 */
     QTimer* m_radioWatchdog = 0;
-    void playNcmResolved(const QString& url, const QString& level);
+    void playNcmResolved(const QString& url, const QString& level,
+                         const char* pfSrc = "start:resolve_ok");
     /* cache-first：点歌入口零网查缓存（sidecar level 匹配 + size 校验）；
      * 命中回 file:// 路径并带出 level 串（业界 InnerTune/Spotify 一致模式） */
     QString findNcmCache(qint64 ncmId, int quality, QString* outLevel);
@@ -249,6 +254,16 @@ public:
     QTimer* m_volSaveTimer;     /* 500ms Config 写盘 debounce（全文 hjson 重写卡顿根修；日志随写盘拍） */
     QTimer* m_queueSaveTimer;   /* 队列保存 300ms 合并 debounce（切曲多点几次只落一次盘） */
     bool m_queueDirty;          /* 自上次落盘以来队列/当前曲有变 */
+    /* 下一首预取（dry-run：决策链全真，动作只日志/UI 提示，不下载） */
+    QTimer* m_pfTimer;          /* 切曲 800ms 合并（连点只规划一次） */
+    QTimer* m_pfHintTimer;      /* 预取提示延迟（1.5s，避开音质提示覆盖） */
+    QString m_pfHintText;       /* 待显示的下一首标题 */
+    qint64 m_pfCurId;           /* 已规划的当前曲 ncmId */
+    qint64 m_pfNextId;          /* 已规划的下一首 ncmId */
+    bool m_pfNearEndDone;       /* 本曲 near_end 已判定过（防 tick 刷屏） */
+    int m_pfDurationMs;         /* 当前曲时长（onAudioDuration 更新） */
+    bool m_pfEnabled;           /* player.prefetch（默认 1） */
+    const char* m_pfSwitchSrc;  /* 本次切曲来源：switch:next/prev/auto/click */
     qint64 m_ncmLastToastMs;    /* auth toast 节流 */
 
     // 演示用状态栏控件（演示菜单可反复增删）

@@ -406,6 +406,12 @@ int main(int argc, char* argv[])
                      [playerBar](const QString& detail) {
         ToastPopup::show(playerBar, detail);
     });
+    /* 下一首预取（dry-run）：只 Toast，不真实下载 */
+    QObject::connect(&pb, &Playback::prefetchPlanned, playerBar,
+                     [playerBar](qint64 /*id*/, const QString& name) {
+        ToastPopup::show(playerBar,
+            QCoreApplication::translate("main", "Preload next: %1 (dry run)").arg(name));
+    });
     QObject::connect(playerBar, &PlayerBar::playPauseRequested, &pb, &Playback::togglePause);
     QObject::connect(playerBar, &PlayerBar::prevRequested, &pb, &Playback::prev);
     QObject::connect(playerBar, &PlayerBar::nextRequested, &pb, &Playback::next);

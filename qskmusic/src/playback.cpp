@@ -20,6 +20,7 @@ Playback& Playback::instance()
 Playback::Playback(QObject* parent)
     : QObject(parent)
 {
+    m_pfEnabled = QSettings().value("prefetch", true).toBool();
     auto* ap = AudioPlayer::instance();
     connect(ap, &AudioPlayer::finished, this, [this](const QString& id) {
         m_playing = false;
@@ -29,12 +30,28 @@ Playback::Playback(QObject* parent)
         const qint64 endedId = id.toLongLong();
         const qint64 curId = currentSongId();
         // 自然播完且就是当前曲：自动下一首；被打断的 finished 不推进
-        if (endedId == curId || curId == 0)
+        if (endedId == curId || curId == 0) {
+            m_pfSwitchSrc = "switch:auto";
             playIndex(advanceIndex());
+        }
     });
     connect(ap, &AudioPlayer::positionChanged, this, [this](qint64 ms) {
         m_positionMs = int(ms);
         Q_EMIT progressMsChanged(int(ms));
+        /* 预取：进度 75% 或 剩余 30s（先到者，每曲只判一次） */
+        if (m_pfEnabled && !m_pfNearEndDone && m_current >= 0
+            && m_current < m_queue.size()) {
+            const int durMs = m_queue.at(m_current).durationMs;
+            if (durMs > 0) {
+                if (m_positionMs * 100 >= durMs * 75) {
+                    m_pfNearEndDone = true;
+                    maybePrefetchNext("tick:pct75");
+                } else if (durMs - m_positionMs <= 30000) {
+                    m_pfNearEndDone = true;
+                    maybePrefetchNext("tick:remain30s");
+                }
+            }
+        }
     });
     connect(ap, &AudioPlayer::durationChanged, this, [this](qint64 ms) {
         Q_EMIT durationMsChanged(int(ms));
@@ -104,6 +121,7 @@ Playback::Playback(QObject* parent)
         });
     connect(&ncm, &NcmApi::playFailReceived, this, [this](qint64, const QString& reason) {
         Q_EMIT playError(tr("Playback failed: %1, skipping").arg(reason), ErrPlayback);
+        m_pfSwitchSrc = "switch:auto";
         playIndex(advanceIndex());
     });
 }
@@ -222,6 +240,68 @@ void Playback::markQueueDirty()
         m_saveTimer->start(kSaveDebounceMs);
 }
 
+/* 纯查询：下一首索引（与 advanceIndex 同分布，但无副作用） */
+int Playback::previewNextIndex() const
+{
+    const int n = m_queue.size();
+    if (n <= 1 || m_current < 0 || m_current >= n) return -1;
+    if (m_shuffle) {
+        int idx;
+        do { idx = QRandomGenerator::global()->bounded(n); } while (idx == m_current);
+        return idx;
+    }
+    const int nx = m_current + 1;
+    return nx < n ? nx : -1;          /* qsk 无 repeat：队尾即无下一首 */
+}
+
+/* 下一首预取（dry-run）：决策链全真，动作=日志+Toast；
+ * 每个 (cur,next) 只规划一次；所有分支都留日志，不静默 */
+void Playback::maybePrefetchNext(const char* src)
+{
+    if (!m_pfEnabled) return;
+    if (m_current < 0 || m_current >= m_queue.size()) {
+        qDebug() << "[prefetch] src=" << src << "cur=-1 -> SKIP_NOT_PLAYING";
+        return;
+    }
+    const Song& cur = m_queue.at(m_current);
+    const int nx = previewNextIndex();
+    const QString mode = QString("%1/%2")
+        .arg(QStringLiteral("off"))           /* qsk 暂无 repeat 模式 */
+        .arg(m_shuffle ? "on" : "off");
+    if (nx < 0) {
+        qDebug().noquote() << QString(
+            "[prefetch] src=%1 cur=%2\"%3\" -> next=-1 mode=%4 -> SKIP_TAIL")
+            .arg(src).arg(cur.id).arg(cur.name, mode);
+        return;
+    }
+    const Song& nxt = m_queue.at(nx);
+    QString decision;
+    bool cached = false;
+    if (nx == m_current)
+        decision = "SKIP_SAME";
+    else if (!nxt.playable)
+        decision = "SKIP_NO_PLAYABLE";
+    else if (m_pfCurId == cur.id && m_pfNextId == nxt.id)
+        decision = "DEDUP";
+    else if (m_shuffle)
+        decision = "SKIP_SHUFFLE_RANDOM";     /* 乱序目标每次随机，预取无确定对象 */
+    else {
+        cached = DownloadService::instance().isCached(nxt.id, QStringLiteral("mp3"))
+              || DownloadService::instance().isCached(nxt.id, QStringLiteral("flac"))
+              || DownloadService::instance().isCached(nxt.id, QStringLiteral("m4a"));
+        decision = cached ? "SKIP_CACHED" : "PLAN_STUB";
+        m_pfCurId = cur.id;
+        m_pfNextId = nxt.id;
+    }
+    qDebug().noquote() << QString(
+        "[prefetch] src=%1 cur=%2\"%3\" -> next=%4\"%5\" mode=%6 cached=%7 -> %8")
+        .arg(src).arg(cur.id).arg(cur.name).arg(nxt.id).arg(nxt.name)
+        .arg(mode).arg(cached ? 1 : 0).arg(decision);
+    if (decision == "PLAN_STUB")
+        Q_EMIT prefetchPlanned(nxt.id, nxt.name);
+    /* TODO(下一轮真下载): DownloadService::instance().enqueue(...) */
+}
+
 void Playback::restoreLoaded()
 {
     if (!m_store || m_store->items().empty()) return;
@@ -243,6 +323,7 @@ void Playback::setQueue(const QList<Song>& songs, int startIndex)
     m_queue = songs;
     m_current = (startIndex >= 0 && startIndex < songs.size()) ? startIndex : -1;
     markQueueDirty();                // 队列建立 → 合并落盘（playIndex 同拍不再重复写）
+    m_pfSwitchSrc = "switch:click";
     playIndex(startIndex);
 }
 
@@ -262,6 +343,8 @@ void Playback::startPlayback(const QUrl& url)
     m_failedSongId = 0;
     Q_EMIT playingChanged(true);
     NcmApi::instance().lyricAsync(currentSongId());   /* 歌词预取 */
+    /* 预取：开播即规划下一首（本地文件=cache_hit，直链=resolve_ok） */
+    maybePrefetchNext(url.isLocalFile() ? "start:cache_hit" : "start:resolve_ok");
 }
 
 void Playback::onStreamFailure(const QString& why, int code)
@@ -285,6 +368,7 @@ void Playback::onStreamFailure(const QString& why, int code)
                          ErrSkipStop);
         return;
     }
+    m_pfSwitchSrc = "switch:auto";
     playIndex(advanceIndex());
 }
 
@@ -314,7 +398,25 @@ void Playback::playIndex(int index)
     }
     const auto& s = m_queue.at(index);
     if (m_resolving) return;
+    /* 重复激活同一首不算切曲：保留预取去重键，避免重复规划 */
+    const bool sameTrack = (index == m_current);
     m_current = index;
+    if (!sameTrack) {
+        /* 切曲：重置预取状态 + 800ms 合并后按来源重排（连点只算最后一次） */
+        m_pfCurId = 0;
+        m_pfNextId = 0;
+        m_pfNearEndDone = false;
+        if (!m_pfTimer) {
+            m_pfTimer = new QTimer(this);
+            m_pfTimer->setSingleShot(true);
+            connect(m_pfTimer, &QTimer::timeout, this, [this]() {
+                const char* src = m_pfSwitchSrc;
+                m_pfSwitchSrc = "switch:other";
+                maybePrefetchNext(src);
+            });
+        }
+        m_pfTimer->start(800);
+    }
     markQueueDirty();                // 切曲 → 合并落盘（next/prev/自动推进统一走此）
     m_lrcSongId = 0;
     m_lrcText.clear();
@@ -434,5 +536,5 @@ void Playback::handleMediaCommand(int cmd)
     }
 }
 
-void Playback::next() { playIndex(advanceIndex()); }
-void Playback::prev() { playIndex(m_current - 1); }
+void Playback::next() { m_pfSwitchSrc = "switch:next"; playIndex(advanceIndex()); }
+void Playback::prev() { m_pfSwitchSrc = "switch:prev"; playIndex(m_current - 1); }

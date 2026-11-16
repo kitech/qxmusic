@@ -306,6 +306,14 @@ MainWindow::MainWindow(QWidget* parent)
     , m_volSaveTimer(0)
     , m_queueSaveTimer(0)
     , m_queueDirty(false)
+    , m_pfTimer(0)
+    , m_pfHintTimer(0)
+    , m_pfCurId(0)
+    , m_pfNextId(0)
+    , m_pfNearEndDone(false)
+    , m_pfDurationMs(0)
+    , m_pfEnabled(true)
+    , m_pfSwitchSrc("switch:other")
 {
     // 初始化本地存储（对照 qldox mainwindow.cpp:513-521）
     QString dataDir = qGetHomePath() + "/.cache/qlmusic";
@@ -463,6 +471,13 @@ void MainWindow::buildCentralWidget()
     m_queueSaveTimer = new QTimer(this);
     QObject::connect(m_queueSaveTimer, SIGNAL(timeout()),
                      this, SLOT(onQueueSaveTimeout()));
+    /* 下一首预取：切曲合并拍（来源 m_pfSwitchSrc，dry-run 只日志/提示） */
+    m_pfTimer = new QTimer(this);
+    QObject::connect(m_pfTimer, SIGNAL(timeout()),
+                     this, SLOT(onPrefetchSwitchTimeout()));
+    m_pfHintTimer = new QTimer(this);
+    QObject::connect(m_pfHintTimer, SIGNAL(timeout()),
+                     this, SLOT(onPrefetchHintTimeout()));
     refreshFavPlaylist();
     restoreQueueSnapshot();
 
@@ -588,6 +603,10 @@ void MainWindow::buildCentralWidget()
         m_repeatMode = Config::value("player.repeat").toInt();
         /* 乱序开关（player.shuffle 默认 0=关；业界惯例 prev 保持顺序） */
         m_shuffle = Config::value("player.shuffle").toInt();
+        /* 下一首预取（dry-run 开关；缺省开，便于验证触发时机） */
+        QString pfCfg = Config::value("player.prefetch");
+        m_pfEnabled = (pfCfg.isEmpty()) ? true
+                      : (pfCfg == qFromUtf8("1") || pfCfg == qFromUtf8("true"));
         QString skipCfg = Config::value("player.autoskip");
         m_autoSkip = (skipCfg.isEmpty()) ? true
                      : (skipCfg == qFromUtf8("1") || skipCfg == qFromUtf8("true"));
@@ -1067,8 +1086,22 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
     if (trackIndex < 0 || trackIndex >= (int)pl->tracks.size()) return;
 
     const Track& t = pl->tracks[trackIndex];
+    /* 重复激活同一首（双击）不算切曲：保留预取去重键，避免重复规划 */
+    const bool sameTrack = (playlistId == m_curPlaylistId
+                            && trackIndex == m_curTrackIndex);
     m_curPlaylistId = playlistId;
     m_curTrackIndex = trackIndex;
+    if (!sameTrack) {
+        /* 切曲：重置预取状态 + 800ms 合并后按来源重排（连点只算最后一次） */
+        m_pfCurId = 0;
+        m_pfNextId = 0;
+        m_pfNearEndDone = false;
+        m_pfDurationMs = 0;
+        if (m_pfTimer) { m_pfTimer->stop(); m_pfTimer->start(800); }
+        /* 取消挂起的"下一首"提示：切曲后旧规划已失效（防过期提示误导） */
+        if (m_pfHintTimer) m_pfHintTimer->stop();
+        m_pfHintText = QString();
+    }
     markQueueDirty();           /* 队列/当前曲变更 → 300ms 合并落盘（退出路径同步直写） */
     m_skipGuardPlaylist = -1;   /* 新曲：清失败去重标记 */
     m_skipGuardTrack = -1;
@@ -1088,7 +1121,7 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
         QString cachedLevel;
         const QString cached = findNcmCache(t.ncmId, m_ncmQuality, &cachedLevel);
         if (!cached.isEmpty()) {
-            playNcmResolved(cached, cachedLevel);
+            playNcmResolved(cached, cachedLevel, "start:cache_hit");
             return;
         }
         m_ncmSrcPlaylist = playlistId;
@@ -1109,10 +1142,12 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
     ensureEngine();
     audioEngine->open(url);
     audioEngine->play();
+    maybePrefetchNext("start:local");
 }
 
 void MainWindow::onTrackActivated(int playlistId, int trackIndex)
 {
+    m_pfSwitchSrc = "switch:click";   /* 预取日志来源标注（用户点播） */
     const Playlist* pl = findPlaylist(m_library, playlistId);
     if (pl && trackIndex >= 0 && trackIndex < (int)pl->tracks.size()) {
         const Track& t = pl->tracks[trackIndex];
@@ -1412,6 +1447,7 @@ void MainWindow::onPlayPause()
 
 void MainWindow::onPrev()
 {
+    m_pfSwitchSrc = "switch:prev";   /* 预取日志来源标注 */
     if (m_curTrackIndex > 0) playTrack(m_curPlaylistId, m_curTrackIndex - 1);
 }
 
@@ -1424,6 +1460,7 @@ void MainWindow::onNext()
  * fromAuto=true 自然/失败推进（仅 repeat all 环绕，off 到尾停） */
 void MainWindow::advanceNext(bool fromAuto)
 {
+    m_pfSwitchSrc = fromAuto ? "switch:auto" : "switch:next";
     const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
     if (!pl || pl->tracks.empty()) {
         if (!fromAuto) playerBar->setPlaying(false);
@@ -1665,11 +1702,23 @@ void MainWindow::onAudioPosition(int ms)
 {
     playerBar->setProgress(ms);
     playerBar->setLyricsPosition(ms);
+    /* 预取：进度 75% 或 剩余 30s（先到者，每曲只判一次） */
+    if (m_pfEnabled && !m_pfNearEndDone && m_pfDurationMs > 0
+        && m_curTrackIndex >= 0) {
+        if (ms * 100 >= m_pfDurationMs * 75) {
+            m_pfNearEndDone = true;
+            maybePrefetchNext("tick:pct75");
+        } else if (m_pfDurationMs - ms <= 30000) {
+            m_pfNearEndDone = true;
+            maybePrefetchNext("tick:remain30s");
+        }
+    }
 }
 
 void MainWindow::onAudioDuration(int ms)
 {
     playerBar->setDuration(ms);
+    m_pfDurationMs = ms;
 }
 
 void MainWindow::onAudioState(int state)
@@ -2187,7 +2236,8 @@ void MainWindow::onNcmPlaylistTracks(int rc, const QString& json, int localId)
     sideNav->setCurrentPlaylist(p.id);
 }
 
-void MainWindow::playNcmResolved(const QString& url, const QString& level)
+void MainWindow::playNcmResolved(const QString& url, const QString& level,
+                                 const char* pfSrc)
 {
     SharedStatusBar::instance()->clearMessage();   // cache-first 命中时清掉可能的常驻提示
     ensureEngine();
@@ -2196,6 +2246,7 @@ void MainWindow::playNcmResolved(const QString& url, const QString& level)
     m_errSkipRun = 0;   /* 起播成功：连续失败链归零（cache-first/下载完成路径） */
     SharedStatusBar::instance()->showMessage(
         _("ncm.loaded_quality") + qFromUtf8(" ") + level, 3000);
+    maybePrefetchNext(pfSrc);   /* 开播触发预取（来源由调用点决定） */
 }
 
 /* cache-first 命中查询（零网络）：
@@ -3069,6 +3120,108 @@ void MainWindow::saveQueueState()
     else
         ALOG_WARN(qFromUtf8("queue.json saved: n=%1 current=%2")
                       .arg((int)items.size()).arg(m_curTrackIndex));
+}
+
+/* 下一首索引：纯查询，无副作用（不能复用 advanceNext —— 它会真的切曲）。
+ * 分布与 advanceNext 一致：乱序随机≠当前；单曲重复无意义；尾巴按 repeat 决定环绕 */
+int MainWindow::previewNextIndex() const
+{
+    const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
+    if (!pl || pl->tracks.size() <= 1 || m_curTrackIndex < 0) return -1;
+    const int n = (int)pl->tracks.size();
+    if (m_shuffle) {
+        static bool seeded = false;
+        if (!seeded) { std::srand((unsigned)std::time(0)); seeded = true; }
+        int nx;
+        do { nx = std::rand() % n; } while (nx == m_curTrackIndex);
+        return nx;
+    }
+    if (m_repeatMode == 2) return -1;        /* 单曲重复：下一首=自己 */
+    int nx = m_curTrackIndex + 1;
+    if (nx >= n) nx = (m_repeatMode == 1) ? 0 : -1;
+    return nx;
+}
+
+/* 下一首预取（dry-run）：决策链全真，动作=日志+UI 提示；
+ * 每个 (cur,next) 只规划一次；所有分支都留日志，不静默 */
+void MainWindow::maybePrefetchNext(const char* src)
+{
+    if (!m_pfEnabled) return;
+    const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
+    if (!pl || m_curTrackIndex < 0 || m_curTrackIndex >= (int)pl->tracks.size()) {
+        ALOG_INFO(qFromUtf8("[prefetch] src=%1 cur=-1 -> SKIP_NOT_PLAYING").arg(src));
+        return;
+    }
+    const Track& cur = pl->tracks[m_curTrackIndex];
+    const int nx = previewNextIndex();
+    const QString mode = qFromUtf8("%1/%2")
+        .arg(m_repeatMode == 2 ? "one" : (m_repeatMode == 1 ? "all" : "off"))
+        .arg(m_shuffle ? "on" : "off");
+    if (nx < 0) {
+        ALOG_INFO(qFromUtf8("[prefetch] src=%1 cur=%2\"%3\" -> next=-1 mode=%4 -> SKIP_TAIL")
+                      .arg(src).arg(cur.ncmId).arg(cur.title).arg(mode));
+        return;
+    }
+    const Track& nextT = pl->tracks[nx];
+    QString decision;
+    bool cached = false;
+
+    if (nx == m_curTrackIndex)
+        decision = "SKIP_SAME";
+    else if (!nextT.playable || (nextT.ncmId <= 0 && nextT.url.isEmpty()))
+        decision = "SKIP_NO_PLAYABLE";
+    else if (m_pfCurId == cur.ncmId && m_pfNextId == nextT.ncmId)
+        decision = "DEDUP";
+    else if (m_shuffle)
+        decision = "SKIP_SHUFFLE_RANDOM";   /* 乱序目标每次随机，预取无确定对象 */
+    else if (m_liveStream)
+        decision = "SKIP_OFFLINE";          /* 直播流/无网场景 */
+    else {
+#ifdef NCM_ENABLE
+        if (nextT.ncmId > 0 && m_ncmAvailable) {
+            QString lvl;
+            cached = !findNcmCache(nextT.ncmId, m_ncmQuality, &lvl).isEmpty();
+        }
+#endif
+        decision = cached ? "SKIP_CACHED" : "PLAN_STUB";
+        m_pfCurId = cur.ncmId;
+        m_pfNextId = nextT.ncmId;
+    }
+
+    ALOG_INFO(qFromUtf8("[prefetch] src=%1 cur=%2\"%3\" -> next=%4\"%5\" mode=%6 cached=%7 -> %8")
+                  .arg(src).arg(cur.ncmId).arg(cur.title)
+                  .arg(nextT.ncmId).arg(nextT.title).arg(mode)
+                  .arg(cached ? 1 : 0).arg(decision));
+
+    if (decision == "PLAN_STUB") {
+        /* UI 提示延迟 1.5s：同拍还有"已播放，音质 xx"消息，直接发会被覆盖 */
+        m_pfHintText = nextT.title;
+        m_pfHintTimer->stop();
+        m_pfHintTimer->start(1500);
+        /* TODO(下一轮真下载)：
+         *   if (nextT.ncmId > 0) m_ncm->fetchRemote(nextT.ncmId, m_ncmQuality); */
+    }
+}
+
+/* 预取提示（延迟拍）：此时音质提示已显示，本提示最后出现并保持 3s。
+ * 切曲会取消（见 playTrack），避免展示"上一首规划出来的旧下一首" */
+void MainWindow::onPrefetchHintTimeout()
+{
+    m_pfHintTimer->stop();      /* 单拍收束（Qt3 无 setSingleShot） */
+    if (m_pfHintText.isEmpty()) return;
+    if (m_curTrackIndex < 0) { m_pfHintText = QString(); return; }
+    SharedStatusBar::instance()->showMessageTyped(
+        _("prefetch.plan").arg(m_pfHintText), StatusInfo, 3000);
+    m_pfHintText = QString();
+}
+
+/* 切曲合并拍到期：按记录的来源规划（连续切歌只算最后一次） */
+void MainWindow::onPrefetchSwitchTimeout()
+{
+    m_pfTimer->stop();      /* 单拍收束（Qt3 无 setSingleShot） */
+    const char* src = m_pfSwitchSrc;
+    m_pfSwitchSrc = "switch:other";
+    maybePrefetchNext(src);
 }
 
 /* 启动恢复：队列快照 → 临时本地歌单（id=-77，ncmId=0）挂进 m_library，
