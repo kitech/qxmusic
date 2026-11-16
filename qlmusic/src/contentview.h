@@ -89,8 +89,18 @@ protected:
     void resizeEvent(QResizeEvent* e);
     void leaveEvent(QEvent* e);
 
-private:
+public:
     enum ViewMode { TracksMode, PlaylistListMode, CategoryGridMode };
+    /* 远端曲目页可返回：NCM/B站/YTM 远端歌单曲目（ncmId>0）或电台节目列表 */
+    ViewMode mode() const { return m_mode; }
+    bool remoteTracksBack() const
+    {
+        return m_mode == TracksMode
+               && ((m_pl && m_pl->ncmId > 0) || m_radioProgramMode);
+    }
+    bool radioProgramMode() const { return m_radioProgramMode; }
+
+private:
 
     struct Row {
         int index;      /* TracksMode: trackIndex; List/Grid: 卡片/分类下标 */

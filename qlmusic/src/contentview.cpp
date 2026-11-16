@@ -515,6 +515,17 @@ void ContentView::paintEvent(QPaintEvent*)
             p.setFont(small);
             p.drawText(fr, Qt::AlignCenter, QString::fromUtf8("⟳"));
         }
+
+        /* 远端曲目/电台节目：← 返回（回歌单列表/电台列表） */
+        if (remoteTracksBack()) {
+            QRect br = backRect();
+            p.setPen(Qt::NoPen);
+            p.setBrush(pal.hoverBg);
+            muiDrawRoundRect(p, br, br.height() / 2, br.height() / 2);
+            p.setPen(pal.textPrimary);
+            p.setFont(small);
+            p.drawText(br, Qt::AlignCenter, QString::fromUtf8("← ") + m_back);
+        }
     } else {
         /* List/Grid 模式：标题 + 返回按钮（列表模式带条目计数） */
         QString title = m_listTitle;
@@ -751,7 +762,8 @@ void ContentView::mousePressEvent(QMouseEvent* e)
         emit refreshRequested();
         return;
     }
-    if (m_mode == PlaylistListMode || m_mode == CategoryGridMode) {
+    if (m_mode == PlaylistListMode || m_mode == CategoryGridMode
+        || remoteTracksBack()) {
         if (backRect().contains(e->pos())) {
             emit backRequested();
             return;

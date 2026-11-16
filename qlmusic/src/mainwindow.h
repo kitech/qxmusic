@@ -210,6 +210,8 @@ private:
     bool m_ncmBusy;
     QString m_ncmCatKey;     /* 当前分类（kHotViewKey=热门歌单） */
     QString m_ncmListTitle;  /* 列表标题 */
+    qint64 m_ncmPendingPlaylistId = 0; /* 正在加载的远端歌单 id（曲目回调回填 p.ncmId） */
+    std::vector<RemotePlaylistCard> m_siteRadioCards;  /* 站点电台列表缓存（节目页返回用） */
     QString m_currentSite;   /* 音乐站点："ncm"(默认) / "ytm"（YouTube Music） */
     QString m_ytmProxy;      /* YTM 代理（默认 http://127.0.0.1:10809；YTM_PROXY 覆盖） */
     bool m_ytmStreaming;     /* 当前播放的是 YTM 直链（http_proxy 已置，收尾清除） */

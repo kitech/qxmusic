@@ -2042,6 +2042,7 @@ void MainWindow::onNcmPlaylistActivated(qint64 ncmPlaylistId)
     m_ncmBusy = true;
     /* 常驻直到 onNcmPlaylistTracks 完成/失败（0 = 不自动消失） */
     SharedStatusBar::instance()->showMessage(_("ncm.loading"), 0);
+    m_ncmPendingPlaylistId = ncmPlaylistId;
 
     /* 新分配一个不与现有本地歌单冲突的 id 给这个远端歌单 */
     int localId = 1;
@@ -2066,6 +2067,7 @@ void MainWindow::onNcmPlaylistTracks(int rc, const QString& json, int localId)
     cJSON* pl = cJSON_GetObjectItem(root, "playlist");
     Playlist p;
     p.id = localId;
+    p.ncmId = m_ncmPendingPlaylistId;   /* 此前恒 0：重复进入不命中缓存、m_library 重复追加 */
     p.name = pl ? cJSONStr(pl, "name", _("nav.recommend")) : _("nav.recommend");
     p.coverSeed = pl ? cJSONStr(pl, "cover", "") : "";
     p.creator = pl ? cJSONStr(pl, "creator", "") : "";
@@ -2332,6 +2334,20 @@ void MainWindow::onContentViewRefresh()
 
 void MainWindow::onNcmBack()
 {
+    /* 第一级：远端曲目页/电台节目页 → 回来源列表（复用缓存数据，零网络） */
+    if (contentView && contentView->mode() == ContentView::TracksMode
+        && contentView->remoteTracksBack()) {
+        if (contentView->radioProgramMode()) {
+            contentView->showRadioList(_("nav.radio_site"), m_siteRadioCards,
+                                       false, false);
+        } else {
+            /* NCM/B站/YTM 歌单列表：m_ncmPendingCards 即当前分类已加载卡片 */
+            contentView->showPlaylistList(m_ncmListTitle, m_ncmPendingCards,
+                m_ncmHasMore && !m_ncmPendingCards.empty(), false);
+        }
+        return;
+    }
+
     /* 列表/宫格返回：回到分类宫格（若无分类数据则回热门歌单） */
     if (sideNav)
         sideNav->setCurrentCategory(QString("__hot__"));
@@ -2404,6 +2420,7 @@ void MainWindow::onNcmDjHot(int rc, const QString& json)
         cards.push_back(c);
     }
     cJSON_Delete(root);
+    m_siteRadioCards = cards;
     contentView->showRadioList(_("nav.radio_site"), cards, false, false);
 }
 
