@@ -2214,14 +2214,18 @@ void MainWindow::onNcmCategories(int rc, const QString& json, int /*sel*/)
         sideNav->setCategories(hot, groupNames, groupCounts, matrix);
 }
 
-void MainWindow::requestTopPlaylists(const QString& catKey, int offset)
+void MainWindow::requestTopPlaylists(const QString& catKey, int offset, bool force)
 {
     if (!m_ncmAvailable) {
         SharedStatusBar::instance()->showMessageTyped(_("ncm.unavailable"),
                                                       StatusWarning, 4000);
         return;
     }
-    if (m_ncmBusy) return;
+    if (m_ncmBusy) {
+        if (!force) return;                      /* 普通请求：保持原防抖语义 */
+        /* 换源必须落地：丢弃在途标志（旧响应回来时 sel/站点已变，不会覆盖新列表） */
+        ALOG_INFO(qFromUtf8("top_playlists force: drop in-flight busy flag"));
+    }
     m_ncmBusy = true;
 
     /* "__hot__" 是 sidenav 的热门歌单视图哨兵 → 服务端 cat=全部 order=hot */
@@ -2236,6 +2240,8 @@ void MainWindow::requestTopPlaylists(const QString& catKey, int offset)
 
     QString cat = (catKey == QString("__hot__")) ? _("ncm.cat_all") : catKey;
     const char* order = "hot";
+    ALOG_INFO(qFromUtf8("[site=%1] top_playlists cat=%2 offset=%3 force=%4")
+                  .arg(m_currentSite).arg(cat).arg(offset).arg(force ? 1 : 0));
     m_ncm->loadTopPlaylists(cat, qFromUtf8(order), 30, offset);
 }
 
@@ -2715,7 +2721,10 @@ void MainWindow::onSiteChanged(const QString& site)
         m_ncmCatKey = QString("__hot__");
         m_ncmOffset = 0;
         m_ncmPendingCards.clear();
-        requestTopPlaylists(QString("__hot__"), 0);
+        /* 换源强制刷新：不被在途请求的 busy 拦截，并立即清旧列表/改标题 */
+        if (contentView)
+            contentView->showPlaylistList(m_ncmListTitle, m_ncmPendingCards, false, true);
+        requestTopPlaylists(QString("__hot__"), 0, true);
         return;
     }
     /* 切回网易云 */
@@ -2723,7 +2732,7 @@ void MainWindow::onSiteChanged(const QString& site)
     m_ncmCatKey = QString("__hot__");
     m_ncmOffset = 0;
     m_ncmPendingCards.clear();
-    requestTopPlaylists(QString("__hot__"), 0);
+    requestTopPlaylists(QString("__hot__"), 0, true);
 }
 
 void MainWindow::onSearchTriggered(const QString& text)

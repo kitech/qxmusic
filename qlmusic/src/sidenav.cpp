@@ -64,31 +64,28 @@ SideNav::SideNav(QWidget* parent)
         m_site->addItem(label);
 #endif
     }
-    connect(m_site, SIGNAL(currentIndexChanged(const QString&)),
-            this, SLOT(onSiteChanged(const QString&)));
+    /* Qt3 的 QComboBox 没有 currentIndexChanged(const QString&)（连接会静默失败，
+     * 表现为"切 B站没反应"）；activated(const QString&) Qt3/Qt4 都有，
+     * 且只在用户选择时发出（程序填充不触发），语义正好 */
+    connect(m_site, SIGNAL(activated(int)),
+            this, SLOT(onSiteChanged(int)));
     m_scrollBar = new LimeScrollBar(Qt::Vertical, this);
     m_scrollBar->hide();
     connect(m_scrollBar, SIGNAL(valueChanged(int)), this, SLOT(onNavScroll(int)));
     retranslateUi();
 }
 
-/* 站点切换：YouTube Music 为唯一可用第三方站点（yt-dlp 提取）；
- * 其余站点仍占位（打日志定位）。 */
-void SideNav::onSiteChanged(const QString& site)
+/* 站点切换：按**索引**映射站点 id（不能用显示文本匹配——中文标签是
+ * "B站音乐"，不含 "bili"，之前正是因此恒回落 ncm）。
+ * 条目顺序：163/qq/baidu/kugou/kuwo/bili/youtube。 */
+void SideNav::onSiteChanged(int index)
 {
-    const bool youtube = site.contains(QString::fromUtf8("youtube"))
-                      || site.contains(QString::fromUtf8("YouTube"));
-    const bool bili = site.contains(QString::fromUtf8("bili"))
-                   || site.contains(QString::fromUtf8("Bili"));
-    ALOG_INFO(QString::fromUtf8("SideNav site=%1 (%2)")
-                  .arg(site, youtube ? qFromUtf8("ytm")
-                           : (bili ? qFromUtf8("bili") : qFromUtf8("ncm"))));
-    if (youtube)
-        emit siteChanged(QString::fromUtf8("ytm"));
-    else if (bili)
-        emit siteChanged(QString::fromUtf8("bili"));
-    else
-        emit siteChanged(QString::fromUtf8("ncm"));
+    const char* id = "ncm";
+    if (index == 5)      id = "bili";
+    else if (index == 6) id = "ytm";   /* YouTube Music（yt-dlp 提取，桌面可用） */
+    ALOG_INFO(QString::fromUtf8("SideNav site index=%1 -> %2")
+                  .arg(index).arg(qFromUtf8(id)));
+    emit siteChanged(qFromUtf8(id));
 }
 
 void SideNav::onSearchSubmitted(const QString& text)

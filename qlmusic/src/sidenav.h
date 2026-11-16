@@ -32,7 +32,7 @@ public slots:
     void onNavScroll(int v);
 
 private slots:
-    void onSiteChanged(const QString& site);
+    void onSiteChanged(int index);
     void onSearchSubmitted(const QString& text);
 
 signals:

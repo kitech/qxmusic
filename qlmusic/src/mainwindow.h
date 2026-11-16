@@ -169,7 +169,8 @@ public:
     void loadLyricsForTrack(const Track& t);   /* 本地 .lrc 优先 + NCM 兜底注入 */
 
     /* NCM 视图流转（UI 线程，禁止直接调 ncm_* 阻塞调用） */
-    void requestTopPlaylists(const QString& catKey, int offset);
+    /* force=true：站点切换专用，无视 m_ncmBusy 并强制清屏换源 */
+    void requestTopPlaylists(const QString& catKey, int offset, bool force = false);
     void showNcmError(int rc, const QString& op);
     /* 引擎错误可见化：Toast + 状态栏（同因 2s 限频；原样展示运行时文本） */
     void showPlaybackErrorOnce(const QString& msg);
