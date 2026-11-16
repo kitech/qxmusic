@@ -1,6 +1,7 @@
 #include "favoritestore.h"
 
 #include "cJSON.h"
+#include "storeutil.h"
 
 #include <cstdio>
 #include <cstring>
@@ -36,6 +37,7 @@ FavoriteStore::FavoriteStore(const std::string& dir)
 void FavoriteStore::load()
 {
     m_items.clear();
+    ::remove((m_path + ".part").c_str());   /* 历史固定名 .part 残留清理 */
     FILE* f = fopen(m_path.c_str(), "rb");
     if (!f)
         return;
@@ -97,9 +99,10 @@ bool FavoriteStore::save() const
         return false;
 
     /* .part + rename：与 iconcachecore 同范式（断电不留半截文件） */
-    const std::string part = m_path + ".part";
+    const std::string part = storeutil::uniquePartPath(m_path);
     FILE* f = fopen(part.c_str(), "wb");
     if (!f) {
+        storeutil::logSaveError("fav-store", "fopen(.part)", part);
         cJSON_free(s);
         return false;
     }
@@ -108,10 +111,15 @@ bool FavoriteStore::save() const
     fclose(f);
     cJSON_free(s);
     if (!ok) {
+        storeutil::logSaveError("fav-store", "fwrite", part);
         ::remove(part.c_str());
         return false;
     }
-    return rename(part.c_str(), m_path.c_str()) == 0;
+    if (rename(part.c_str(), m_path.c_str()) != 0) {
+        storeutil::logSaveError("fav-store", "rename", part + " -> " + m_path);
+        return false;
+    }
+    return true;
 }
 
 bool FavoriteStore::add(const FavItem& item)

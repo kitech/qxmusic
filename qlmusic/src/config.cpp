@@ -12,7 +12,9 @@
 #include <map>
 
 static std::string qStrToStd(const QString& s) {
-    return std::string(qToUtf8(s).data());
+    /* qt3 下 qToUtf8 的 size() 含尾部 '\0'，显式按 NUL 截断取真实长度 */
+    const QByteArray b = qToUtf8(s);
+    return std::string(b.data(), qstrlen(b.data()));
 }
 
 static QString configDir() {

@@ -48,13 +48,17 @@
 #include <qfile.h>
 
 #include <cstdlib>
+#include <ctime>
 #include <cmath>
 
 /* QString → std::string（Qt3 无 toStdString；UTF-8 中转，Qt3/4/6 通吃） */
 static std::string qToStdString(const QString& s)
 {
     const QByteArray b = qToUtf8(s);
-    return std::string(b.data(), (size_t)b.size());
+    /* qt3 的 s.utf8() 返回 QCString，size() 含尾部 '\0'；用 size() 构造
+     * 会带内嵌 NUL，c_str()/fopen 全在 NUL 处截断（queue.json 保存
+     * EISDIR 的根因）。以 NUL 截断取真实长度。 */
+    return std::string(b.data(), qstrlen(b.data()));
 }
 
 /* YouTube Music 代理：YTM_PROXY 环境变量优先，缺省本地 10809（测试口径）。
@@ -292,6 +296,7 @@ MainWindow::MainWindow(QWidget* parent)
        buildBackendMenu 尾 updateAutoSkipCheck() 读未初始化内存、菜单 check 首启不亮；
        Config 真值在 playerBar 段再覆盖 */
     , m_repeatMode(0)
+    , m_shuffle(0)
     , m_autoSkip(true)
     , m_autoSkipMenuIndex(-1)
     , m_errSkipRun(0)
@@ -299,6 +304,8 @@ MainWindow::MainWindow(QWidget* parent)
     , m_dlSongId(0)
     , m_dlPct(-1)
     , m_volSaveTimer(0)
+    , m_queueSaveTimer(0)
+    , m_queueDirty(false)
 {
     // 初始化本地存储（对照 qldox mainwindow.cpp:513-521）
     QString dataDir = qGetHomePath() + "/.cache/qlmusic";
@@ -452,6 +459,10 @@ void MainWindow::buildCentralWidget()
         m_queueStore = new musiccom::QueueStore(qToStdString(favDir));
         m_queueStore->load();
     }
+    /* 队列保存 debounce（markQueueDirty 300ms 合并；退出路径同步直写） */
+    m_queueSaveTimer = new QTimer(this);
+    QObject::connect(m_queueSaveTimer, SIGNAL(timeout()),
+                     this, SLOT(onQueueSaveTimeout()));
     refreshFavPlaylist();
     restoreQueueSnapshot();
 
@@ -512,6 +523,7 @@ void MainWindow::buildCentralWidget()
         /* 登录态启动即做收藏双向合并（未登录静默跳过，本地功能不受影响） */
         m_ncm->likeList();
         m_ncm->loadCategories();
+        /* 启动热门推荐视图：与队列恢复无关，恒走原流程（恢复只落数据） */
         m_ncmListTitle = _("nav.recommend");
         sideNav->setCurrentCategory(QString("__hot__"));
         requestTopPlaylists(QString("__hot__"), 0);
@@ -560,6 +572,8 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onSeek(int)));
         QObject::connect(playerBar, SIGNAL(repeatClicked()),
                          this, SLOT(onRepeatClicked()));
+        QObject::connect(playerBar, SIGNAL(shuffleClicked()),
+                         this, SLOT(onShuffleClicked()));
         QObject::connect(playerBar, SIGNAL(autoSkipClicked()),
                          this, SLOT(onAutoSkipClicked()));
         QObject::connect(playerBar, SIGNAL(volumeChanged(int)),
@@ -572,6 +586,8 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onVolSaveTimeout()));
         /* 播放条行为持久化：repeat 默认 off；autoskip 默认开（业界/NCM 系惯例） */
         m_repeatMode = Config::value("player.repeat").toInt();
+        /* 乱序开关（player.shuffle 默认 0=关；业界惯例 prev 保持顺序） */
+        m_shuffle = Config::value("player.shuffle").toInt();
         QString skipCfg = Config::value("player.autoskip");
         m_autoSkip = (skipCfg.isEmpty()) ? true
                      : (skipCfg == qFromUtf8("1") || skipCfg == qFromUtf8("true"));
@@ -582,6 +598,7 @@ void MainWindow::buildCentralWidget()
         if (m_volume <= 0 || m_volume > 100) m_volume = 100;
         playerBar->setVolume(m_volume);
         playerBar->setRepeatMode(m_repeatMode);
+        playerBar->setShuffle(m_shuffle);
         playerBar->setAutoSkip(m_autoSkip);
     }
 
@@ -1052,7 +1069,7 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
     const Track& t = pl->tracks[trackIndex];
     m_curPlaylistId = playlistId;
     m_curTrackIndex = trackIndex;
-    saveQueueState();           /* 队列/当前曲变更即落盘（原子写） */
+    markQueueDirty();           /* 队列/当前曲变更 → 300ms 合并落盘（退出路径同步直写） */
     m_skipGuardPlaylist = -1;   /* 新曲：清失败去重标记 */
     m_skipGuardTrack = -1;
     playerBar->setTrack(t);
@@ -1103,7 +1120,7 @@ void MainWindow::onTrackActivated(int playlistId, int trackIndex)
         if (t.url.startsWith(QString::fromUtf8("ytm:")) && m_ncm && m_ncmAvailable) {
             m_curPlaylistId = playlistId;
             m_curTrackIndex = trackIndex;
-            saveQueueState();
+            markQueueDirty();
             if (playerBar) { playerBar->setTrack(t); playerBar->setPlaying(false); }
             SharedStatusBar::instance()->showMessage(_("ncm.loading"), 0);
             m_ncm->ytmStream(t.url.mid(4));
@@ -1383,7 +1400,14 @@ void MainWindow::onUserLoginPlaceholder()
 
 void MainWindow::onPlayPause()
 {
-    if (audioEngine) audioEngine->toggle();
+    /* 引擎未建或空载（重启恢复后未开播 / 曲尾自然停止）→ 空格=起播当前曲；
+     * 有源时才是真 播放⇄暂停 toggle（audioEngine 懒建，恢复态下可能为 0） */
+    if (!audioEngine || audioEngine->state() == cxaudio::Stopped) {
+        if (m_curTrackIndex >= 0)
+            playTrack(m_curPlaylistId, m_curTrackIndex);
+        return;
+    }
+    audioEngine->toggle();
 }
 
 void MainWindow::onPrev()
@@ -1406,6 +1430,15 @@ void MainWindow::advanceNext(bool fromAuto)
         return;
     }
     int n = (int)pl->tracks.size();
+    /* 乱序开：随机跳（≠当前曲；手动/自动统一，Spotify 惯例） */
+    if (m_shuffle && n > 1) {
+        static bool seeded = false;
+        if (!seeded) { std::srand((unsigned)std::time(0)); seeded = true; }
+        int nx;
+        do { nx = std::rand() % n; } while (nx == m_curTrackIndex);
+        playTrack(m_curPlaylistId, nx);
+        return;
+    }
     bool wrap = fromAuto ? (m_repeatMode == 1) : true;
     int nx = m_curTrackIndex + 1;
     if (nx >= n) {
@@ -1428,7 +1461,8 @@ bool MainWindow::skipOnError(const QString& why)
      * 明确提示并停播，避免"看起来卡住、需手点"的静默失败 */
     const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
     const bool hasNext = pl && !pl->tracks.empty()
-        && (m_curTrackIndex + 1 < (int)pl->tracks.size() || m_repeatMode == 1);
+        && (m_curTrackIndex + 1 < (int)pl->tracks.size() || m_repeatMode == 1
+            || (m_shuffle && pl->tracks.size() > 1));
     if (!hasNext) {
         ALOG_WARN(qFromUtf8("Playback skip: no next (playlist=%1 idx=%2) why=%3")
                       .arg(m_curPlaylistId).arg(m_curTrackIndex).arg(why));
@@ -1465,6 +1499,14 @@ void MainWindow::onRepeatClicked()
     Config::setValue("player.repeat", QString::number(m_repeatMode));
 }
 
+/* 乱序开关：切曲随机（手动 next/自然播完/失败推进），prev 保持顺序 */
+void MainWindow::onShuffleClicked()
+{
+    m_shuffle = !m_shuffle;
+    playerBar->setShuffle(m_shuffle);
+    Config::setValue("player.shuffle", QString::number(m_shuffle));
+}
+
 void MainWindow::onAutoSkipClicked()
 {
     m_autoSkip = !m_autoSkip;
@@ -1496,6 +1538,26 @@ void MainWindow::onVolSaveTimeout()
     Config::setValue("player.volume", QString::number(m_volume));
     ALOG_INFO(qFromUtf8("volume=%1 (saved)").arg(m_volume));
     m_volSaveTimer->stop();   /* 单拍收束：Qt3 QTimer 无 setSingleShot，fire 后显式 stop */
+}
+
+/* 队列保存顺序化：内部变更点只 mark dirty，300ms 合并后统一落一次盘
+ * （此前 playTrack/onTrackActivated 各自即时写，一次切曲连写多次） */
+void MainWindow::markQueueDirty()
+{
+    m_queueDirty = true;
+    if (!m_queueSaveTimer)
+        return;
+    if (!m_queueSaveTimer->isActive())
+        m_queueSaveTimer->start(300);
+}
+
+void MainWindow::onQueueSaveTimeout()
+{
+    m_queueSaveTimer->stop();   /* 单拍收束（Qt3 无 setSingleShot） */
+    if (!m_queueDirty)
+        return;
+    m_queueDirty = false;
+    saveQueueState();
 }
 
 /* NCM 下载进度（worker 线程 postProgress 节流 200ms→主线程→pie 圆环） */
@@ -2969,10 +3031,13 @@ void MainWindow::onNetRadioStream(int index)
 
 namespace { const int kFavPlaylistId = 1000; }
 
-/* 队列快照落盘：current<0（本会话从未点播）→ 不写，保留上次会话的文件 */
+/* 队列快照落盘：current<0（本会话从未点播）→ 不写，保留上次会话的文件。
+ * 退出/关窗路径直接调用（同步立即写）；内部变更点走 markQueueDirty 合并。 */
 void MainWindow::saveQueueState()
 {
     if (!m_queueStore) return;
+    m_queueDirty = false;
+    if (m_queueSaveTimer) m_queueSaveTimer->stop();
     const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
     if (!pl || m_curTrackIndex < 0
         || m_curTrackIndex >= (int)pl->tracks.size()) return;
@@ -2995,14 +3060,28 @@ void MainWindow::saveQueueState()
         items.push_back(q);
     }
     m_queueStore->set(items, m_curTrackIndex);
-    m_queueStore->save();
+    if (!m_queueStore->save()) {
+        ALOG_WARN(qFromUtf8("queue.json save FAILED (dir/perm?)"));
+        /* 用户可见：状态栏反馈（明细 errno 走 storeutil stderr 日志） */
+        SharedStatusBar::instance()->showMessageTyped(_("queue.save_failed"),
+                                                      StatusWarning, 5000);
+    }
+    else
+        ALOG_WARN(qFromUtf8("queue.json saved: n=%1 current=%2")
+                      .arg((int)items.size()).arg(m_curTrackIndex));
 }
 
 /* 启动恢复：队列快照 → 临时本地歌单（id=-77，ncmId=0）挂进 m_library，
  * 摆队列 + 高亮（不自动 resolve/播放，启动零联网）。current=-1 则只摆队列。 */
 void MainWindow::restoreQueueSnapshot()
 {
-    if (!m_queueStore || m_queueStore->items().empty()) return;
+    if (!m_queueStore || m_queueStore->items().empty()) {
+        ALOG_WARN(qFromUtf8("queue restore: no snapshot (skip)"));
+        return;
+    }
+    ALOG_WARN(qFromUtf8("queue restore: items=%1 current=%2")
+                  .arg((int)m_queueStore->items().size())
+                  .arg(m_queueStore->current()));
 
     /* 防御：历史恢复歌单只留一份 */
     for (size_t i = m_library.size(); i-- > 0;)
@@ -3042,7 +3121,9 @@ void MainWindow::restoreQueueSnapshot()
     int idx = m_queueStore->current();       /* -1 = 未开始；越界已在 store 内 clamp */
     if (idx >= (int)p.tracks.size()) idx = -1;
     m_curTrackIndex = idx;
-    contentView->showPlaylist(-77);
+    m_queueRestored = true;
+    /* 不切视图：恢复只落数据（library/队列面板/播放条），内容区保持
+     * 原默认流程视图，用户点侧栏「上次播放队列」再进入 */
     if (idx >= 0) {
         queuePanel->setQueue(p.tracks, idx);
         queuePanel->setCurrentTrack(p.tracks[idx]);

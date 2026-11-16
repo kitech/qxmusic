@@ -70,11 +70,13 @@ private slots:
     void onPrev();
     void onNext();
     void onRepeatClicked();
+    void onShuffleClicked();
     void onAutoSkipClicked();
     void onSeek(int ms);
     /* 音量（播放条喇叭 + popup 滑条 + wheel；apply/save 双 debounce） */
     void onVolumeChanged(int v);
     void onVolSaveTimeout();      /* 500ms Config 写盘 debounce（全文 hjson 重写卡顿根修；日志随写盘拍） */
+    void onQueueSaveTimeout();    /* 队列保存 debounce 到期 → 立即落盘 */
     void onNcmDownloadProgress(qint64 songId, int pct);
     void onAudioPosition(int ms);
     void onAudioDuration(int ms);
@@ -145,7 +147,9 @@ private:
     void buildTray();
     /* 收藏：从 FavoriteStore 重建"我的收藏"歌单并刷新两端视图 */
     void refreshFavPlaylist();
-    void saveQueueState();            /* 队列快照落盘（current<0 时不写，保留旧快照） */
+public:
+    void saveQueueState();            /* 队列快照落盘（current<0 时不写，保留旧快照；立即同步写） */
+    void markQueueDirty();            /* 内部变更点：置脏 + 300ms debounce 合并落盘 */
     void restoreQueueSnapshot();      /* 启动恢复：临时歌单摆队列，不自动播 */
 
     void ensureEngine();
@@ -214,6 +218,7 @@ private:
     QString m_ncmCatKey;     /* 当前分类（kHotViewKey=热门歌单） */
     QString m_ncmListTitle;  /* 列表标题 */
     qint64 m_ncmPendingPlaylistId = 0; /* 正在加载的远端歌单 id（曲目回调回填 p.ncmId） */
+    bool m_queueRestored = false;      /* 本次启动已恢复队列快照（启动热门请求让位） */
     std::vector<RemotePlaylistCard> m_siteRadioCards;  /* 站点电台列表缓存（节目页返回用） */
     QString m_currentSite;   /* 音乐站点："ncm"(默认) / "ytm"（YouTube Music） */
     QString m_ytmProxy;      /* YTM 代理（默认 http://127.0.0.1:10809；YTM_PROXY 覆盖） */
@@ -226,6 +231,7 @@ private:
     int m_ncmSrcTrack;
     /* 播放条行为（Config 持久：player.repeat / player.autoskip） */
     int m_repeatMode;           /* 0=off 1=all 2=one */
+    int m_shuffle;              /* 随机乱序 0/1（切曲随机、prev 保持顺序） */
     bool m_autoSkip;            /* 播放失败自动跳下一首（默认开） */
     bool m_liveStream = false;  /* 网络电台直播流：不自动连播/不出进度 */
     int m_errSkipRun;           /* 连续失败计数，成功播放清零 */
@@ -241,6 +247,8 @@ private:
     qint64 m_dlSongId;          /* 当前跟踪下载的 songId，>0 显示 pie */
     int m_dlPct;                /* 0-100；-1=未定（无 Content-Length）；-2=失败（由 bar 存） */
     QTimer* m_volSaveTimer;     /* 500ms Config 写盘 debounce（全文 hjson 重写卡顿根修；日志随写盘拍） */
+    QTimer* m_queueSaveTimer;   /* 队列保存 300ms 合并 debounce（切曲多点几次只落一次盘） */
+    bool m_queueDirty;          /* 自上次落盘以来队列/当前曲有变 */
     qint64 m_ncmLastToastMs;    /* auth toast 节流 */
 
     // 演示用状态栏控件（演示菜单可反复增删）

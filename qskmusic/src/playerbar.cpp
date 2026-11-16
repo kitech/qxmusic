@@ -120,6 +120,14 @@ PlayerBar::PlayerBar(QQuickItem* parent)
         });
     }
 
+    // ⑤b 随机乱序开关：紧贴音量钮之前（checkable；状态同步见 main.cpp 接线）
+    m_shuffleBtn = new QskPushButton(QString::fromUtf8("🔀"), this);
+    m_shuffleBtn->setPreferredSize(36, 36);
+    m_shuffleBtn->setCheckable(true);
+    m_shuffleBtn->setChecked(true);   // 真值由 main.cpp 接线后 setShuffleOn 校正
+    connect(m_shuffleBtn, &QskAbstractButton::clicked,
+            this, &PlayerBar::shuffleRequested);
+
     // ⑥ 音量：仅桌面（Android 隐藏——设计明确要求）
 #ifndef Q_OS_ANDROID
     m_volumeBtn = new QskPushButton(QString::fromUtf8("🔊"), this);
@@ -191,6 +199,12 @@ void PlayerBar::setPlaying(bool playing)
 {
     m_playing = playing;
     m_playBtn->setText(playing ? QString::fromUtf8("⏸") : QString::fromUtf8("▶"));
+}
+
+void PlayerBar::setShuffleOn(bool on)
+{
+    if (m_shuffleBtn)
+        m_shuffleBtn->setChecked(on);
 }
 
 void PlayerBar::setDownloadProgress(int pct)

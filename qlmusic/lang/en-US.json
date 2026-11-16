@@ -102,11 +102,14 @@
     "dl_busy": "Downloading…",
     "dl_failed": "Download failed",
     "error": "Playback error",
-    "ffmpeg_no_tls": "Current ffmpeg lacks https(TLS): switch audio backend to mpv, or install ffmpeg built with openssl/gnutls (loaded path is logged as \"ffmpeg libavformat loaded\")"
+    "ffmpeg_no_tls": "Current ffmpeg lacks https(TLS): switch audio backend to mpv, or install ffmpeg built with openssl/gnutls (loaded path is logged as \"ffmpeg libavformat loaded\")",
+    "tip_shuffle_on": "Shuffle: on (click to turn off)",
+    "tip_shuffle_off": "Shuffle: off (click to turn on)"
   },
   "queue": {
     "title": "Play Queue",
-    "last_session": "Last session queue"
+    "last_session": "Last session queue",
+    "save_failed": "Queue save failed (disk/permission?)"
   },
   "audio": {
     "backend": {

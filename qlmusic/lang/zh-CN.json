@@ -102,11 +102,14 @@
     "dl_busy": "下载中…",
     "dl_failed": "下载失败",
     "error": "播放错误",
-    "ffmpeg_no_tls": "当前 ffmpeg 缺少 https(TLS) 支持：请改用 mpv 音频后端，或安装带 openssl/gnutls 的 ffmpeg（实际加载路径见日志 ffmpeg libavformat loaded）"
+    "ffmpeg_no_tls": "当前 ffmpeg 缺少 https(TLS) 支持：请改用 mpv 音频后端，或安装带 openssl/gnutls 的 ffmpeg（实际加载路径见日志 ffmpeg libavformat loaded）",
+    "tip_shuffle_on": "随机乱序：已开启（点击关闭）",
+    "tip_shuffle_off": "随机乱序：已关闭（点击开启）"
   },
   "queue": {
     "title": "播放队列",
-    "last_session": "上次播放队列"
+    "last_session": "上次播放队列",
+    "save_failed": "播放队列保存失败（磁盘/权限？）"
   },
   "audio": {
     "backend": {

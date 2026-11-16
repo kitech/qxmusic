@@ -5,6 +5,8 @@
 #include "logmodel.h"
 #include <QUrl>
 #include <QDebug>
+#include <QSettings>
+#include <QRandomGenerator>
 
 Playback& Playback::instance()
 {
@@ -25,7 +27,7 @@ Playback::Playback(QObject* parent)
         const qint64 curId = currentSongId();
         // 自然播完且就是当前曲：自动下一首；被打断的 finished 不推进
         if (endedId == curId || curId == 0)
-            playIndex(m_current + 1);
+            playIndex(advanceIndex());
     });
     connect(ap, &AudioPlayer::positionChanged, this, [this](qint64 ms) {
         m_positionMs = int(ms);
@@ -99,7 +101,7 @@ Playback::Playback(QObject* parent)
         });
     connect(&ncm, &NcmApi::playFailReceived, this, [this](qint64, const QString& reason) {
         Q_EMIT playError(tr("Playback failed: %1, skipping").arg(reason), ErrPlayback);
-        playIndex(m_current + 1);
+        playIndex(advanceIndex());
     });
 }
 
@@ -159,6 +161,30 @@ void Playback::initQueueStore(const QString& dir)
     if (m_store) return;
     m_store = new musiccom::QueueStore(dir.toStdString());
     m_store->load();
+    /* 乱序开关持久化（与队列快照同一套 QSettings 生命周期） */
+    m_shuffle = QSettings().value("shuffle", false).toBool();
+}
+
+/* 乱序推进：shuffle && size>1 → 随机(≠当前)；否则顺序 +1 */
+int Playback::advanceIndex() const
+{
+    const int n = m_queue.size();
+    if (m_shuffle && n > 1) {
+        int idx;
+        do {
+            idx = QRandomGenerator::global()->bounded(n);
+        } while (idx == m_current);
+        return idx;
+    }
+    return m_current + 1;
+}
+
+void Playback::setShuffle(bool on)
+{
+    if (m_shuffle == on) return;
+    m_shuffle = on;
+    QSettings().setValue("shuffle", on);
+    Q_EMIT shuffleChanged(on);
 }
 
 void Playback::saveState()
@@ -236,7 +262,7 @@ void Playback::onStreamFailure(const QString& why, int code)
                          ErrSkipStop);
         return;
     }
-    playIndex(m_current + 1);
+    playIndex(advanceIndex());
 }
 
 void Playback::playIndex(int index)
@@ -385,5 +411,5 @@ void Playback::handleMediaCommand(int cmd)
     }
 }
 
-void Playback::next() { playIndex(m_current + 1); }
+void Playback::next() { playIndex(advanceIndex()); }
 void Playback::prev() { playIndex(m_current - 1); }

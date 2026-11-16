@@ -15,6 +15,25 @@
 #include <unistd.h>
 #include <cstdio>
 #include <cstdlib>
+/* Ctrl-C/SIGTERM 兜底：Qt3/4 不自带 Unix 信号处理，进程直接死会跳过保存。
+ * 处理函数只写 socketpair（async-signal-safe），Qt 侧经 QSocketNotifier
+ * 触发 quit()，保存统一在 exec 返回后的 main() 里做。 */
+#ifndef Q_OS_WIN
+#include <signal.h>
+#include <sys/socket.h>
+#include <qsocketnotifier.h>
+#include "lambdaslot.h"
+
+static int g_sigFd[2] = { -1, -1 };
+static void qlSigHandler(int)
+{
+    if (g_sigFd[1] >= 0) {
+        char c = 1;
+        ssize_t r = write(g_sigFd[1], &c, 1);
+        Q_UNUSED(r);
+    }
+}
+#endif
 #ifdef __linux__
 #include <malloc.h>
 #endif
@@ -114,5 +133,26 @@ int main(int argc, char* argv[]) {
 
     QtappSetup::setQuitOnExit(true);
 
-    return app.exec();
+#ifndef Q_OS_WIN
+    /* 信号 → quit 管道桥（正常退出/Ctrl-C/SIGTERM 全部汇入 exec 返回后的统一保存） */
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, g_sigFd) == 0) {
+        signal(SIGINT, qlSigHandler);
+        signal(SIGTERM, qlSigHandler);
+        QSocketNotifier* sigSn =
+            new QSocketNotifier(g_sigFd[0], QSocketNotifier::Read, &window);
+        LambdaSlot* sigSlot = new LambdaSlot(&window, [sigSn, &app]() {
+            sigSn->setEnabled(false);          /* 读一次即撤（防抖） */
+            char c;
+            ssize_t r = read(g_sigFd[0], &c, 1);
+            Q_UNUSED(r);
+            app.quit();
+        });
+        QObject::connect(sigSn, SIGNAL(activated(int)), sigSlot, SLOT(call()));
+    }
+#endif
+
+    const int rc = app.exec();
+    /* 退出统一兜底：closeEvent 已存则幂等重写；菜单 quit / Ctrl-C 在此补存 */
+    window.saveQueueState();
+    return rc;
 }

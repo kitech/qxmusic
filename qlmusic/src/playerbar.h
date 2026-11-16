@@ -20,6 +20,7 @@ public:
     void setDuration(int ms);
     void setLive(bool on);           /* 直播流：隐藏 seek/时长，画 LIVE 徽标 */
     void setRepeatMode(int mode);     /* 0=off 1=all 2=one */
+    void setShuffle(bool on);         /* 随机乱序 开关 */
     void setAutoSkip(bool on);
     void setVolume(int v);           /* 0-100；0=静音态（喇叭画斜杠） */
     void setDownloadState(qint64 songId, int pct);   /* 0-100 进度；-1=未定；-2=失败；100=完成即清 */
@@ -42,6 +43,7 @@ signals:
     void nextRequested();
     void seekRequested(int ms);
     void repeatClicked();
+    void shuffleClicked();
     void autoSkipClicked();
     void volumeChanged(int v);
 
@@ -57,12 +59,13 @@ protected:
 
 private:
     enum Hit { HitNone, HitPrev, HitPlay, HitNext, HitProgress, HitRepeat,
-               HitAutoSkip, HitVolume, HitDownload };
+               HitShuffle, HitAutoSkip, HitVolume, HitDownload };
     void setProgressFromX(int x);
     QRect playRect() const;
     QRect prevRect() const;
     QRect nextRect() const;
     QRect repeatRect() const;       /* 单曲重复/列表循环 按钮 */
+    QRect shuffleRect() const;      /* 随机乱序 开关（循环右邻） */
     QRect autoSkipRect() const;     /* 播放失败自动跳过 开关 */
     QRect volumeRect() const;       /* 喇叭（歌词区左邻；点击弹滑条） */
     QRect downloadRect() const;     /* NCM 下载进度 pie 圆环（喇叭左侧） */
@@ -88,11 +91,13 @@ private:
     int m_progressMs;
     int m_durationMs;
     int m_repeatMode;
+    bool m_shuffle;
     bool m_autoSkip;
     int m_volume;                   /* 0-100；0=静音态 */
     int m_lastVolume;               /* 静音记忆（wheel/滑条拖回声位） */
     QString m_tipRepeat;
     QString m_tipAutoSkip;
+    QString m_tipShuffle;
     void*   m_tip;                  /* qt3 专用：maybeTip 子类实例（cpp 内定义） */
     Hit m_hover;
     bool m_dragging;

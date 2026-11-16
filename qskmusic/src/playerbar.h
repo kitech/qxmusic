@@ -29,6 +29,7 @@ public:
     void setDurationMs(int ms);
     void setPlaying(bool playing);
     void setDownloadProgress(int pct);   // 驱动下载进度线（-1 未定；0-100；100/-2 → 归零）
+    void setShuffleOn(bool on);          // Playback::shuffleChanged 反向同步按钮态
     void attachProgressLine(ProgressLineItem* line) { m_line = line; }
     void attachDownloadLine(ProgressLineItem* line) { m_dlLine = line; }
 
@@ -37,6 +38,7 @@ Q_SIGNALS:
     void prevRequested();      // 由文本列左划触发
     void nextRequested();      // 由文本列右划触发
     void queueRequested();
+    void shuffleRequested();
     void volumeClicked();      // 仅桌面（Android 无该按钮）
     void lyricRequested();     // 队列键长按
 
@@ -52,6 +54,7 @@ private:
     QskTextLabel* m_timeDur = nullptr;
     QskPushButton* m_lyricBtn = nullptr;    // 歌词入口（点击）
     QskPushButton* m_queueBtn = nullptr;
+    QskPushButton* m_shuffleBtn = nullptr;  // 随机乱序 开关（checkable）
     QskPushButton* m_volumeBtn = nullptr;   // 仅桌面创建；Android 为 nullptr
     ProgressLineItem* m_line = nullptr;
     ProgressLineItem* m_dlLine = nullptr;   // 下载进度线（播放条下方，常显）

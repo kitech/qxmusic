@@ -404,12 +404,19 @@ int main(int argc, char* argv[])
     QObject::connect(playerBar, &PlayerBar::playPauseRequested, &pb, &Playback::togglePause);
     QObject::connect(playerBar, &PlayerBar::prevRequested, &pb, &Playback::prev);
     QObject::connect(playerBar, &PlayerBar::nextRequested, &pb, &Playback::next);
+    /* 随机乱序：按钮点击 → Playback 状态翻转；状态变化回同步按钮 checked */
+    QObject::connect(playerBar, &PlayerBar::shuffleRequested, &pb, []() {
+        Playback& p = Playback::instance();
+        p.setShuffle(!p.shuffle());
+    });
+    QObject::connect(&pb, &Playback::shuffleChanged,
+                     playerBar, &PlayerBar::setShuffleOn);
+    playerBar->setShuffleOn(pb.shuffle());   // 初始态（QSettings 恢复）
     QObject::connect(playerBar, &PlayerBar::volumeClicked, playerBar, [playerBar]() {
         ToastPopup::show(playerBar,
             QCoreApplication::translate("main", "Volume panel: coming soon"));
     });
-    QObject::connect(playerBar, &PlayerBar::queueRequested, playerBar, [&pb, queuePopup]() {
-        QStringList names;
+    QObject::connect(playerBar, &PlayerBar::queueRequested, playerBar, [&pb, queuePopup]() {        QStringList names;
         QStringList covers;
         QStringList seeds;
         for (const auto& s : pb.queue()) {

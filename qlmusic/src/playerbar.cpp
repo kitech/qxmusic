@@ -420,7 +420,8 @@ void drawTriangle(QPainter& p, const QRect& r, bool left, const QColor& c)
 
 PlayerBar::PlayerBar(QWidget* parent)
     : QWidget(parent), m_hasTrack(false), m_playing(false),
-      m_progressMs(0), m_durationMs(0), m_repeatMode(0), m_autoSkip(true),
+      m_progressMs(0), m_durationMs(0), m_repeatMode(0), m_shuffle(false),
+      m_autoSkip(true),
       m_live(false),
       m_volume(100), m_lastVolume(100),
       m_tip(0),
@@ -548,6 +549,14 @@ void PlayerBar::setRepeatMode(int mode)
     update();
 }
 
+void PlayerBar::setShuffle(bool on)
+{
+    if (m_shuffle == on) return;
+    m_shuffle = on;
+    m_tipShuffle = on ? _("player.tip_shuffle_on") : _("player.tip_shuffle_off");
+    update();
+}
+
 void PlayerBar::setAutoSkip(bool on)
 {
     if (m_autoSkip == on) return;
@@ -670,17 +679,22 @@ QRect PlayerBar::lyricsRect() const
 
 QRect PlayerBar::volumeRect() const
 {
-    /* 喇叭：repeat 右邻 8px（用户拍板：音量左移靠近循环设定按钮）；
-     * 中央群整体左移 30 回正视觉重心（群含喇叭/pie 后原重心偏右） */
+    /* 喇叭：乱序钮右邻 8px（乱序插在 repeat 与喇叭之间；中央群整体 +28 保持重心） */
     int cx = width() / 2;
-    return QRect(cx + 43, 19, 20, 20);
+    return QRect(cx + 71, 19, 20, 20);
+}
+
+QRect PlayerBar::shuffleRect() const
+{
+    int cx = width() / 2;
+    return QRect(cx + 43, 19, 20, 20);      /* repeat 右邻（喇叭左移前原位置） */
 }
 
 QRect PlayerBar::downloadRect() const
 {
-    /* 下载 pie：喇叭右邻 8px（跟随喇叭左移，顶行图标连排） */
+    /* 下载 pie：喇叭右邻 8px（顶行图标连排不变） */
     int cx = width() / 2;
-    return QRect(cx + 71, 19, 20, 20);
+    return QRect(cx + 99, 19, 20, 20);
 }
 
 QRect PlayerBar::playRect() const
@@ -716,6 +730,7 @@ QRect PlayerBar::autoSkipRect() const
 QRect PlayerBar::tipRectFor(const QPoint& p) const
 {
     if (repeatRect().contains(p)) return repeatRect();
+    if (shuffleRect().contains(p)) return shuffleRect();
     if (autoSkipRect().contains(p)) return autoSkipRect();
     if (volumeRect().contains(p)) return volumeRect();
     if (m_dlSongId > 0 && downloadRect().contains(p)) return downloadRect();
@@ -725,6 +740,7 @@ QRect PlayerBar::tipRectFor(const QPoint& p) const
 QString PlayerBar::tipForPos(const QPoint& p) const
 {
     if (repeatRect().contains(p)) return m_tipRepeat;
+    if (shuffleRect().contains(p)) return m_tipShuffle;
     if (autoSkipRect().contains(p)) return m_tipAutoSkip;
     if (volumeRect().contains(p)) {
         if (m_volume == 0) return _("player.tip_muted");
@@ -811,7 +827,8 @@ void PlayerBar::paintEvent(QPaintEvent*)
     }
 
     QColor ctrl = (m_hover == HitPlay || m_hover == HitPrev || m_hover == HitNext
-                   || m_hover == HitRepeat || m_hover == HitAutoSkip
+                   || m_hover == HitRepeat || m_hover == HitShuffle
+                   || m_hover == HitAutoSkip
                    || m_hover == HitVolume || m_hover == HitDownload)
                       ? pal.accent : pal.textPrimary;
 
@@ -845,6 +862,17 @@ void PlayerBar::paintEvent(QPaintEvent*)
     p.drawEllipse(qqAdjusted(as, 1, 1, -1, -1));
     p.drawLine(as.left() + 5, as.top() + 10, as.left() + 8, as.top() + 14);
     p.drawLine(as.left() + 8, as.top() + 14, as.left() + 15, as.top() + 5);
+    p.restore();
+
+    /* 随机乱序：两条交叉斜线（开=accent、关=textMuted） */
+    QRect sr = shuffleRect();
+    QColor srCol = (m_hover == HitShuffle) ? pal.accent
+                   : (m_shuffle ? pal.accent : pal.textMuted);
+    p.save();
+    p.setPen(QPen(srCol, 2));
+    p.setBrush(Qt::NoBrush);
+    p.drawLine(sr.left() + 4, sr.top() + 5, sr.right() - 4, sr.bottom() - 5);
+    p.drawLine(sr.left() + 4, sr.bottom() - 5, sr.right() - 4, sr.top() + 5);
     p.restore();
 
     /* 音量喇叭（Material speaker 简笔）：锥形多边形 + 声波弧；0=斜杠音量关闭 */
@@ -995,6 +1023,8 @@ void PlayerBar::mousePressEvent(QMouseEvent* e)
         emit nextRequested();
     } else if (repeatRect().contains(e->pos())) {
         emit repeatClicked();
+    } else if (shuffleRect().contains(e->pos())) {
+        emit shuffleClicked();
     } else if (autoSkipRect().contains(e->pos())) {
         emit autoSkipClicked();
     } else if (volumeRect().contains(e->pos())) {
@@ -1016,6 +1046,7 @@ void PlayerBar::mouseMoveEvent(QMouseEvent* e)
     else if (prevRect().contains(e->pos())) h = HitPrev;
     else if (nextRect().contains(e->pos())) h = HitNext;
     else if (repeatRect().contains(e->pos())) h = HitRepeat;
+    else if (shuffleRect().contains(e->pos())) h = HitShuffle;
     else if (autoSkipRect().contains(e->pos())) h = HitAutoSkip;
     else if (volumeRect().contains(e->pos())) h = HitVolume;
     else if (m_dlSongId > 0 && downloadRect().contains(e->pos())) h = HitDownload;
