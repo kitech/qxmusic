@@ -21,7 +21,7 @@ SOURCES = src/main.cpp src/mainwindow.cpp src/appearance.cpp src/config.cpp \
           src/storage.cpp src/channel_db.cpp src/message_db.cpp \
           src/pending_db.cpp src/cache_db.cpp src/cache_fs.cpp \
           src/sticker_db.cpp \
-          src/sidenav.cpp src/contentview.cpp src/queuepanel.cpp src/playerbar.cpp \
+          src/sidenav.cpp src/contentview.cpp src/commentpopup.cpp src/queuepanel.cpp src/playerbar.cpp \
           src/ncm_service.cpp src/userinfopanel.cpp src/iconloader.cpp \
           src/vinylwidget.cpp \
           ../qlappcom/eventpoller.cpp
@@ -31,7 +31,7 @@ HEADERS = src/mainwindow.h src/appearance.h src/config.h src/globaluiutil.h \
           src/channel_db.h src/message_db.h src/pending_db.h \
           src/cache_db.h src/cache_fs.h src/sticker_db.h \
           src/musicmodel.h src/musicstyle.h \
-          src/sidenav.h src/contentview.h src/queuepanel.h src/playerbar.h \
+          src/sidenav.h src/contentview.h src/commentpopup.h src/queuepanel.h src/playerbar.h \
           src/ncm_service.h src/userinfopanel.h src/iconloader.h \
           src/vinylwidget.h \
           ../qlappcom/eventpoller.h

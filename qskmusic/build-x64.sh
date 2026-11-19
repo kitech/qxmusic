@@ -10,7 +10,7 @@ fi
 export LD_LIBRARY_PATH=$QTDIR/lib
 
 # ── i18n：lrelease .ts → .qm（.qrc 引用的 qm 必须先于 configure 存在） ──
-( cd i18n && for f in qskmusic_en qskmusic_zh_CN; do
+( cd i18n && for f in qskmusic_en qskmusic_zh_CN qskmusic_zh_TW; do
     "$QTDIR/bin/lrelease" "$f.ts" -qm "$f.qm"
   done )
 

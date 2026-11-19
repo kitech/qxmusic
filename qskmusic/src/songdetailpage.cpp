@@ -63,6 +63,22 @@ void SongDetailPage::onCreate(const QVariantMap& args, const QVariantMap&)
     m_meta->setAlignment(Qt::AlignHCenter);
     m_meta->setFontRole(QskFontRole(QskFontRole::Caption, QskFontRole::Normal));
 
+    /* ── 统计行：播放数无单曲公开口径统一 --；评论数异步回填 ── */
+    auto* statsRow = new QskLinearBox(Qt::Horizontal, layout);
+    statsRow->setDefaultAlignment(Qt::AlignHCenter);
+    statsRow->setSpacing(12);
+    m_stats = new QskTextLabel(statsRow);
+    m_stats->setFontRole(QskFontRole(QskFontRole::Caption, QskFontRole::Normal));
+    m_commentBtn = new QskPushButton(tr("Comments"), statsRow);
+    connect(m_commentBtn, &QskAbstractButton::clicked, this, [this]() {
+        if (m_songId <= 0 || !pageManager()) return;
+        pageManager()->open(QStringLiteral("comments"), {
+            { QStringLiteral("songId"), m_songId },
+            { QStringLiteral("title"), m_title ? m_title->text() : QString() }
+        });
+    });
+    updateStats();
+
     /* ── 歌词 ── */
     m_lyric = new QskTextLabel(layout);
     m_lyric->setFontRole(QskFontRole(QskFontRole::Caption, QskFontRole::Normal));
@@ -79,6 +95,31 @@ void SongDetailPage::onCreate(const QVariantMap& args, const QVariantMap&)
             if (s.id == m_songId) { applySong(s); break; }
         }
     }
+
+    /* 评论：异步拉取，总数回填统计行（站点分流由 NcmApi 内部处理） */
+    connect(&NcmApi::instance(), &NcmApi::commentsDone, this,
+        [this](qint64 id, const QList<Comment>&, int total, const QString&) {
+            if (m_destroyed || id != m_songId) return;
+            m_commentCount = total;
+            updateStats();
+        });
+    if (m_songId > 0)
+        NcmApi::instance().commentsAsync(m_songId, 20, 0);
+}
+
+void SongDetailPage::onDestroy()
+{
+    m_destroyed = true;   /* 网络回调晚到不再触碰已销毁控件 */
+    Page::onDestroy();
+}
+
+void SongDetailPage::updateStats()
+{
+    if (!m_stats) return;
+    const QString cmt = m_commentCount < 0
+        ? QStringLiteral("…") : QString::number(m_commentCount);
+    /* 文本越界防护（AGENTS.md 4.4） */
+    m_stats->setText(QStringLiteral("▷ --    💬 %1").arg(cmt));
 }
 
 /* LRC → 纯文本：剥掉 [mm:ss.xx] / [ti:..] 标签与空行（详情页只做可读展示） */

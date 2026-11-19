@@ -22,7 +22,13 @@
     "back": "返回",
     "load_more": "加载更多",
     "loading": "加载中…",
-    "categories": "分类"
+    "categories": "分类",
+    "comments": "评论"
+  },
+  "comment": {
+    "title": "评论",
+    "loading": "评论加载中…",
+    "empty": "还没有评论"
   },
   "fav": {
     "toggle": "收藏 / 取消收藏",

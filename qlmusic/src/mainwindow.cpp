@@ -19,6 +19,7 @@
 #include "sidenav.h"
 #include "searchline.h"
 #include "contentview.h"
+#include "commentpopup.h"
 #include "queuepanel.h"
 #include "playerbar.h"
 #include "audio/AudioEngineAdapter.h"
@@ -275,6 +276,7 @@ MainWindow::MainWindow(QWidget* parent)
     , m_ncmOffset(0)
     , m_ncmHasMore(false)
     , m_currentSite(qFromUtf8("ncm"))
+    , m_commentPopup(0)
     , m_ytmProxy(ytmProxyFromEnv())
     , m_ytmStreaming(false)
     , m_ncmSrcPlaylist(0)
@@ -493,6 +495,8 @@ void MainWindow::buildCentralWidget()
                      this, SLOT(onArtistDetailRequested(qint64, const QString&)));
     QObject::connect(contentView, SIGNAL(artistTrackActivated(int)),
                      this, SLOT(onArtistTrackActivated(int)));
+    QObject::connect(contentView, SIGNAL(commentViewRequested()),
+                     this, SLOT(onCommentViewRequested()));
 
 #ifdef NCM_ENABLE
     m_ncm = new NcmService(this);
@@ -529,6 +533,8 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onNcmLikeList(int, const QString&)));
         QObject::connect(m_ncm, SIGNAL(songDetailLoaded(int, const QString&, int)),
                          this, SLOT(onNcmSongDetail(int, const QString&, int)));
+        QObject::connect(m_ncm, SIGNAL(commentsLoaded(qint64, int, const QString&)),
+                         this, SLOT(onNcmComments(qint64, int, const QString&)));
         QObject::connect(m_ncm, SIGNAL(likeDone(qint64, bool, int)),
                          this, SLOT(onNcmLikeDone(qint64, bool, int)));
         QObject::connect(m_ncm, SIGNAL(djHotLoaded(int, const QString&)),
@@ -2141,6 +2147,15 @@ void MainWindow::onSongInfoClicked()
         return;
     const Track& t = pl->tracks[m_curTrackIndex];
     contentView->showSongDetail(t, t.artistNcmId);
+
+    /* 评论：先清旧缓存，再异步拉当前曲（B站 aid 也走 ncmId） */
+    m_commentsTitle = _("comment.title");
+    m_commentsText = _("comment.loading");
+#ifdef NCM_ENABLE
+    if (t.ncmId > 0 && m_currentSite != qFromUtf8("ytm")
+            && m_ncm && m_ncmAvailable)
+        m_ncm->loadComments(t.ncmId);
+#endif
 }
 
 /* 播放条：歌手头像/歌手名 → 歌手详情 */
@@ -3183,6 +3198,58 @@ void MainWindow::onNcmSongDetail(int rc, const QString& json, int /*sel*/)
     refreshFavPlaylist();
 }
 
+/* 评论回调：总数回填详情页统计行；列表解析为纯文本缓存供弹层显示。
+ * 两站 JSON 同形（total/comments[]），UI 无站点分支。 */
+void MainWindow::onNcmComments(qint64 id, int rc, const QString& json)
+{
+    if (rc != NCM_OK) return;
+    cJSON* root = cJSON_Parse(cjsonUtf8(json));
+    if (!root) return;
+    const qint64 total = cJSONInt(root, "total", 0);
+    contentView->setDetailCommentCount(id, (int)total);
+    m_commentsTitle = _("comment.title") + QString::fromUtf8(" (")
+                      + QString::number((unsigned long long)total)
+                      + QString::fromUtf8(")");
+
+    QString text;
+    cJSON* arr = cJSON_GetObjectItem(root, "comments");
+    if (arr && arr->type == cJSON_Array) {
+        const int n = cJSON_GetArraySize(arr);
+        static const QDate epoch(1970, 1, 1);
+        for (int i = 0; i < n; ++i) {
+            cJSON* it = cJSON_GetArrayItem(arr, i);
+            if (!it) continue;
+            const qint64 ms = cJSONInt(it, "time_ms", 0);
+            const qint64 like = cJSONInt(it, "liked_count", 0);
+            const qint64 reply = cJSONInt(it, "reply_count", 0);
+            const QString date = epoch.addDays((int)(ms / 86400000))
+                                      .toString(QString::fromUtf8("yyyy-MM-dd"));
+            text += cJSONStr(it, "nickname", "") + QString::fromUtf8("  ·  ") + date
+                    + QString::fromUtf8("  ·  ▷")
+                    + QString::number((unsigned long long)like)
+                    + QString::fromUtf8("  ·  💬")
+                    + QString::number((unsigned long long)reply)
+                    + QString::fromUtf8("\n")
+                    + cJSONStr(it, "content", "") + QString::fromUtf8("\n\n");
+        }
+    }
+    m_commentsText = text.isEmpty() ? _("comment.empty") : text;
+    cJSON_Delete(root);
+}
+
+/* 详情页评论区点击：首建弹层；已建则刷新内容并置顶（点外自动关由 popup 管） */
+void MainWindow::onCommentViewRequested()
+{
+    if (m_commentsText.isEmpty()) return;
+    if (!m_commentPopup) m_commentPopup = new CommentPopup(this);
+    CommentPopup* pop = static_cast<CommentPopup*>(m_commentPopup);
+    pop->setComments(m_commentsTitle, m_commentsText);
+    const QPoint center = qPrimaryAvailableGeometry().center();
+    pop->move(center.x() - pop->width() / 2, center.y() - pop->height() / 2);
+    pop->show();
+    pop->raise();
+}
+
 void MainWindow::onNcmLikeDone(qint64 /*songId*/, bool /*on*/, int rc)
 {
     /* 双写失败只记日志：本地已生效，账号侧下次启动同步会重试 */
@@ -3206,6 +3273,8 @@ void MainWindow::onNcmCategories(int, const QString&, int) {}
 void MainWindow::onNcmTopPlaylists(int, const QString&, int) {}
 void MainWindow::onNcmPlaylistTracks(int, const QString&, int) {}
 void MainWindow::onNcmSource(int, const QString&, qint64) {}
+void MainWindow::onNcmComments(qint64, int, const QString&) {}
+void MainWindow::onCommentViewRequested() {}
 void MainWindow::onNcmAuthRequired(const QString&) {}
 void MainWindow::onNcmDjHot(int, const QString&) {}
 void MainWindow::onNcmDjPrograms(int, const QString&, qint64) {}

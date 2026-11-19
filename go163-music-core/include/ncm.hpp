@@ -346,6 +346,12 @@ public:
     return fetch([&](char **o) { return ncm_lyric(h_, song_id, o); }, out_json);
   }
 
+  /* out_json: {"total":N,"comments":[{id,content,liked_count,time_ms,nickname,avatar,reply_count}]} */
+  [[nodiscard]] Status comment(int64_t song_id, int32_t limit, int32_t offset,
+                               std::string &out_json) {
+    return fetch([&](char **o) { return ncm_comment(h_, song_id, limit, offset, o); }, out_json);
+  }
+
   /* ---- 事件 ---- */
 
   /* cb 必须是静态函数或无捕获 lambda（可转换为 ncm_event_fn）。
@@ -399,6 +405,10 @@ public:
    *            "headers":{"Referer":..,"User-Agent":..}} */
   [[nodiscard]] Status bili_stream(int64_t aid, std::string &out_json) {
     return fetch([&](char **o) { return ncm_bili_stream(h_, aid, o); }, out_json);
+  }
+  /* out_json: {"total":N,"comments":[...]}（aid 为视频 aid） */
+  [[nodiscard]] Status bili_comment(int64_t aid, int32_t limit, std::string &out_json) {
+    return fetch([&](char **o) { return ncm_bili_comment(h_, aid, limit, o); }, out_json);
   }
   /* 可选：SESSDATA（大会员才出 Hi-Res；空串清除） */
   static void set_bili_cookie(std::string_view sessdata) {

@@ -844,6 +844,38 @@ func ncm_lyric(h *C.ncm_client, songID C.int64_t, out **C.char) C.int32_t {
 	})
 }
 
+//export ncm_comment
+func ncm_comment(h *C.ncm_client, songID C.int64_t, limit C.int32_t, offset C.int32_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := catalog.Comments(int64(songID), int(limit), int(offset))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
+//export ncm_bili_comment
+func ncm_bili_comment(h *C.ncm_client, aid C.int64_t, limit C.int32_t, out **C.char) C.int32_t {
+	apiMu.Lock()
+	defer apiMu.Unlock()
+	return guard(func() C.int32_t {
+		if lookup(h) == nil {
+			return badHandle(out)
+		}
+		res, err := bili.Comments(int64(aid), int(limit))
+		if err != nil {
+			return fail(out, err)
+		}
+		return writeJSON(out, res)
+	})
+}
+
 /* ---------------- Bilibili Music（视频音轨；详见 internal/bili/bili.go）
  * 只取直链：下载由 UI 侧自行完成（音轨 CDN 必须带 Referer，见 Stream 出参）。 ---------------- */
 

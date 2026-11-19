@@ -649,6 +649,91 @@ func Lyric(songID int64) (LyricResult, error) {
 	return res, nil
 }
 
+/* ---------------- 评论（播放数无公开单曲口径，UI 统一 --；评论数走本接口 total） ---------------- */
+
+// Comment 单条评论。两站（网易云 / B站）同形，UI 零分支解析。
+type Comment struct {
+	ID         int64  `json:"id"`
+	Content    string `json:"content"`
+	LikedCount int64  `json:"liked_count"`
+	TimeMs     int64  `json:"time_ms"`
+	Nickname   string `json:"nickname"`
+	Avatar     string `json:"avatar"`
+	ReplyCount int64  `json:"reply_count"` // 含楼中楼的回复总数（replyCount）
+}
+
+// CommentsResult 评论列表：total=评论总数，comments=当前页。
+type CommentsResult struct {
+	Total    int64     `json:"total"`
+	Comments []Comment `json:"comments"`
+}
+
+type rawComment struct {
+	CommentID  int64   `json:"commentId"`
+	Content    string  `json:"content"`
+	LikedCount float64 `json:"likedCount"`
+	Time       float64 `json:"time"`
+	ReplyCount float64 `json:"replyCount"`
+	User       struct {
+		Nickname  string `json:"nickname"`
+		AvatarURL string `json:"avatarUrl"`
+	} `json:"user"`
+}
+
+func convComment(r rawComment) Comment {
+	return Comment{
+		ID:         r.CommentID,
+		Content:    r.Content,
+		LikedCount: int64(r.LikedCount),
+		TimeMs:     int64(r.Time),
+		Nickname:   r.User.Nickname,
+		Avatar:     r.User.AvatarURL,
+		ReplyCount: int64(r.ReplyCount),
+	}
+}
+
+// Comments 网易云单曲评论（/api/v1/resource/comments/R_SO_4_<id>，匿名可用）。
+// 热评优先置顶，随后是普通评论；limit 缺省 20，offset 缺省 0。
+func Comments(songID int64, limit, offset int) (CommentsResult, error) {
+	if songID <= 0 {
+		return CommentsResult{}, errs.ErrInvalidArg
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if offset < 0 {
+		offset = 0
+	}
+	svc := &nmsvc.CommentMusicService{
+		ID:     strconv.FormatInt(songID, 10),
+		Limit:  strconv.Itoa(limit),
+		Offset: strconv.Itoa(offset),
+	}
+	code, body := svc.CommentMusic()
+	if err := opStatus("comment_music", "/api/v1/resource/comments/R_SO_4_", code, len(body)); err != nil {
+		return CommentsResult{}, err
+	}
+	var env struct {
+		Total       int64        `json:"total"`
+		HotComments []rawComment `json:"hotComments"`
+		Comments    []rawComment `json:"comments"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return CommentsResult{}, fmt.Errorf("%w: comment 解析失败: %v", errs.ErrBadResponse, err)
+	}
+	res := CommentsResult{
+		Total:    env.Total,
+		Comments: make([]Comment, 0, len(env.HotComments)+len(env.Comments)),
+	}
+	for _, raw := range env.HotComments {
+		res.Comments = append(res.Comments, convComment(raw))
+	}
+	for _, raw := range env.Comments {
+		res.Comments = append(res.Comments, convComment(raw))
+	}
+	return res, nil
+}
+
 /* ---------------- 取流 ---------------- */
 
 // qualityLevel 把 ncm_quality 枚举映射为 v1 接口的 level 串。

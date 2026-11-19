@@ -22,7 +22,13 @@
     "back": "返回",
     "load_more": "載入更多",
     "loading": "載入中…",
-    "categories": "分類"
+    "categories": "分類",
+    "comments": "評論"
+  },
+  "comment": {
+    "title": "評論",
+    "loading": "評論載入中…",
+    "empty": "還沒有評論"
   },
   "fav": {
     "toggle": "收藏 / 取消收藏",

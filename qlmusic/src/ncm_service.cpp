@@ -645,6 +645,18 @@ void NcmService::loadLyric(qint64 songId)
     m_worker->push(t);
 }
 
+/* 评论：id 为网易云 song_id / B站 aid；站点分流在 execTask 内按 m_site 走 */
+void NcmService::loadComments(qint64 id, int limit)
+{
+    if (id <= 0) return;
+    NcmTask t;
+    t.kind = NcmTaskComments;
+    t.op = "comments";
+    t.id = id;
+    t.limit = limit > 0 ? limit : 20;
+    m_worker->push(t);
+}
+
 void NcmService::loadArtist(qint64 artistId)
 {
     if (artistId <= 0) return;
@@ -808,6 +820,17 @@ void NcmService::execTask(const NcmTask& t)
     case NcmTaskSongDetail: {
         char* out = 0;
         rc = ncm_song_detail(m_client, t.ids.c_str(), &out);
+        if (rc == NCM_OK && out) json = out;
+        if (out) ncm_free_string(out);
+        break;
+    }
+    case NcmTaskComments: {
+        char* out = 0;
+        /* 同形 JSON（total/comments[]，UI 零分支解析） */
+        if (m_site == qFromUtf8("bili"))
+            rc = ncm_bili_comment(m_client, t.id, t.limit, &out);
+        else
+            rc = ncm_comment(m_client, t.id, t.limit, t.offset, &out);
         if (rc == NCM_OK && out) json = out;
         if (out) ncm_free_string(out);
         break;
@@ -1001,6 +1024,10 @@ void NcmService::handleResult(NcmResultEvent* e)
     }
     if (op == qFromUtf8("song_detail")) {
         emit songDetailLoaded(e->rc, json, e->sel);
+        return;
+    }
+    if (op == qFromUtf8("comments")) {
+        emit commentsLoaded(e->id, e->rc, json);
         return;
     }
 }

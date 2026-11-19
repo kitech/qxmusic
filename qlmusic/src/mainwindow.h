@@ -114,6 +114,8 @@ private slots:
     void onFavToggled(int playlistId, int trackIndex);
     void onNcmLikeList(int rc, const QString& json);
     void onNcmSongDetail(int rc, const QString& json, int sel);
+    void onNcmComments(qint64 id, int rc, const QString& json);
+    void onCommentViewRequested();   /* 详情页评论区点击 → 开评论弹层 */
     void onNcmLikeDone(qint64 songId, bool on, int rc);
     /* 站点电台 */
     void onNcmDjHot(int rc, const QString& json);
@@ -235,7 +237,11 @@ public:
     qint64 m_ncmPendingPlaylistId = 0; /* 正在加载的远端歌单 id（曲目回调回填 p.ncmId） */
     bool m_queueRestored = false;      /* 本次启动已恢复队列快照（启动热门请求让位） */
     std::vector<RemotePlaylistCard> m_siteRadioCards;  /* 站点电台列表缓存（节目页返回用） */
-    QString m_currentSite;   /* 音乐站点："ncm"(默认) / "ytm"（YouTube Music） */
+    QString m_currentSite;   /* 音乐站点："ncm"(默认) / "bili" / "ytm" */
+    /* 歌曲详情：评论缓存 + 弹层（内容由 onNcmComments 解析为纯文本） */
+    QString m_commentsTitle;
+    QString m_commentsText;
+    void* m_commentPopup;    /* CommentPopup*（cpp 内定义，WType_Popup） */
     QString m_ytmProxy;      /* YTM 代理（默认 http://127.0.0.1:10809；YTM_PROXY 覆盖） */
     bool m_ytmStreaming;     /* 当前播放的是 YTM 直链（http_proxy 已置，收尾清除） */
     QStringList m_ncmAllCats;   /* 暂未使用：备用扁平分类 */

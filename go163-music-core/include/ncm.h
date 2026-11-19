@@ -176,6 +176,9 @@ NCM_API int32_t NCM_CALL ncm_bili_playlist_tracks(ncm_client *client, int64_t id
 NCM_API int32_t NCM_CALL ncm_bili_search(ncm_client *client, NCM_CPARAM char *keywords,
                                          int32_t page, char **out_json);
 NCM_API int32_t NCM_CALL ncm_bili_stream(ncm_client *client, int64_t aid, char **out_json);
+/* B站评论：aid 为视频 aid，出参结构同 ncm_comment */
+NCM_API int32_t NCM_CALL ncm_bili_comment(ncm_client *client, int64_t aid,
+                                          int32_t limit, char **out_json);
 NCM_API void NCM_CALL ncm_bili_set_cookie(NCM_CPARAM char *sessdata);
 
 /* YouTube Music（外部 yt-dlp 提取；详见 internal/ytm/ytm.go）。
@@ -268,6 +271,12 @@ NCM_API int32_t NCM_CALL ncm_clear_cache(ncm_client *client);
 /* ---- 歌词 ---- */
 
 NCM_API int32_t NCM_CALL ncm_lyric(ncm_client *client, int64_t song_id, char **out_json);
+
+/* ---- 评论（播放数无公开单曲口径，UI 统一 --；评论数取本接口 total） ---- */
+
+/* 认证: 否。出参: {"total":N,"comments":[{id,content,liked_count,time_ms,nickname,avatar,reply_count}]} */
+NCM_API int32_t NCM_CALL ncm_comment(ncm_client *client, int64_t song_id,
+                                     int32_t limit, int32_t offset, char **out_json);
 
 #ifdef __cplusplus
 } /* extern "C" */

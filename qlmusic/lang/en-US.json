@@ -22,7 +22,13 @@
     "back": "Back",
     "load_more": "Load more",
     "loading": "Loading…",
-    "categories": "Categories"
+    "categories": "Categories",
+    "comments": "Comments"
+  },
+  "comment": {
+    "title": "Comments",
+    "loading": "Loading comments…",
+    "empty": "No comments yet"
   },
   "fav": {
     "toggle": "Favorite / Unfavorite",

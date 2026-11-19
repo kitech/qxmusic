@@ -65,6 +65,8 @@ public:
                     bool loading);
     void appendArtistSongs(const std::vector<Track>& more, bool hasMore);
     void setArtistAvatar(const QString& avatarUrl);   /* 异步头像回填 */
+    /* 歌曲详情：评论总数异步回填（-1=未加载）；点击统计行评论区打开评论窗口 */
+    void setDetailCommentCount(qint64 songId, int n);
     const std::vector<Track>& artistSongs() const { return m_artistSongs; }
     qint64 currentArtistId() const { return m_artistId; }
 
@@ -95,6 +97,8 @@ signals:
     void artistTrackActivated(int index);
     /* 标题行 ⟳：MainWindow 按当前模式重载数据 */
     void refreshRequested();
+    /* 歌曲详情：点了统计行的评论区 → 打开评论窗口 */
+    void commentViewRequested();
 
 protected:
     void paintEvent(QPaintEvent* e);
@@ -179,7 +183,10 @@ private:
     bool m_artistLoading;
     ViewMode m_prevMode;         /* 详情页返回目标视图 */
     QRect m_artistNameRect;      /* 歌曲详情里的歌手名热区 */
+    QRect m_commentRect;         /* 歌曲详情里的评论区热区（点开评论窗口） */
     QRect m_detailBackRect;      /* 详情页返回按钮 */
+    qint64 m_detailSongId;       /* 歌曲详情曲目 id（网易云 song / B站 aid），评论拉取用 */
+    int m_detailCommentCount;    /* 评论总数：-1=未加载，>=0=已回填 */
     int topOffset() const;       /* 列表行起始 y（歌手页需给头像/名字让位） */
     void paintSongDetail(QPainter& p);
     void paintArtist(QPainter& p);

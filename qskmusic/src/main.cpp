@@ -29,6 +29,7 @@
 #include "settingspage.h"
 #include "aboutpage.h"
 #include "songdetailpage.h"
+#include "commentpage.h"
 #include "artistpage.h"
 #include "playerbar.h"
 #include "progressline.h"
@@ -624,6 +625,11 @@ int main(int argc, char* argv[])
 
     pageManager->registerPage("songdetail", []() -> Page* {
         return new SongDetailPage();
+    }, {CachePolicy::Transient, LaunchMode::Standard});
+
+    /* comments: launchArgs {songId: song/aid, title: 歌名}（评论页契约见 commentpage.h） */
+    pageManager->registerPage("comments", []() -> Page* {
+        return new CommentPage();
     }, {CachePolicy::Transient, LaunchMode::Standard});
 
     pageManager->registerPage("artist", []() -> Page* {

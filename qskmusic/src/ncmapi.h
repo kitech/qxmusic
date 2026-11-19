@@ -13,6 +13,18 @@
 // 播放音质（NCM_QUALITY_EXHIGH）
 constexpr int NCM_Q_EXHIGH = 320000;
 
+/* 评论（网易云 / B站同形，UI 零分支）：replyCount=含楼中楼的回复总数 */
+struct Comment
+{
+    qint64 id = 0;
+    QString content;
+    qint64 likedCount = 0;
+    qint64 timeMs = 0;      // 绝对时间（毫秒）
+    QString nickname;
+    QString avatar;
+    qint64 replyCount = 0;
+};
+
 struct Song
 {
     qint64 id = 0;
@@ -61,6 +73,7 @@ public:
     void likeListAsync();                // 账号"喜欢的音乐" id 列表（需登录）
     void likeAsync(qint64 songId, bool on);   // 收藏/取消收藏（需登录）
     void songDetailAsync(const QString& ids); // 批量歌曲详情（逗号分隔 id）
+    void commentsAsync(qint64 id, int limit = 20, int offset = 0); // 评论（站点分流，id=song/aid）
 
     /* ---- 站点切换："ncm"(默认) / "bili"：解析/搜索按站点分流到对应 libncm 接口 ---- */
     void setSite(const QString& site) { m_site = site; }
@@ -86,6 +99,8 @@ Q_SIGNALS:
     void likeListDone(const QList<qint64>& ids, const QString& err);
     void likeDone(qint64 songId, bool on, const QString& err);
     void songDetailDone(const QList<Song>& songs, const QString& err);
+    void commentsDone(qint64 id, const QList<Comment>& comments, int total,
+                      const QString& err);
     void playFailReceived(qint64 songId, const QString& reason);
 
     void ytmSearchDone(const QList<YtmSong>& songs, const QString& err);

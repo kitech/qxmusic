@@ -774,6 +774,10 @@
         <source>Song detail</source>
         <translation>Song detail</translation>
     </message>
+    <message>
+        <source>Comments</source>
+        <translation>Comments</translation>
+    </message>
 </context>
 <context>
     <name>ArtistPage</name>
@@ -788,6 +792,25 @@
     <message>
         <source>No artist info</source>
         <translation>No artist info</translation>
+    </message>
+</context>
+<context>
+    <name>CommentPage</name>
+    <message>
+        <source>Comments</source>
+        <translation>Comments</translation>
+    </message>
+    <message>
+        <source>Loading…</source>
+        <translation>Loading…</translation>
+    </message>
+    <message>
+        <source>%1 comments</source>
+        <translation>%1 comments</translation>
+    </message>
+    <message>
+        <source>No comments</source>
+        <translation>No comments</translation>
     </message>
 </context>
 </TS>

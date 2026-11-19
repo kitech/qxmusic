@@ -822,6 +822,10 @@
         <source>Song detail</source>
         <translation>歌曲详情</translation>
     </message>
+    <message>
+        <source>Comments</source>
+        <translation>评论</translation>
+    </message>
 </context>
 <context>
     <name>ArtistPage</name>
@@ -836,6 +840,25 @@
     <message>
         <source>No artist info</source>
         <translation>无歌手信息</translation>
+    </message>
+</context>
+<context>
+    <name>CommentPage</name>
+    <message>
+        <source>Comments</source>
+        <translation>评论</translation>
+    </message>
+    <message>
+        <source>Loading…</source>
+        <translation>加载中…</translation>
+    </message>
+    <message>
+        <source>%1 comments</source>
+        <translation>%1 条评论</translation>
+    </message>
+    <message>
+        <source>No comments</source>
+        <translation>还没有评论</translation>
     </message>
 </context>
 </TS>

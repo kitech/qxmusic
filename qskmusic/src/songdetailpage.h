@@ -24,9 +24,11 @@ public:
 protected:
     void onCreate(const QVariantMap& launchArgs,
                   const QVariantMap& savedState) override;
+    void onDestroy() override;
 
 private:
     void applySong(const Song& s);
+    void updateStats();
 
     qint64 m_songId = 0;
     qint64 m_artistId = 0;
@@ -36,6 +38,10 @@ private:
     QskPushButton* m_artistBtn = nullptr;
     QskTextLabel* m_meta = nullptr;
     QskTextLabel* m_lyric = nullptr;
+    QskTextLabel* m_stats = nullptr;      /* ▷ -- + 真实评论数 */
+    QskPushButton* m_commentBtn = nullptr;/* 评论区 → comments 页 */
+    int m_commentCount = -1;              /* -1=未加载，>=0=已回填 */
+    bool m_destroyed = false;
 };
 
 #endif // SONGDETAILPAGE_H

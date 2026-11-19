@@ -60,6 +60,7 @@ ContentView::ContentView(QWidget* parent)
       m_spinnerTick(0), m_bufTimer(0),
       m_headerH(64), m_rowH(48), m_hasMore(false), m_loadingNow(false),
       m_detailArtistId(0), m_artistId(0), m_artistLoading(false),
+      m_detailSongId(0), m_detailCommentCount(-1),
       m_prevMode(TracksMode)
 {
     setMouseTracking(true);
@@ -788,6 +789,11 @@ void ContentView::mousePressEvent(QMouseEvent* e)
                 && m_artistNameRect.contains(e->pos())) {
                 emit songDetailArtistClicked(m_detailArtistId,
                                              m_detailTrack.artist);
+                return;
+            }
+            if (!m_commentRect.isEmpty() && m_commentRect.contains(e->pos())) {
+                emit commentViewRequested();
+                return;
             }
             return;
         }
@@ -929,6 +935,8 @@ void ContentView::showSongDetail(const Track& t, qint64 artistNcmId)
     m_mode = SongDetailMode;
     m_detailTrack = t;
     m_detailArtistId = artistNcmId;
+    m_detailSongId = t.ncmId;
+    m_detailCommentCount = -1;   /* 重进详情：评论数重新拉取 */
     m_scrollY = 0;
     rebuildRows();                /* 详情页无列表行 */
     updateScrollBar();
@@ -968,6 +976,14 @@ void ContentView::setArtistAvatar(const QString& avatarUrl)
 {
     m_artistAvatarUrl = avatarUrl;
     if (m_mode == ArtistMode) update();
+}
+
+/* 评论总数异步回填；只更新当前歌曲详情，避免切歌后旧响应覆盖 */
+void ContentView::setDetailCommentCount(qint64 songId, int n)
+{
+    if (m_mode != SongDetailMode || songId != m_detailSongId || n < 0) return;
+    m_detailCommentCount = n;
+    update();
 }
 
 /* 详情页返回：恢复进入前视图（不打断播放） */
@@ -1043,6 +1059,19 @@ void ContentView::paintSongDetail(QPainter& p)
     /* 专辑名过长会挤掉时长：按可用宽度截断（ElideRight，Qt3/4 通用） */
     p.drawText(QRect(40, y, width() - 80, 20), Qt::AlignHCenter,
                qElideChars(meta, qMax(12, (width() - 80) / 14), ElideRight));
+
+    /* 统计行：播放数无单曲公开口径统一 --；评论数为真实值（异步回填）。
+     * 整行作评论区热区：点击发 commentViewRequested 由 MainWindow 开窗。 */
+    y += 26;
+    m_commentRect = QRect(40, y, width() - 80, 22);
+    const QString cmt = (m_detailCommentCount < 0)
+                            ? QString::fromUtf8("…")
+                            : QString::number(m_detailCommentCount);
+    const QString stat = QString::fromUtf8("▷ --    💬 ")
+                         + _("content.comments") + QString::fromUtf8(" ") + cmt;
+    p.setFont(small);
+    p.setPen(pal.accent);
+    p.drawText(m_commentRect, Qt::AlignHCenter | Qt::AlignVCenter, stat);
 }
 
 void ContentView::paintArtist(QPainter& p)

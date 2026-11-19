@@ -112,6 +112,8 @@ qt_add_executable(qskmusic
     src/playlisttrackspage.cpp
     src/songdetailpage.h
     src/songdetailpage.cpp
+    src/commentpage.h
+    src/commentpage.cpp
     src/artistpage.h
     src/artistpage.cpp
     src/favorites.h

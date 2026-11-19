@@ -802,6 +802,10 @@
         <source>Song detail</source>
         <translation>歌曲詳情</translation>
     </message>
+    <message>
+        <source>Comments</source>
+        <translation>評論</translation>
+    </message>
 </context>
 <context>
     <name>ArtistPage</name>
@@ -816,6 +820,25 @@
     <message>
         <source>No artist info</source>
         <translation>無歌手資訊</translation>
+    </message>
+</context>
+<context>
+    <name>CommentPage</name>
+    <message>
+        <source>Comments</source>
+        <translation>評論</translation>
+    </message>
+    <message>
+        <source>Loading…</source>
+        <translation>載入中…</translation>
+    </message>
+    <message>
+        <source>%1 comments</source>
+        <translation>%1 則評論</translation>
+    </message>
+    <message>
+        <source>No comments</source>
+        <translation>還沒有評論</translation>
     </message>
 </context>
 </TS>

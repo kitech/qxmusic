@@ -762,3 +762,80 @@ func StreamByAid(aid int64) (StreamResult, error) {
 	}
 	return Stream(bv)
 }
+
+/* ---------------- 评论（reply/main 免签名；与 catalog.CommentsResult 同形，UI 零改动） ---------------- */
+
+// Comment 与 catalog.Comment 同形（reply_count = rcount，含楼中楼的回复总数）。
+type Comment struct {
+	ID         int64  `json:"id"`
+	Content    string `json:"content"`
+	LikedCount int64  `json:"liked_count"`
+	TimeMs     int64  `json:"time_ms"`
+	Nickname   string `json:"nickname"`
+	Avatar     string `json:"avatar"`
+	ReplyCount int64  `json:"reply_count"`
+}
+
+// CommentsResult 与 catalog.CommentsResult 同形。
+type CommentsResult struct {
+	Total    int64     `json:"total"`
+	Comments []Comment `json:"comments"`
+}
+
+// Comments B站视频评论（/x/v2/reply/main，免签名；oid=aid，type=1）。
+// 用 reply/main，不用 reply/wbi/main（后者需签名，直连 -403，2026-11 实测）。
+// next 语义为游标，UI 只取首页(next=0)；all_count 给评论总数。
+func Comments(aid int64, limit int) (CommentsResult, error) {
+	if aid <= 0 {
+		return CommentsResult{}, fmt.Errorf("bili: aid 无效")
+	}
+	if limit <= 0 || limit > 20 {
+		limit = 20
+	}
+	u := fmt.Sprintf("%s/x/v2/reply/main?oid=%d&type=1&mode=3&next=0&ps=%d",
+		apiBase, aid, limit)
+	body, err := get(u)
+	if err != nil {
+		return CommentsResult{}, err
+	}
+	var env struct {
+		Code int `json:"code"`
+		Data struct {
+			Cursor struct {
+				AllCount int64 `json:"all_count"`
+			} `json:"cursor"`
+			Replies []struct {
+				RPID    int64 `json:"rpid"`
+				Content struct {
+					Message string `json:"message"`
+				} `json:"content"`
+				Like   int64 `json:"like"`
+				CTime  int64 `json:"ctime"`
+				RCount int64 `json:"rcount"`
+				Member struct {
+					Uname  string `json:"uname"`
+					Avatar string `json:"avatar"`
+				} `json:"member"`
+			} `json:"replies"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(body, &env); err != nil {
+		return CommentsResult{}, fmt.Errorf("bili: reply 解析失败: %v", err)
+	}
+	if env.Code != 0 {
+		return CommentsResult{}, fmt.Errorf("bili: reply code=%d", env.Code)
+	}
+	res := CommentsResult{Total: env.Data.Cursor.AllCount, Comments: make([]Comment, 0, len(env.Data.Replies))}
+	for _, r := range env.Data.Replies {
+		res.Comments = append(res.Comments, Comment{
+			ID:         r.RPID,
+			Content:    r.Content.Message,
+			LikedCount: r.Like,
+			TimeMs:     r.CTime * 1000, // 秒 → 毫秒，与网易云统一
+			Nickname:   r.Member.Uname,
+			Avatar:     r.Member.Avatar,
+			ReplyCount: r.RCount,
+		})
+	}
+	return res, nil
+}

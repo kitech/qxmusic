@@ -272,6 +272,47 @@ void NcmApi::songDetailAsync(const QString& ids)
     }).detach();
 }
 
+/* 评论：按当前站点分流（ncm_comment / ncm_bili_comment），出参同形 */
+void NcmApi::commentsAsync(qint64 id, int limit, int offset)
+{
+    if (id <= 0)
+        return;
+    const QString site = m_site;
+    std::thread([this, id, limit, offset, site]() {
+        std::string json;
+        const auto st = (site == QStringLiteral("bili"))
+            ? m_client.bili_comment(id, limit, json)
+            : m_client.comment(id, limit, offset, json);
+        QList<Comment> comments;
+        int total = 0;
+        QString err;
+        if (st != ncm::Status::Ok) {
+            err = statusText(st);
+        } else {
+            const auto root = QJsonDocument::fromJson(
+                QByteArray::fromStdString(json)).object();
+            total = root.value(QStringLiteral("total")).toInt();
+            const auto arr = root.value(QStringLiteral("comments")).toArray();
+            for (const auto& v : arr) {
+                const auto o = v.toObject();
+                Comment c;
+                c.id = o.value(QStringLiteral("id")).toVariant().toLongLong();
+                c.content = o.value(QStringLiteral("content")).toString();
+                c.likedCount = o.value(QStringLiteral("liked_count")).toVariant().toLongLong();
+                c.timeMs = o.value(QStringLiteral("time_ms")).toVariant().toLongLong();
+                c.nickname = o.value(QStringLiteral("nickname")).toString();
+                c.avatar = o.value(QStringLiteral("avatar")).toString();
+                c.replyCount = o.value(QStringLiteral("reply_count")).toVariant().toLongLong();
+                if (!c.content.isEmpty() || !c.nickname.isEmpty()) comments << c;
+            }
+        }
+        qDebug() << "[qskmusic] ncm comments:" << id << site
+                 << "total=" << total << "n=" << comments.size()
+                 << (err.isEmpty() ? QStringLiteral("ok") : err);
+        Q_EMIT commentsDone(id, comments, total, err);
+    }).detach();
+}
+
 void NcmApi::lyricAsync(qint64 songId)
 {
     std::thread([this, songId]() {
