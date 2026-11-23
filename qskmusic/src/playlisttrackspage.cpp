@@ -134,6 +134,10 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
             [this](QEventPoint point, Qt::MouseButton) {
                 const int idx = songRowAt(point.position());
                 if (idx < 0 || idx >= m_songs.size()) return;
+                if (Playback::instance().isOffline() && m_songs.at(idx).offlineBlocked) {
+                    ToastPopup::show(this, tr("Unavailable offline (no downloaded copy)"));
+                    return;
+                }
                 Playback::instance().setQueue(m_songs, idx);
             });
         // 长按 → 下载菜单（手动下载通道；qlmusic 曲目右键下载同义）
@@ -240,6 +244,9 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
     // 正在播放 ▶ 标识：切歌只改文本，不重建列表
     connect(&Playback::instance(), &Playback::songChanged, this,
         [this]() { updatePlayingMarker(); });
+    // 离线状态变化 → 重算离线灰化
+    connect(&Playback::instance(), &Playback::offlineChanged, this,
+        [this]() { buildRows(); });
 }
 
 void PlaylistTracksPage::buildRows()
@@ -250,6 +257,10 @@ void PlaylistTracksPage::buildRows()
 
     for (int i = 0; i < m_songs.size(); ++i) {
         const auto& s = m_songs.at(i);
+        if (Playback::instance().isOffline())
+            m_songs[i].offlineBlocked = s.id > 0
+                && !DownloadService::instance().hasAny(s.id);
+        const bool dim = s.offlineBlocked || !s.playable;
         auto* row = new QskLinearBox(Qt::Horizontal, m_rows);
         row->setPreferredHeight(44);
 
@@ -279,11 +290,12 @@ void PlaylistTracksPage::buildRows()
                 : elided(QString("%1 - %2").arg(s.name, s.artists), 20), row);
         name->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
         name->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+        if (dim) name->setTextColor(QColor(0x8c, 0x8c, 0x8c));
 
         const int total = s.durationMs / 1000;
         QString durText = QString("%1:%2").arg(total / 60)
             .arg(total % 60, 2, 10, QLatin1Char('0'));
-        if (s.id > 0 && s.playable)
+        if (s.id > 0 && s.playable && !s.offlineBlocked)
             durText += QString::fromUtf8(" ✓");   // 非灰歌对号（本地歌 id=0 不标）
         auto* dur = new QskTextLabel(durText, row);
         dur->setPreferredWidth(56);
@@ -294,6 +306,11 @@ void PlaylistTracksPage::buildRows()
         playBtn->setPreferredSize(30, 30);
         connect(playBtn, &QskAbstractButton::clicked, this, [this, i]() {
             qDebug() << "[DIAG] rowPlay clicked row=" << i;
+            if (i >= 0 && i < m_songs.size()
+                && Playback::instance().isOffline() && m_songs.at(i).offlineBlocked) {
+                ToastPopup::show(this, tr("Unavailable offline (no downloaded copy)"));
+                return;
+            }
             Playback::instance().setQueue(m_songs, i);
         });
     }

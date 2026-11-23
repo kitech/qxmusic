@@ -103,6 +103,10 @@ void RadioPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
                     ToastPopup::show(this, tr("No audio for this program"));
                     return;
                 }
+                if (Playback::instance().isOffline()) {
+                    ToastPopup::show(this, tr("Unavailable offline (no downloaded copy)"));
+                    return;
+                }
                 Playback::instance().setQueue(m_songs, idx);
             });
         // 长按 → 下载（节目 mainSong 即普通歌曲，可下载）
@@ -239,6 +243,10 @@ void RadioPage::buildRows()
             if (i < 0 || i >= m_songs.size()) return;
             if (!m_songs.at(i).playable) {
                 ToastPopup::show(this, tr("No audio for this program"));
+                return;
+            }
+            if (Playback::instance().isOffline()) {
+                ToastPopup::show(this, tr("Unavailable offline (no downloaded copy)"));
                 return;
             }
             Playback::instance().setQueue(m_songs, i);

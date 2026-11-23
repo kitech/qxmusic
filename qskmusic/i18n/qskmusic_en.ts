@@ -315,6 +315,18 @@
 <context>
     <name>Playback</name>
     <message>
+        <source>Offline mode: cached tracks only</source>
+        <translation>Offline mode: cached tracks only</translation>
+    </message>
+    <message>
+        <source>Network restored</source>
+        <translation>Network restored</translation>
+    </message>
+    <message>
+        <source>Network lost: no downloaded tracks in queue</source>
+        <translation>Network lost: no downloaded tracks in queue</translation>
+    </message>
+    <message>
         <location filename="../src/playback.cpp" line="48"/>
         <location filename="../src/playback.cpp" line="139"/>
         <source>Unavailable track, no playable source</source>
@@ -434,6 +446,10 @@
 <context>
     <name>PlaylistTracksPage</name>
     <message>
+        <source>Unavailable offline (no downloaded copy)</source>
+        <translation>Unavailable offline (no downloaded copy)</translation>
+    </message>
+    <message>
         <location filename="../src/playlisttrackspage.cpp" line="103"/>
         <source>▶ Play All</source>
         <translation>▶ Play All</translation>
@@ -545,6 +561,10 @@
 <context>
     <name>RadioPage</name>
     <message>
+        <source>Unavailable offline (no downloaded copy)</source>
+        <translation>Unavailable offline (no downloaded copy)</translation>
+    </message>
+    <message>
         <location filename="../src/radiopage.cpp" line="74"/>
         <source>▶ Play All</source>
         <translation type="unfinished">▶ Play All</translation>
@@ -606,6 +626,10 @@
 </context>
 <context>
     <name>SearchPage</name>
+    <message>
+        <source>Unavailable offline (no downloaded copy)</source>
+        <translation>Unavailable offline (no downloaded copy)</translation>
+    </message>
     <message>
         <location filename="../src/searchpage.cpp" line="51"/>
         <location filename="../src/searchpage.cpp" line="66"/>

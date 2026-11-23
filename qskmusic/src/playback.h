@@ -29,6 +29,7 @@ public:
         ErrAudioFocus = 4,   /* 系统音频焦点被占用 */
         ErrSkipStop   = 5,   /* 连续失败达到止损阈值（99） */
         ErrNoNext     = 6,   /* 队列到头 / 无下一首 */
+        ErrOffline    = 7,   /* 离线且队列内无已下载曲目 */
     };
     Q_ENUM(ErrorCode)
 
@@ -46,6 +47,7 @@ public:
     void pause();
     void resume();
     bool shuffle() const { return m_shuffle; }
+    bool isOffline() const { return m_offline; }   // 离线（只播本地/已缓存）
     void setShuffle(bool on);            // 乱序开关（持久化 QSettings("shuffle")）
     void handleFocusChange(int change);      // 1 GAIN / -1 LOSS / -2 TRANSIENT / -3 DUCK
     void handleMediaCommand(int cmd);        // 1 play 2 pause 3 next 4 prev 5 toggle
@@ -81,11 +83,19 @@ Q_SIGNALS:
     // 歌词到达/失败（空文本=无歌词）→ 弹层实时刷新（修复"永远加载中"）
     void lyricReady(qint64 songId, const QString& text);
     void shuffleChanged(bool on);   // 乱序开关变化（PlayerBar 按钮同步）
+    void offlineChanged(bool offline);   // 离线状态变化（页面灰化依据）
 
 private:
     explicit Playback(QObject* parent = nullptr);
 
     int firstPlayableAtOrAfter(int from) const;   // 预跳过灰歌；无则 -1
+    /* 离线播放：只播本地/已缓存；无缓存则按可用性推进或停播 */
+    bool isOfflineUsable(int index) const;
+    int nextUsableIndex(int fromExclusive) const;
+    void onProbeTick();
+    void onPingDone(int status);
+    void enterOffline();
+    void enterOnline();
     /* 版权/解码/下载失败统一出口：计数 + 跳下一首（同曲去重） */
     void onStreamFailure(const QString& why, int code = ErrResolve);
     /* 起播统一入口（成功归零失败计数、歌词预取） */
@@ -117,6 +127,10 @@ private:
     bool m_pfNearEndDone = false;              // 本曲 near_end 已判定过
     bool m_pfEnabled = true;                   // QSettings prefetch（默认开）
     const char* m_pfSwitchSrc = "switch:other";// 本次切曲来源标注
+    /* 离线播放（网络探测驱动；连续 3 次 Network 进，1 次非 Network 出） */
+    bool m_offline = false;
+    int m_netFailRun = 0;
+    QTimer* m_probeTimer = nullptr;
 };
 
 #endif

@@ -36,6 +36,7 @@ struct Song
     qint64 albumId = 0; // 专辑 id（兜底图标 seed / 去重预留）
     int durationMs = 0;
     bool playable = true;
+    bool offlineBlocked = false;   // 派生：离线且无本地缓存（不改服务端 playable）
     qint64 publishMs = 0;   // NCM 专辑上架时间 al.publishTime（0=无）
 };
 
@@ -67,6 +68,7 @@ public:
     void resolveAsync(qint64 songId, int quality);
     void resolveForDownloadAsync(qint64 songId);   // 仅取 URL（不触发播放）
     void lyricAsync(qint64 songId);
+    void pingAsync();                    // 网络探测：lyric(1)
     void artistAsync(qint64 artistId);   // 艺人详情（头像 URL）
     void artistSongsAsync(qint64 artistId, int limit = 50, int offset = 0,
                           const QString& order = QStringLiteral("hot"));   // 歌手歌曲
@@ -102,6 +104,7 @@ Q_SIGNALS:
     void commentsDone(qint64 id, const QList<Comment>& comments, int total,
                       const QString& err);
     void playFailReceived(qint64 songId, const QString& reason);
+    void pingDone(int status);   // 网络探测结果（ncm::Status 数值）
 
     void ytmSearchDone(const QList<YtmSong>& songs, const QString& err);
     void ytmStreamDone(const QString& videoId, const QString& url, const QString& err);

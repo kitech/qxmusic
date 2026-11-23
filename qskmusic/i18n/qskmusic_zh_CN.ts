@@ -335,6 +335,18 @@
 <context>
     <name>Playback</name>
     <message>
+        <source>Offline mode: cached tracks only</source>
+        <translation>离线模式：仅播放已缓存歌曲</translation>
+    </message>
+    <message>
+        <source>Network restored</source>
+        <translation>网络已恢复</translation>
+    </message>
+    <message>
+        <source>Network lost: no downloaded tracks in queue</source>
+        <translation>网络已断开，队列内无已下载歌曲</translation>
+    </message>
+    <message>
         <location filename="../src/playback.cpp" line="48"/>
         <location filename="../src/playback.cpp" line="139"/>
         <source>Unavailable track, no playable source</source>
@@ -454,6 +466,10 @@
 <context>
     <name>PlaylistTracksPage</name>
     <message>
+        <source>Unavailable offline (no downloaded copy)</source>
+        <translation>离线不可用：无已下载副本</translation>
+    </message>
+    <message>
         <location filename="../src/playlisttrackspage.cpp" line="103"/>
         <source>▶ Play All</source>
         <translation>▶ 播放全部</translation>
@@ -569,6 +585,10 @@
 <context>
     <name>RadioPage</name>
     <message>
+        <source>Unavailable offline (no downloaded copy)</source>
+        <translation>离线不可用：无已下载副本</translation>
+    </message>
+    <message>
         <location filename="../src/radiopage.cpp" line="74"/>
         <source>▶ Play All</source>
         <translation>▶ 播放全部</translation>
@@ -630,6 +650,10 @@
 </context>
 <context>
     <name>SearchPage</name>
+    <message>
+        <source>Unavailable offline (no downloaded copy)</source>
+        <translation>离线不可用：无已下载副本</translation>
+    </message>
     <message>
         <location filename="../src/searchpage.cpp" line="51"/>
         <location filename="../src/searchpage.cpp" line="66"/>

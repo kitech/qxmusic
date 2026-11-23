@@ -64,6 +64,11 @@ Playback::Playback(QObject* parent)
     });
 
     auto& ncm = NcmApi::instance();
+    /* 离线播放：轻量 ping 探测（连续 3 次 Network 进离线） */
+    m_probeTimer = new QTimer(this);
+    connect(m_probeTimer, &QTimer::timeout, this, &Playback::onProbeTick);
+    connect(&ncm, &NcmApi::pingDone, this, &Playback::onPingDone);
+    m_probeTimer->start(5000);
     connect(&ncm, &NcmApi::resolveDone, this,
         [this](qint64 songId, const QString& url, const QString& err) {
             m_resolving = false;
@@ -71,6 +76,10 @@ Playback::Playback(QObject* parent)
             qDebug() << "[DIAG] resolveDone id=" << songId << "err=" << err;
             if (songId != currentSongId()) return;   // 期间已切曲，丢弃
             if (!err.isEmpty() || url.isEmpty()) {
+                /* 网络迹象：err 形如 "Network: …"（Blocked 不会命中） */
+                if (err.startsWith(QStringLiteral("Network"))) {
+                    if (++m_netFailRun >= 3) enterOffline();
+                }
                 /* 统一失败出口（版权曲 NoResource/GEO）：计数 + 跳下一首 */
                 onStreamFailure(err == QStringLiteral("NoResource")
                     ? tr("Unavailable track, no playable source")
@@ -285,6 +294,8 @@ void Playback::maybePrefetchNext(const char* src)
         decision = "DEDUP";
     else if (m_shuffle)
         decision = "SKIP_SHUFFLE_RANDOM";     /* 乱序目标每次随机，预取无确定对象 */
+    else if (m_offline)
+        decision = "SKIP_OFFLINE";            /* 离线：不联网预取 */
     else {
         cached = DownloadService::instance().isCached(nxt.id, QStringLiteral("mp3"))
               || DownloadService::instance().isCached(nxt.id, QStringLiteral("flac"))
@@ -383,6 +394,19 @@ void Playback::playIndex(int index)
         return;   // 越界 = 队尾，自然停止
     }
 
+    /* 离线：只播本地/已缓存；当前不可用则找下一可用，整队无则停播 */
+    if (m_offline && !isOfflineUsable(index)) {
+        index = nextUsableIndex(m_current);
+        if (index < 0) {
+            m_playing = false;
+            KeepAlive::abandonAudioFocus();
+            Q_EMIT playingChanged(false);
+            Q_EMIT playError(tr("Network lost: no downloaded tracks in queue"),
+                             ErrOffline);
+            return;
+        }
+    }
+
     // 灰歌：保留原 toast 提示；随后预跳到下一可播曲目（qlmusic 跳过语义）
     if (!m_queue.at(index).playable) {
         Q_EMIT playError(tr("Unavailable track, no playable source"), ErrResolve);
@@ -429,6 +453,16 @@ void Playback::playIndex(int index)
     Q_EMIT durationMsChanged(s.durationMs);
     LogModel::instance().append(LogModel::Info, "player",
         QString("play: %1 - %2").arg(s.name, s.artists));
+    /* 离线且缓存命中：直接播本地文件，不发 resolve 请求 */
+    if (m_offline && s.id > 0) {
+        const QString cached = DownloadService::instance().anyCachedPath(s.id);
+        if (!cached.isEmpty()) {
+            m_resolving = false;
+            Q_EMIT resolvingChanged(false);
+            startPlayback(QUrl::fromLocalFile(cached));
+            return;
+        }
+    }
     qDebug() << "[DIAG] resolveAsync id=" << s.id;
     NcmApi::instance().resolveAsync(s.id, NCM_Q_EXHIGH);
 }
@@ -438,6 +472,77 @@ int Playback::firstPlayableAtOrAfter(int from) const
     for (int i = from; i < m_queue.size(); ++i)
         if (m_queue.at(i).playable) return i;
     return -1;
+}
+
+/* ─────────── 离线播放（Spotify 离线模式语义：只播本地/已缓存） ─────────── */
+
+void Playback::onProbeTick()
+{
+    NcmApi::instance().pingAsync();
+}
+
+void Playback::onPingDone(int status)
+{
+    if (status == static_cast<int>(ncm::Status::Network)) {
+        if (++m_netFailRun >= 3) enterOffline();
+        else if (!m_offline && m_probeTimer) m_probeTimer->start(7000);
+    } else {
+        m_netFailRun = 0;
+        if (m_offline) enterOnline();
+        else if (m_probeTimer) m_probeTimer->start(30000);
+    }
+}
+
+void Playback::enterOffline()
+{
+    if (m_offline) return;
+    m_offline = true;
+    m_netFailRun = 3;
+    if (m_probeTimer) m_probeTimer->start(7000);
+    Q_EMIT offlineChanged(true);
+    LogModel::instance().append(LogModel::Info, "player",
+        tr("Offline mode: cached tracks only"));
+    qDebug() << "[PLAYBACK] offline: network unreachable, cache-only";
+}
+
+void Playback::enterOnline()
+{
+    if (!m_offline) return;
+    m_offline = false;
+    m_netFailRun = 0;
+    if (m_probeTimer) m_probeTimer->start(30000);
+    Q_EMIT offlineChanged(false);
+    LogModel::instance().append(LogModel::Info, "player",
+        tr("Network restored"));
+    qDebug() << "[PLAYBACK] online: network restored";
+}
+
+bool Playback::isOfflineUsable(int index) const
+{
+    if (!m_offline) return true;
+    if (index < 0 || index >= m_queue.size()) return false;
+    const Song& s = m_queue.at(index);
+    if (!s.playable) return false;
+    if (s.id <= 0) return true;
+    return DownloadService::instance().hasAny(s.id);
+}
+
+int Playback::nextUsableIndex(int fromExclusive) const
+{
+    const int n = m_queue.size();
+    if (n <= 0) return -1;
+    if (m_shuffle && n > 1) {
+        for (int k = 0; k < n * 2; ++k) {
+            const int r = QRandomGenerator::global()->bounded(n);
+            if (r != fromExclusive && isOfflineUsable(r)) return r;
+        }
+        for (int i = 0; i < n; ++i)
+            if (i != fromExclusive && isOfflineUsable(i)) return i;
+        return -1;
+    }
+    for (int i = fromExclusive + 1; i < n; ++i)
+        if (isOfflineUsable(i)) return i;
+    return -1;   /* qsk 无 repeat：队尾即停 */
 }
 
 void Playback::togglePause()

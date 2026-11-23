@@ -36,6 +36,26 @@ bool DownloadService::isCached(qint64 id, const QString& suffix) const
     return QFile::exists(filePath(id, suffix));
 }
 
+static const char* const kCachedExts[] = { "mp3", "flac", "m4a", "aac" };
+
+bool DownloadService::hasAny(qint64 id) const
+{
+    if (id <= 0) return false;
+    for (const char* e : kCachedExts)
+        if (isCached(id, QString::fromLatin1(e))) return true;
+    return false;
+}
+
+QString DownloadService::anyCachedPath(qint64 id) const
+{
+    if (id <= 0) return QString();
+    for (const char* e : kCachedExts) {
+        const QString s = QString::fromLatin1(e);
+        if (isCached(id, s)) return filePath(id, s);
+    }
+    return QString();
+}
+
 void DownloadService::enqueue(qint64 id, const QString& url, const QString& suffix,
                               const QMap<QString, QString>& headers)
 {

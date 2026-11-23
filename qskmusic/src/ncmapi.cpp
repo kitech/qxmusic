@@ -188,6 +188,15 @@ void NcmApi::resolveForDownloadAsync(qint64 songId)
     }).detach();
 }
 
+void NcmApi::pingAsync()
+{
+    std::thread([this]() {
+        std::string json;
+        const auto st = m_client.lyric(1, json);
+        Q_EMIT pingDone(static_cast<int>(st));
+    }).detach();
+}
+
 void NcmApi::artistAsync(qint64 artistId)
 {
     if (artistId <= 0)

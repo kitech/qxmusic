@@ -25,6 +25,9 @@ public:
                  const QMap<QString, QString>& headers = {});
     bool isCached(qint64 songId, const QString& suffix) const;
     QString filePath(qint64 songId, const QString& suffix) const;
+    /* 离线播放：任音质命中即算已下载 */
+    bool hasAny(qint64 songId) const;
+    QString anyCachedPath(qint64 songId) const;
 
 Q_SIGNALS:
     void progress(qint64 songId, int pct);   // -1 未定；0-100；100 完成；-2 失败

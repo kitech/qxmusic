@@ -3,6 +3,8 @@
 #include "playback.h"
 #include "audioplayer.h"
 #include "statusline.h"
+#include "toastpopup.h"
+#include "downloadservice.h"
 #include "iconitem.h"
 #include "icongen.h"
 #include <private/qquicktaphandler_p.h>
@@ -95,6 +97,10 @@ void SearchPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
             [this](QEventPoint point, Qt::MouseButton) {
                 const int idx = songRowAt(point.position());
                 if (idx < 0 || idx >= m_songs.size()) return;
+                if (Playback::instance().isOffline() && m_songs.at(idx).offlineBlocked) {
+                    ToastPopup::show(this, tr("Unavailable offline (no downloaded copy)"));
+                    return;
+                }
                 Playback::instance().setQueue(m_songs, idx);
             });
     }
@@ -163,6 +169,9 @@ void SearchPage::onCreate(const QVariantMap& launchArgs, const QVariantMap&)
     // 正在播放 ▶：切歌只改文本
     connect(&Playback::instance(), &Playback::songChanged, this,
         [this]() { updatePlayingMarker(); });
+    // 离线灰化：结果列表按缓存重算
+    connect(&Playback::instance(), &Playback::offlineChanged, this,
+        [this]() { rebuildList(); });
 }
 
 void SearchPage::rebuildList()
@@ -217,6 +226,10 @@ void SearchPage::rebuildList()
 
     for (int i = 0; i < m_songs.size(); ++i) {
         const auto& s = m_songs.at(i);
+        if (Playback::instance().isOffline())
+            m_songs[i].offlineBlocked = s.id > 0
+                && !DownloadService::instance().hasAny(s.id);
+        const bool dim = s.offlineBlocked || !s.playable;
         auto* row = new QskLinearBox(Qt::Horizontal, m_rows);
         row->setPreferredHeight(44);
 
@@ -245,11 +258,12 @@ void SearchPage::rebuildList()
                 : elided(QString("%1 - %2").arg(s.name, s.artists), 20), row);
         name->setSizePolicy(QskSizePolicy::Expanding, QskSizePolicy::Preferred);
         name->setAlignment(Qt::AlignVCenter | Qt::AlignLeft);
+        if (dim) name->setTextColor(QColor(0x8c, 0x8c, 0x8c));
 
         const int total = s.durationMs / 1000;
         QString durText = QString("%1:%2").arg(total / 60)
             .arg(total % 60, 2, 10, QLatin1Char('0'));
-        if (s.id > 0 && s.playable)
+        if (s.id > 0 && s.playable && !s.offlineBlocked)
             durText += QString::fromUtf8(" ✓");   // 非灰歌对号（本地歌 id=0 不标）
         auto* dur = new QskTextLabel(durText, row);
         dur->setPreferredWidth(56);
@@ -259,6 +273,11 @@ void SearchPage::rebuildList()
         auto* playBtn = new QskPushButton(QString::fromUtf8("▶"), row);
         playBtn->setPreferredSize(30, 30);
         connect(playBtn, &QskAbstractButton::clicked, this, [this, i]() {
+            if (i >= 0 && i < m_songs.size()
+                && Playback::instance().isOffline() && m_songs.at(i).offlineBlocked) {
+                ToastPopup::show(this, tr("Unavailable offline (no downloaded copy)"));
+                return;
+            }
             Playback::instance().setQueue(m_songs, i);
         });
     }
