@@ -132,7 +132,9 @@ void QueuePanel::paintEvent(QPaintEvent*)
     p.setFont(small);
     p.setPen(pal.textMuted);
     p.drawText(QRect(16, y, width() - 32, 20), Qt::AlignVCenter | Qt::AlignLeft,
-               m_title + QString(" (%1)").arg((int)m_queue.size()));
+               m_title + QString(" (%1/%2)")
+                   .arg(m_currentIdx >= 0 ? m_currentIdx + 1 : 0)
+                   .arg((int)m_queue.size()));
     y += 24;
 
     /* 列表区顶部固定，曲目区进入滚动域（对齐 ContentView 滚动模式） */

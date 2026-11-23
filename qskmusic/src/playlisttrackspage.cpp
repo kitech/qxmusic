@@ -210,7 +210,7 @@ void PlaylistTracksPage::onCreate(const QVariantMap& launchArgs,
                 m_count->setText(QString());
             } else {
                 m_status->clearStatus();
-                m_count->setText(tr("%1 tracks").arg(m_songs.size()));
+                m_count->setText(QString());   // 交给 updatePlayingMarker 算 (cur/total)
             }
             /* 歌单更新时间（有值才显示） */
             if (info.updatedAtMs > 0)
@@ -325,6 +325,12 @@ void PlaylistTracksPage::updatePlayingMarker()
         if (p.second)
             p.second->setText(p.first != 0 && p.first == playing
                 ? QString::fromUtf8("▶") : QString());
+    }
+    if (m_count && !m_songs.isEmpty()) {
+        int cur = 0;
+        for (int i = 0; i < m_songs.size(); ++i)
+            if (playing != 0 && m_songs.at(i).id == playing) { cur = i + 1; break; }
+        m_count->setText(QString("(%1/%2)").arg(cur).arg(m_songs.size()));
     }
 }
 
