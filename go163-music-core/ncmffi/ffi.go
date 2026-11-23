@@ -22,6 +22,7 @@ import "C"
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"regexp"
@@ -155,13 +156,34 @@ func stub(out **C.char) C.int32_t {
 
 // fail 是"业务逻辑返回了 error"时的统一出口。
 //
-// 关键点：出错时不分配 out_json，与 ncm.h 第 3 条一致。
-// 若这里误分配，调用方的 fetch() 会把上一次的残留内容当成新结果。
+// 失败也分配 out_json：写入 {"status","code","op","errmsg"}。
+// 返回码区分业务 JSON 与错误 JSON；两者都必须 ncm_free_string。
 func fail(out **C.char, err error) C.int32_t {
 	if out != nil {
-		*out = nil
+		*out = writeErrorJSON(err)
 	}
 	return C.int32_t(errs.StatusOf(err))
+}
+
+// writeErrorJSON 把失败详情写成 {"status","code","op","errmsg"}。
+// errmsg 为上游原文，不加工；调用方须用 ncm_free_string 释放。
+func writeErrorJSON(err error) *C.char {
+	payload := struct {
+		Status int32   `json:"status"`
+		Code   float64 `json:"code"`
+		Op     string  `json:"op"`
+		ErrMsg string  `json:"errmsg"`
+	}{Status: int32(errs.StatusOf(err))}
+	var ce *errs.CodedError
+	if errors.As(err, &ce) {
+		payload.Code = ce.Code
+		payload.Op = ce.Op
+		payload.ErrMsg = ce.ErrMsg
+	} else if err != nil {
+		payload.ErrMsg = err.Error()
+	}
+	b, _ := json.Marshal(payload)
+	return C.CString(string(b))
 }
 
 // emitLogin 派发登录态变化事件。ok=false 时把错误原因也带上，

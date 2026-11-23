@@ -61,3 +61,25 @@ func StatusOf(err error) Status {
 	// 剩下的只可能是 ErrInternal 或真正未知的 error，归为 Internal。
 	return Internal
 }
+
+// CodedError 携带上游原始 code 与原文，供失败出参 errmsg 使用。
+// Unwrap 返回对应哨兵，保证 errors.Is / StatusOf 行为与旧实现完全一致。
+type CodedError struct {
+	Status   Status
+	Code     float64
+	Op       string
+	ErrMsg   string
+	Sentinel error
+}
+
+func (e *CodedError) Error() string {
+	if e.ErrMsg != "" {
+		return e.ErrMsg
+	}
+	if e.Sentinel != nil {
+		return e.Sentinel.Error()
+	}
+	return e.Status.String()
+}
+
+func (e *CodedError) Unwrap() error { return e.Sentinel }

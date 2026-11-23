@@ -99,6 +99,9 @@ public:
     /* 停 worker（等在途请求返回）后再 ncm_free */
     void shutdown();
 
+    /* 最近一次失败的 errmsg（handleResult 从错误 JSON 解析，UI 线程读） */
+    QString lastErrMsg() const { return m_lastErrMsg; }
+
     /* 投递任务；结果经 MainWindow::customEvent -> handleResult -> signals */
     void loadCategories();
     void loadTopPlaylists(const QString& cat, const QString& order, int limit, int offset);
@@ -175,6 +178,7 @@ private:
     NcmWorker* m_worker;
     int m_seq;
     QString m_site;   /* "ncm"(默认) / "bili" */
+    QString m_lastErrMsg;  /* 最近一次失败的 errmsg（UI 线程 handleResult 写） */
 };
 
 #endif /* NCM_SERVICE_H */

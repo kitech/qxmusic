@@ -3060,15 +3060,18 @@ void MainWindow::onNetRadioStream(int index)
 
 void MainWindow::showNcmError(int rc, const QString& op)
 {
+    const QString detail = m_ncm ? m_ncm->lastErrMsg() : QString();
     switch (rc) {
     case NCM_ERR_UNAUTHORIZED:
         showNcmAuthToast(op);
         return;
-    case NCM_ERR_NETWORK:
-        SharedStatusBar::instance()->showMessageTyped(_("ncm.error_network"),
-                                                      StatusError, 5000);
-        ToastWidget::showCenter(this, _("ncm.error_network"), ToastWidget::Error, 2500);
+    case NCM_ERR_NETWORK: {
+        QString msg = _("ncm.error_network");
+        if (!detail.isEmpty()) msg += qFromUtf8(": ") + detail;
+        SharedStatusBar::instance()->showMessageTyped(msg, StatusError, 5000);
+        ToastWidget::showCenter(this, msg, ToastWidget::Error, 2500);
         return;
+    }
     case NCM_ERR_CAPTCHA:
         ToastWidget::showCenter(this, _("ncm.error_captcha"), ToastWidget::Warning, 3000);
         return;

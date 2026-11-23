@@ -14,6 +14,23 @@ QString statusText(ncm::Status s)
     return QString::fromStdString(std::string(ncm::to_string(s)));
 }
 
+/* 失败出参错误 JSON 里的 errmsg 原文，零加工。 */
+QString errMsgFromJson(const std::string& json)
+{
+    const auto o = QJsonDocument::fromJson(
+        QByteArray::fromStdString(json)).object();
+    return o.value(QStringLiteral("errmsg")).toString();
+}
+
+/* 分类文案原样保留，尾部追加 ": errmsg"（errmsg 为空则不拼）。 */
+QString errText(ncm::Status st, const std::string& json)
+{
+    QString e = statusText(st);
+    const QString m = errMsgFromJson(json);
+    if (!m.isEmpty()) e += QStringLiteral(": ") + m;
+    return e;
+}
+
 Song parseSong(const QJsonObject& o)
 {
     Song s;
@@ -106,7 +123,7 @@ void NcmApi::searchAsync(const QString& keywords, int limit)
         QList<Song> songs;
         QString err;
         if (st != ncm::Status::Ok) {
-            err = statusText(st);
+            err = errText(st, json);
         } else {
             songs = parseSongs(QByteArray::fromStdString(json));
         }
@@ -127,7 +144,7 @@ void NcmApi::resolveAsync(qint64 songId, int quality)
         QString url, err;
         QMap<QString, QString> headers;
         if (st != ncm::Status::Ok) {
-            err = statusText(st);
+            err = errText(st, json);
         } else {
             const auto o = QJsonDocument::fromJson(
                 QByteArray::fromStdString(json)).object();
@@ -157,7 +174,7 @@ void NcmApi::resolveForDownloadAsync(qint64 songId)
             static_cast<ncm::Quality>(NCM_Q_EXHIGH), json);
         QString url, err;
         if (st != ncm::Status::Ok) {
-            err = statusText(st);
+            err = errText(st, json);
         } else {
             const auto o = QJsonDocument::fromJson(
                 QByteArray::fromStdString(json)).object();
@@ -180,7 +197,7 @@ void NcmApi::artistAsync(qint64 artistId)
         const auto st = m_client.artist_detail(artistId, json);
         QString pic, err;
         if (st != ncm::Status::Ok) {
-            err = statusText(st);
+            err = errText(st, json);
         } else {
             const auto o = QJsonDocument::fromJson(
                 QByteArray::fromStdString(json)).object();
@@ -207,7 +224,7 @@ void NcmApi::artistSongsAsync(qint64 artistId, int limit, int offset,
         QList<Song> songs;
         QString err;
         if (st != ncm::Status::Ok) {
-            err = statusText(st);
+            err = errText(st, json);
         } else {
             songs = parseSongs(QByteArray::fromStdString(json));
         }
@@ -226,7 +243,7 @@ void NcmApi::likeListAsync()
         QList<qint64> ids;
         QString err;
         if (st != ncm::Status::Ok) {
-            err = statusText(st);
+            err = errText(st, json);
         } else {
             const auto arr = QJsonDocument::fromJson(
                 QByteArray::fromStdString(json)).object()
@@ -248,7 +265,7 @@ void NcmApi::likeAsync(qint64 songId, bool on)
     std::thread([this, songId, on]() {
         std::string json;
         const auto st = m_client.like(songId, on, json);
-        QString err = st == ncm::Status::Ok ? QString() : statusText(st);
+        QString err = st == ncm::Status::Ok ? QString() : errText(st, json);
         qDebug() << "[qskmusic] ncm like" << songId << on
                  << (err.isEmpty() ? QStringLiteral("ok") : err);
         Q_EMIT likeDone(songId, on, err);
@@ -264,7 +281,7 @@ void NcmApi::songDetailAsync(const QString& ids)
         QList<Song> songs;
         QString err;
         if (st != ncm::Status::Ok)
-            err = statusText(st);
+            err = errText(st, json);
         else
             songs = parseSongs(QByteArray::fromStdString(json));
         qDebug() << "[qskmusic] ncm song_detail:" << songs.size() << err;
@@ -287,7 +304,7 @@ void NcmApi::commentsAsync(qint64 id, int limit, int offset)
         int total = 0;
         QString err;
         if (st != ncm::Status::Ok) {
-            err = statusText(st);
+            err = errText(st, json);
         } else {
             const auto root = QJsonDocument::fromJson(
                 QByteArray::fromStdString(json)).object();
@@ -320,7 +337,7 @@ void NcmApi::lyricAsync(qint64 songId)
         const auto st = m_client.lyric(songId, json);
         QString lrc, err;
         if (st != ncm::Status::Ok) {
-            err = statusText(st);
+            err = errText(st, json);
         } else {
             const auto o = QJsonDocument::fromJson(
                 QByteArray::fromStdString(json)).object();
@@ -354,7 +371,7 @@ void NcmApi::ytmSearchAsync(const QString& keywords, int limit)
         QList<YtmSong> songs;
         QString err;
         if (st != ncm::Status::Ok) {
-            err = statusText(st);
+            err = errText(st, json);
         } else {
             const auto root = QJsonDocument::fromJson(
                 QByteArray::fromStdString(json)).object();
@@ -385,7 +402,7 @@ void NcmApi::ytmStreamAsync(const QString& videoId)
         const auto st = m_client.ytm_stream(vid, json);
         QString url, err;
         if (st != ncm::Status::Ok) {
-            err = statusText(st);
+            err = errText(st, json);
         } else {
             const auto o = QJsonDocument::fromJson(
                 QByteArray::fromStdString(json)).object();

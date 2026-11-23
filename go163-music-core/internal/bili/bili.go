@@ -25,6 +25,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"qx163/ncm/internal/errs"
 )
 
 const (
@@ -178,15 +180,18 @@ func get(rawURL string) ([]byte, error) {
 	}
 	resp, err := httpc.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("bili: 请求失败: %v", err)
+		return nil, &errs.CodedError{Status: errs.Network, Op: "bili",
+			ErrMsg: err.Error(), Sentinel: errs.ErrNetwork}
 	}
 	defer resp.Body.Close()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 8<<20))
 	if err != nil {
-		return nil, fmt.Errorf("bili: 读取失败: %v", err)
+		return nil, &errs.CodedError{Status: errs.Network, Op: "bili",
+			ErrMsg: err.Error(), Sentinel: errs.ErrNetwork}
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("bili: HTTP %d", resp.StatusCode)
+		return nil, &errs.CodedError{Status: errs.Upstream,
+			Code: float64(resp.StatusCode), Op: "bili", Sentinel: errs.ErrUpstream}
 	}
 	return body, nil
 }

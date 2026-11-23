@@ -38,7 +38,9 @@
  *  2. 所有字符串为 UTF-8 且以 NUL 结尾。调用方传入的字符串由调用方保证
  *     在调用期间有效（不需要长期存活）。
  *  3. 所有 char* 出参由库内分配，必须用 ncm_free_string() 释放。
- *     函数返回非 NCM_OK 时，出参不会被分配，调用方不应释放。
+ *     函数返回非 NCM_OK 时，出参为错误 JSON
+ *     {"status":N,"code":C,"op":"...","errmsg":"上游原文"}，
+ *     调用方同样必须用 ncm_free_string() 释放。
  *  4. 除 ncm_new() 外，所有函数第一个参数 ncm_client* 可以为 NULL，
  *     此时返回 NCM_ERR_INVALID_ARG 而不是崩溃。
  *  5. 回调（ncm_event_fn）为单向 Go -> C 调用。回调内部不得同步重入

@@ -22,6 +22,7 @@
 #include <cstring>
 
 #include "limelog.h"
+#include "cJSON.h"   /* 失败出参错误 JSON 解析 errmsg */
 
 namespace {
 
@@ -771,7 +772,7 @@ void NcmService::execTask(const NcmTask& t)
     case NcmTaskCategories: {
         char* out = 0;
         rc = ncm_playlist_categories(m_client, &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
@@ -785,14 +786,14 @@ void NcmService::execTask(const NcmTask& t)
             rc = ncm_top_playlists(m_client, t.cat.c_str(), t.order.c_str(),
                                    t.limit, t.offset, &out);
         }
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
     case NcmTaskPlaylistDetail: {
         char* out = 0;
         rc = ncm_playlist_detail(m_client, t.id, &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
@@ -803,7 +804,7 @@ void NcmService::execTask(const NcmTask& t)
                                           t.limit > 0 ? t.limit : 50, t.offset, &out);
         else
             rc = ncm_playlist_tracks(m_client, t.id, &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
@@ -813,14 +814,14 @@ void NcmService::execTask(const NcmTask& t)
             rc = ncm_bili_stream(m_client, t.id, &out);   /* aid → 直链+headers */
         else
             rc = ncm_resolve_source(m_client, t.id, t.quality, &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
     case NcmTaskSongDetail: {
         char* out = 0;
         rc = ncm_song_detail(m_client, t.ids.c_str(), &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
@@ -831,7 +832,7 @@ void NcmService::execTask(const NcmTask& t)
             rc = ncm_bili_comment(m_client, t.id, t.limit, &out);
         else
             rc = ncm_comment(m_client, t.id, t.limit, t.offset, &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
@@ -843,14 +844,14 @@ void NcmService::execTask(const NcmTask& t)
     case NcmTaskLyric: {
         char* out = 0;
         rc = ncm_lyric(m_client, t.id, &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
     case NcmTaskArtist: {
         char* out = 0;
         rc = ncm_artist_detail(m_client, t.id, &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
@@ -858,42 +859,42 @@ void NcmService::execTask(const NcmTask& t)
         char* out = 0;
         rc = ncm_artist_songs(m_client, t.id, t.limit, t.offset,
                               const_cast<char*>(t.order.c_str()), &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
     case NcmTaskLikeList: {
         char* out = 0;
         rc = ncm_like_list(m_client, &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
     case NcmTaskLike: {
         char* out = 0;
         rc = ncm_like(m_client, t.id, t.sel, &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
     case NcmTaskDjHot: {
         char* out = 0;
         rc = ncm_dj_hot(m_client, t.sel, t.limit, t.offset, &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
     case NcmTaskDjPrograms: {
         char* out = 0;
         rc = ncm_dj_programs(m_client, t.id, t.limit, t.offset, t.sel, &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
     case NcmTaskYtmSearch: {
         char* out = 0;
         rc = ncm_ytm_search(m_client, t.cat.c_str(), t.limit, &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
@@ -903,14 +904,14 @@ void NcmService::execTask(const NcmTask& t)
             rc = ncm_bili_search(m_client, t.cat.c_str(), t.offset > 0 ? t.offset : 1, &out);
         else
             rc = ncm_search(m_client, t.cat.c_str(), t.limit > 0 ? t.limit : 30, &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
     case NcmTaskYtmStream: {
         char* out = 0;
         rc = ncm_ytm_stream(m_client, t.url.c_str(), &out);
-        if (rc == NCM_OK && out) json = out;
+        if (out) json = out;   /* 成功=业务 JSON；失败=错误 JSON */
         if (out) ncm_free_string(out);
         break;
     }
@@ -948,6 +949,19 @@ void NcmService::handleResult(NcmResultEvent* e)
 {
     ALOG_INFO(qFromUtf8("NCM result op=%1 rc=%2 len=%3")
                   .arg(qFromUtf8(e->op)).arg(e->rc).arg((int)e->json.size()));
+    if (e->rc != NCM_OK) {
+        cJSON* r = cJSON_Parse(e->json.c_str());
+        if (r) {
+            cJSON* m = cJSON_GetObjectItem(r, "errmsg");
+            m_lastErrMsg = (m && m->type == cJSON_String && m->valuestring)
+                               ? qFromUtf8(m->valuestring) : QString();
+            cJSON_Delete(r);
+        } else {
+            m_lastErrMsg = QString();
+        }
+    } else {
+        m_lastErrMsg = QString();
+    }
     if (e->kind == 1) {
         emit authRequired(qFromUtf8(e->op));
         return;

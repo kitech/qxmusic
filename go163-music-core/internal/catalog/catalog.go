@@ -230,7 +230,7 @@ func Categories() (CategoriesResult, error) {
 	res := CategoriesResult{}
 
 	code, body := (&nmsvc.PlaylistHotService{}).PlaylistHot()
-	if err := opStatus("playlist_categories", "/weapi/playlist/hottags", code, len(body)); err != nil {
+	if err := opStatus("playlist_categories", "/weapi/playlist/hottags", code, body); err != nil {
 		return res, err
 	}
 	var hot struct {
@@ -248,7 +248,7 @@ func Categories() (CategoriesResult, error) {
 	}
 
 	code, body = (&nmsvc.PlaylistCatlistService{}).PlaylistCatlist()
-	if st := opStatus("playlist_categories", "/weapi/playlist/catalogue", code, len(body)); st != nil {
+	if st := opStatus("playlist_categories", "/weapi/playlist/catalogue", code, body); st != nil {
 		return res, nil // 降级：仅返回 hot
 	}
 	var catlist struct {
@@ -305,7 +305,7 @@ func TopPlaylists(cat, order string, limit, offset int) (TopPlaylistsResult, err
 		Offset: strconv.Itoa(offset),
 	}
 	code, body := svc.TopPlaylist()
-	if err := opStatus("top_playlists", "/weapi/playlist/list", code, len(body)); err != nil {
+	if err := opStatus("top_playlists", "/weapi/playlist/list", code, body); err != nil {
 		return TopPlaylistsResult{}, err
 	}
 
@@ -350,7 +350,7 @@ func PlaylistDetail(id int64) (PlaylistInfo, error) {
 	}
 	svc := &nmsvc.PlaylistDetailService{Id: strconv.FormatInt(id, 10)}
 	code, body := svc.PlaylistDetail()
-	if err := opStatus("playlist_detail", "/weapi/v3/playlist/detail", code, len(body)); err != nil {
+	if err := opStatus("playlist_detail", "/weapi/v3/playlist/detail", code, body); err != nil {
 		return PlaylistInfo{}, err
 	}
 	pl, err := playlistDetailEnvelope(body)
@@ -368,7 +368,7 @@ func PlaylistTracks(id int64) (PlaylistTracksResult, error) {
 	}
 	svc := &nmsvc.PlaylistTrackAllService{Id: strconv.FormatInt(id, 10)}
 	code, body := svc.AllTracks()
-	if err := opStatus("playlist_tracks", "/weapi/v3/playlist/detail", code, len(body)); err != nil {
+	if err := opStatus("playlist_tracks", "/weapi/v3/playlist/detail", code, body); err != nil {
 		return PlaylistTracksResult{}, err
 	}
 	// AllTracks 在 detail 的 playlist.tracks 里填好了全量曲目
@@ -395,7 +395,7 @@ func SongDetail(ids string) (SongDetailResult, error) {
 		return SongDetailResult{}, errs.ErrInvalidArg
 	}
 	code, body := (&nmsvc.SongDetailService{Ids: ids}).SongDetail()
-	if err := opStatus("song_detail", "/weapi/v3/song/detail", code, len(body)); err != nil {
+	if err := opStatus("song_detail", "/weapi/v3/song/detail", code, body); err != nil {
 		return SongDetailResult{}, err
 	}
 	var env struct {
@@ -447,7 +447,7 @@ func LikeList() (LikeListResult, error) {
 	}
 	svc := &nmsvc.LikeListService{UID: strconv.FormatInt(uid, 10)}
 	code, body := svc.LikeList()
-	if err := opStatus("like_list", "/weapi/song/like/get", code, len(body)); err != nil {
+	if err := opStatus("like_list", "/weapi/song/like/get", code, body); err != nil {
 		return LikeListResult{}, err
 	}
 	var env struct {
@@ -476,7 +476,7 @@ func Like(songID int64, on bool) (LikeResult, error) {
 	}
 	svc := &nmsvc.LikeService{ID: strconv.FormatInt(songID, 10), L: l}
 	code, body := svc.Like()
-	if err := opStatus("like", "/api/radio/like", code, len(body)); err != nil {
+	if err := opStatus("like", "/api/radio/like", code, body); err != nil {
 		return LikeResult{}, err
 	}
 	var env struct {
@@ -498,7 +498,7 @@ func ArtistDetail(id int64) (ArtistInfo, error) {
 	idStr := strconv.FormatInt(id, 10)
 	svc := &nmsvc.ArtistsService{ID: idStr}
 	code, body := svc.Artists()
-	if err := opStatus("artist_detail", "/weapi/v1/artist/"+idStr, code, len(body)); err != nil {
+	if err := opStatus("artist_detail", "/weapi/v1/artist/"+idStr, code, body); err != nil {
 		return ArtistInfo{}, err
 	}
 	var env struct {
@@ -546,7 +546,7 @@ func ArtistSongs(id int64, limit, offset int, order string) (SongDetailResult, e
 		Order:  order,
 	}
 	code, body := svc.ArtistSongs()
-	if err := opStatus("artist_songs", "/weapi/v1/artist/songs", code, len(body)); err != nil {
+	if err := opStatus("artist_songs", "/weapi/v1/artist/songs", code, body); err != nil {
 		return SongDetailResult{}, err
 	}
 	var env struct {
@@ -578,7 +578,7 @@ func Search(keywords string, limit int) (SongDetailResult, error) {
 		Limit: strconv.Itoa(limit),
 	}
 	code, body := svc.Search()
-	if err := opStatus("search", "/api/cloudsearch/pc", code, len(body)); err != nil {
+	if err := opStatus("search", "/api/cloudsearch/pc", code, body); err != nil {
 		return SongDetailResult{}, err
 	}
 	var env struct {
@@ -609,7 +609,7 @@ func CheckMusic(songID int64, br int32) (CheckMusicResult, error) {
 		Br: strconv.Itoa(int(br)),
 	}
 	code, body := svc.CheckMusic()
-	if err := opStatus("check_music", "/api/song/enhance/player/url", code, len(body)); err != nil {
+	if err := opStatus("check_music", "/api/song/enhance/player/url", code, body); err != nil {
 		return CheckMusicResult{}, err
 	}
 	data, err := urlData(body)
@@ -633,7 +633,7 @@ func Lyric(songID int64) (LyricResult, error) {
 		return LyricResult{}, errs.ErrInvalidArg
 	}
 	code, body := (&nmsvc.LyricService{ID: strconv.FormatInt(songID, 10)}).Lyric()
-	if err := opStatus("song_lyric", "/api/song/lyric", code, len(body)); err != nil {
+	if err := opStatus("song_lyric", "/api/song/lyric", code, body); err != nil {
 		return LyricResult{}, err
 	}
 	var env struct {
@@ -710,7 +710,7 @@ func Comments(songID int64, limit, offset int) (CommentsResult, error) {
 		Offset: strconv.Itoa(offset),
 	}
 	code, body := svc.CommentMusic()
-	if err := opStatus("comment_music", "/api/v1/resource/comments/R_SO_4_", code, len(body)); err != nil {
+	if err := opStatus("comment_music", "/api/v1/resource/comments/R_SO_4_", code, body); err != nil {
 		return CommentsResult{}, err
 	}
 	var env struct {
@@ -833,7 +833,7 @@ func resolveV1(songID int64, quality int32) (SourceResult, error) {
 		// CallWeapi 传输层错误；罩上 ErrNetwork 便于回落判断
 		return SourceResult{}, errs.ErrNetwork
 	}
-	if st := opStatus("resolve_source", "/weapi/song/enhance/player/url/v1", code, len(body)); st != nil {
+	if st := opStatus("resolve_source", "/weapi/song/enhance/player/url/v1", code, body); st != nil {
 		return SourceResult{}, st
 	}
 	data, perr := urlData(body)
@@ -852,7 +852,7 @@ func resolveLegacy(songID int64, quality int32) (SourceResult, error) {
 		Br: strconv.Itoa(int(quality)),
 	}
 	code, body := svc.SongUrl()
-	if err := opStatus("resolve_source", "/api/song/enhance/player/url", code, len(body)); err != nil {
+	if err := opStatus("resolve_source", "/api/song/enhance/player/url", code, body); err != nil {
 		return SourceResult{}, err
 	}
 	data, perr := urlData(body)
@@ -908,7 +908,7 @@ func DjHot(cateID, limit, offset int32) (DjHotResult, error) {
 		Offset: strconv.Itoa(int(offset)),
 	}
 	code, body := svc.DjRadioHot()
-	if err := opStatus("dj_hot", "/api/djradio/hot", code, len(body)); err != nil {
+	if err := opStatus("dj_hot", "/api/djradio/hot", code, body); err != nil {
 		return DjHotResult{}, err
 	}
 	var env struct {
@@ -943,7 +943,7 @@ func DjDetail(rid int64) (DjRadio, error) {
 	}
 	svc := &nmsvc.DjDetailService{ID: strconv.FormatInt(rid, 10)}
 	code, body := svc.DjDetail()
-	if err := opStatus("dj_detail", "/weapi/djradio/get", code, len(body)); err != nil {
+	if err := opStatus("dj_detail", "/weapi/djradio/get", code, body); err != nil {
 		return DjRadio{}, err
 	}
 	var env struct {
@@ -987,7 +987,7 @@ func DjPrograms(rid int64, limit, offset, asc int32) (DjProgramsResult, error) {
 		Asc:    a,
 	}
 	code, body := svc.DjProgram()
-	if err := opStatus("dj_programs", "/weapi/dj/program/byradio", code, len(body)); err != nil {
+	if err := opStatus("dj_programs", "/weapi/dj/program/byradio", code, body); err != nil {
 		return DjProgramsResult{}, err
 	}
 	var env struct {

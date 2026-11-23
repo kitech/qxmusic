@@ -449,7 +449,8 @@ private:
   static Status fetch(F &&call, std::string &out_json) {
     char *out = nullptr;
     const Status s = from_c(call(&out));
-    if (s == Status::Ok) out_json.assign(out ? out : "");
+    /* 成败都保留：成功=业务 JSON；失败={"status","code","op","errmsg"} */
+    out_json.assign(out ? out : "");
     ncm_free_string(out); /* 对 NULL 是空操作 */
     return s;
   }
