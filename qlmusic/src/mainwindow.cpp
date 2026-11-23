@@ -282,6 +282,9 @@ MainWindow::MainWindow(QWidget* parent)
     , m_ncmSrcPlaylist(0)
     , m_ncmSrcTrack(-1)
     , m_ncmLastToastMs(0)
+    , m_offline(false)
+    , m_netFailRun(0)
+    , m_netProbeTimer(0)
     , demoLeftLabel(0)
     , demoLeftBtn(0)
     , demoRightLabel(0)
@@ -547,6 +550,15 @@ void MainWindow::buildCentralWidget()
                          this, SLOT(onYtmSearchDone(int, const QString&)));
         QObject::connect(m_ncm, SIGNAL(ytmStreamLoaded(int, const QString&)),
                          this, SLOT(onYtmStreamDone(int, const QString&)));
+        /* 离线播放：轻量 ping 探测 + 业务网络迹象（连续 3 次 NETWORK 进离线） */
+        QObject::connect(m_ncm, SIGNAL(pingDone(int)),
+                         this, SLOT(onNcmPingDone(int)));
+        QObject::connect(m_ncm, SIGNAL(networkError()),
+                         this, SLOT(onNcmNetworkError()));
+        m_netProbeTimer = new QTimer(this);
+        QObject::connect(m_netProbeTimer, SIGNAL(timeout()),
+                         this, SLOT(onNetProbeTick()));
+        m_netProbeTimer->start(5000);   /* 首次 5s 探测，之后按状态换挡 */
         QObject::connect(contentView, SIGNAL(radioSelected(qint64)),
                          this, SLOT(onRadioSelected(qint64)));
         /* 登录态启动即做收藏双向合并（未登录静默跳过，本地功能不受影响） */
@@ -1142,6 +1154,17 @@ void MainWindow::playTrack(int playlistId, int trackIndex)
             playNcmResolved(cached, cachedLevel, "start:cache_hit");
             return;
         }
+        if (m_offline) {
+            const QString any = anyNcmCachePath(t.ncmId);
+            if (!any.isEmpty()) {
+                playNcmResolved(any, qFromUtf8("offline"), "start:offline_cache");
+                return;
+            }
+            playerBar->setPlaying(false);
+            SharedStatusBar::instance()->showMessageTyped(
+                _("offline.unavailable"), StatusError, 3000);
+            return;
+        }
         m_ncmSrcPlaylist = playlistId;
         m_ncmSrcTrack = trackIndex;
         SharedStatusBar::instance()->showMessage(_("ncm.loading"), 0);
@@ -1171,6 +1194,12 @@ void MainWindow::onTrackActivated(int playlistId, int trackIndex)
         const Track& t = pl->tracks[trackIndex];
         /* YouTube Music：t.url = "ytm:<videoId>" → 先取直链再播 */
         if (t.url.startsWith(QString::fromUtf8("ytm:")) && m_ncm && m_ncmAvailable) {
+            if (m_offline) {
+                if (playerBar) { playerBar->setTrack(t); playerBar->setPlaying(false); }
+                SharedStatusBar::instance()->showMessageTyped(
+                    _("offline.unavailable"), StatusError, 3000);
+                return;
+            }
             m_curPlaylistId = playlistId;
             m_curTrackIndex = trackIndex;
             markQueueDirty();
@@ -1482,6 +1511,18 @@ void MainWindow::advanceNext(bool fromAuto)
     const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
     if (!pl || pl->tracks.empty()) {
         if (!fromAuto) playerBar->setPlaying(false);
+        return;
+    }
+    if (m_offline) {
+        const bool wrap = fromAuto ? (m_repeatMode == 1) : true;
+        const int nx = nextOfflineUsableIndex(m_curTrackIndex, wrap);
+        if (nx < 0) {
+            playerBar->setPlaying(false);
+            SharedStatusBar::instance()->showMessageTyped(
+                _("offline.no_cached_in_queue"), StatusError, 5000);
+            return;
+        }
+        playTrack(m_curPlaylistId, nx);
         return;
     }
     int n = (int)pl->tracks.size();
@@ -2494,6 +2535,116 @@ QString MainWindow::findNcmCache(qint64 ncmId, int quality, QString* outLevel)
     return QString();
 }
 
+/* ─────────── 离线播放（Spotify 离线模式语义：只播本地/已缓存） ─────────── */
+
+void MainWindow::onNetProbeTick()
+{
+    if (m_ncm && m_ncmAvailable) m_ncm->ping();
+}
+
+void MainWindow::onNcmNetworkError()
+{
+    if (m_offline) return;
+    if (++m_netFailRun >= 3) enterOffline();
+}
+
+void MainWindow::onNcmPingDone(int rc)
+{
+#ifdef NCM_ENABLE
+    if (rc == NCM_ERR_NETWORK) {
+        if (++m_netFailRun >= 3) enterOffline();
+        else if (!m_offline) m_netProbeTimer->start(7000);   /* 疑似离线：快速再探 */
+    } else {
+        m_netFailRun = 0;
+        if (m_offline) enterOnline();
+        else if (m_netProbeTimer) m_netProbeTimer->start(30000);
+    }
+#else
+    Q_UNUSED(rc);
+#endif
+}
+
+void MainWindow::enterOffline()
+{
+    if (m_offline) return;
+    m_offline = true;
+    m_netFailRun = 3;
+    if (m_netProbeTimer) m_netProbeTimer->start(7000);
+    refreshOfflineFlags();
+    ALOG_WARN(qFromUtf8("offline: network unreachable, cache-only mode"));
+    SharedStatusBar::instance()->showMessageTyped(_("offline.mode"), StatusWarning, 4000);
+}
+
+void MainWindow::enterOnline()
+{
+    if (!m_offline) return;
+    m_offline = false;
+    m_netFailRun = 0;
+    if (m_netProbeTimer) m_netProbeTimer->start(30000);
+    refreshOfflineFlags();
+    ALOG_INFO(qFromUtf8("offline: network restored"));
+    SharedStatusBar::instance()->showMessage(_("offline.restored"), 3000);
+}
+
+/* 离线判定：任音质缓存存在即可播（不比对音质、不要求 .meta sidecar） */
+QString MainWindow::anyNcmCachePath(qint64 ncmId) const
+{
+    if (ncmId <= 0) return QString();
+    const char* home = std::getenv("HOME");
+    if (!home || !*home) return QString();
+    static const char* const exts[4] = { "mp3", "flac", "m4a", "aac" };
+    for (int i = 0; i < 4; ++i) {
+        char fpath[1100];
+        snprintf(fpath, sizeof(fpath), "%s/.cache/qlmusic/ncm/%lld.%s",
+                 home, (long long)ncmId, exts[i]);
+        struct stat st;
+        if (stat(fpath, &st) == 0 && st.st_size > 0)
+            return qFromUtf8(fpath);
+    }
+    return QString();
+}
+
+bool MainWindow::isOfflineUsable(const Track& t) const
+{
+    if (!m_offline) return true;
+    if (!t.playable) return false;
+    if (t.url.startsWith(QString::fromUtf8("ytm:"))) return false;  /* YTM 需联网 */
+    if (t.ncmId <= 0) return true;                                  /* 本地曲目 */
+    return !anyNcmCachePath(t.ncmId).isEmpty();
+}
+
+void MainWindow::refreshOfflineFlags()
+{
+    for (size_t i = 0; i < m_library.size(); ++i)
+        for (size_t j = 0; j < m_library[i].tracks.size(); ++j) {
+            Track& t = m_library[i].tracks[j];
+            t.offlineBlocked = m_offline && !isOfflineUsable(t);
+        }
+    if (contentView) contentView->update();
+}
+
+int MainWindow::nextOfflineUsableIndex(int fromExclusive, bool wrap) const
+{
+    const Playlist* pl = findPlaylist(m_library, m_curPlaylistId);
+    if (!pl) return -1;
+    const int n = (int)pl->tracks.size();
+    if (m_shuffle && n > 1) {
+        for (int k = 0; k < n * 2; ++k) {
+            const int r = std::rand() % n;
+            if (r != fromExclusive && isOfflineUsable(pl->tracks[r])) return r;
+        }
+        for (int i = 0; i < n; ++i)
+            if (i != fromExclusive && isOfflineUsable(pl->tracks[i])) return i;
+        return -1;
+    }
+    for (int i = fromExclusive + 1; i < n; ++i)
+        if (isOfflineUsable(pl->tracks[i])) return i;
+    if (wrap)
+        for (int i = 0; i < n && i <= fromExclusive; ++i)
+            if (isOfflineUsable(pl->tracks[i])) return i;
+    return -1;
+}
+
 /* 打开缓存目录：确保目录存在后交系统文件管理器 */
 void MainWindow::onOpenCacheDir()
 {
@@ -3439,8 +3590,8 @@ void MainWindow::maybePrefetchNext(const char* src)
         decision = "DEDUP";
     else if (m_shuffle)
         decision = "SKIP_SHUFFLE_RANDOM";   /* 乱序目标每次随机，预取无确定对象 */
-    else if (m_liveStream)
-        decision = "SKIP_OFFLINE";          /* 直播流/无网场景 */
+    else if (m_liveStream || m_offline)
+        decision = "SKIP_OFFLINE";          /* 直播流/离线场景 */
     else {
 #ifdef NCM_ENABLE
         if (nextT.ncmId > 0 && m_ncmAvailable) {

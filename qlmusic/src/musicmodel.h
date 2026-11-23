@@ -18,6 +18,7 @@ struct Track {
     QString coverUrl;
     qint64 artistNcmId = 0;   /* 首位歌手 id（艺人头像查询） */
     bool playable;
+    bool offlineBlocked = false;   /* 派生：离线且无本地缓存（不改服务端 playable） */
     qint64 publishMs = 0;     /* NCM 专辑上架时间 al.publishTime（0=无） */
 };
 

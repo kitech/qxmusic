@@ -84,6 +84,12 @@
     "error_captcha": "觸發風控驗證，請稍後再試",
     "error_generic": "載入失敗"
   },
+  "offline": {
+    "mode": "離線模式：僅播放已下載歌曲",
+    "unavailable": "離線不可用：無已下載副本",
+    "no_cached_in_queue": "網路已斷開，佇列內無已下載歌曲",
+    "restored": "網路已恢復"
+  },
   "num": {
     "wan": "萬",
     "yi": "億"

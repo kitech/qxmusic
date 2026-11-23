@@ -84,6 +84,12 @@
     "error_captcha": "Risk-control verification triggered, try again later",
     "error_generic": "Load failed"
   },
+  "offline": {
+    "mode": "Offline mode: only downloaded songs will play",
+    "unavailable": "Unavailable offline: no downloaded copy",
+    "no_cached_in_queue": "Network lost: no downloaded songs in queue",
+    "restored": "Network restored"
+  },
   "num": {
     "wan": "W",
     "yi": "Yi"

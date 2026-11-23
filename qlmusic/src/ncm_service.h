@@ -60,6 +60,7 @@ enum {
     NcmTaskYtmStream,  /* YouTube Music：取直链（t.url=videoId） */
     NcmTaskSearch,     /* 站点搜索（ncm_search / ncm_bili_search 内部分流） */
     NcmTaskComments,   /* 评论：ncm_comment / ncm_bili_comment 按站点分流 */
+    NcmTaskPing,       /* 网络探测：ncm_lyric(1) 最轻只读，只看 rc，不发业务信号 */
     NcmTaskQuit,       /* 哨兵：worker 收到即退出线程 */
 };
 
@@ -128,6 +129,8 @@ public:
     void loadDjPrograms(qint64 rid, int limit, int offset, int asc); /* 电台节目 */
     /* 评论：id=网易云 song_id / B站 aid，按 m_site 分流；limit 缺省 20 */
     void loadComments(qint64 id, int limit = 20);
+    /* 网络探测：ncm_lyric(1)；结果经 pingDone 回投，不进业务信号 */
+    void ping();
 
     /* YouTube Music（外部 yt-dlp；代理默认 http://127.0.0.1:10809） */
     void ytmSearch(const QString& keywords, int limit);
@@ -160,6 +163,8 @@ signals:
     void ytmStreamLoaded(int rc, const QString& json);
     void searchLoaded(int rc, const QString& json);
     void commentsLoaded(qint64 id, int rc, const QString& json);
+    void pingDone(int rc);   /* 探测结果：rc==NCM_ERR_NETWORK 为不可达 */
+    void networkError();     /* 任一业务任务 rc==NCM_ERR_NETWORK（即时迹象，非 ping） */
     void authRequired(const QString& op);
     /* 下载进度（worker curl 回调节流 200ms 投递；pct 0-100） */
     void downloadProgress(qint64 songId, int pct);

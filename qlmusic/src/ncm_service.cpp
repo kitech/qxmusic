@@ -658,6 +658,15 @@ void NcmService::loadComments(qint64 id, int limit)
     m_worker->push(t);
 }
 
+void NcmService::ping()
+{
+    if (!m_client || !m_worker) return;
+    NcmTask t;
+    t.kind = NcmTaskPing;
+    t.op = "ping";
+    m_worker->push(t);
+}
+
 void NcmService::loadArtist(qint64 artistId)
 {
     if (artistId <= 0) return;
@@ -915,6 +924,15 @@ void NcmService::execTask(const NcmTask& t)
         if (out) ncm_free_string(out);
         break;
     }
+    case NcmTaskPing: {
+        /* 最轻只读请求：/api/song/lyric 空歌词；200/404 都说明网络通，
+         * 只有传输层失败（NCM_ERR_NETWORK）才算不可达 */
+        char* out = 0;
+        rc = ncm_lyric(m_client, 1, &out);
+        if (out) json = out;
+        if (out) ncm_free_string(out);
+        break;
+    }
     default:
         return;
     }
@@ -970,8 +988,15 @@ void NcmService::handleResult(NcmResultEvent* e)
         emit downloadProgress(e->id, e->rc);
         return;
     }
+    /* 业务失败的网络迹象（排除 ping 自身与进度）：只认 NETWORK，不认 BLOCKED/UPSTREAM */
+    if (e->kind == 0 && e->rc == NCM_ERR_NETWORK && e->op != "ping")
+        emit networkError();
     QString json = qFromUtf8(e->json);
     const QString op = qFromUtf8(e->op);
+    if (op == qFromUtf8("ping")) {
+        emit pingDone(e->rc);
+        return;
+    }
     if (op == qFromUtf8("song_lyric")) {
         emit lyricLoaded(e->id, qFromUtf8(e->json));
         return;

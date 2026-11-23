@@ -2,6 +2,7 @@ package catalog
 
 import (
 	"log"
+	"strings"
 
 	"qx163/ncm/internal/auth"
 	"qx163/ncm/internal/errs"
@@ -18,9 +19,17 @@ const ncmHost = "https://music.163.com"
 func opStatus(op, endpoint string, code float64, body []byte) error {
 	switch {
 	case code == 520:
-		// util.CreateRequest 的传输层失败固定返回 520（body 为错误原文）
+		// util.CreateRequest 的 520 有三种来源：传输层错误 / UNM 拦截 / UNM 重发失败。
+		// "Request Blocked:" 发生在前置 DryRun 请求已成功之后（网络可达），
+		// 是 UNM 主动拦截，不能算离线；其余（含 "Request Error:" 重发失败）
+		// 归 Network，偏安全侧：宁可误进离线，也不漏判断网。
+		msg := string(body)
+		if strings.HasPrefix(msg, "Request Blocked:") {
+			return &errs.CodedError{Status: errs.Blocked, Code: 520, Op: op,
+				ErrMsg: msg, Sentinel: errs.ErrBlocked}
+		}
 		return &errs.CodedError{Status: errs.Network, Code: 520, Op: op,
-			ErrMsg: string(body), Sentinel: errs.ErrNetwork}
+			ErrMsg: msg, Sentinel: errs.ErrNetwork}
 	case code == 301 || code == 302:
 		log.Printf("[ncm][auth-required] op=%s endpoint=%s code=%v logged_in=%v",
 			op, endpoint, code, auth.LoggedIn())

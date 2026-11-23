@@ -17,6 +17,7 @@ const (
 	NotFound       Status = -8
 	NotImplemented Status = -9
 	Upstream       Status = -10
+	Blocked        Status = -11 // UNM 风控/代理拦截，网络可达
 	Internal       Status = -100
 )
 
@@ -44,6 +45,8 @@ func (s Status) String() string {
 		return "NotImplemented"
 	case Upstream:
 		return "Upstream"
+	case Blocked:
+		return "Blocked"
 	case Internal:
 		return "Internal"
 	}

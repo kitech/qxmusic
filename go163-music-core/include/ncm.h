@@ -101,6 +101,7 @@ typedef enum {
 NCM_ERR_NOT_FOUND     = -8,
   NCM_ERR_NOT_IMPLEMENTED = -9,
   NCM_ERR_UPSTREAM     = -10, /* 上游返回非 200 或响应无法解析 */
+  NCM_ERR_BLOCKED      = -11, /* 请求被拦截（UNM 风控/代理），网络可达 */
   NCM_ERR_INTERNAL     = -100
 } ncm_status;
 

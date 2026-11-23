@@ -212,6 +212,7 @@ func TestStatusOf(t *testing.T) {
 		// 报"内部错误"会让人以为程序坏了
 		{errs.ErrMissingMusicU, errs.Unauthorized},
 		{errs.ErrCaptcha, errs.Captcha},
+		{errs.ErrBlocked, errs.Blocked},
 		{errs.ErrGeoBlock, errs.GeoBlock},
 		{errs.ErrNoResource, errs.NoResource},
 		{errs.ErrTrialOnly, errs.TrialOnly},

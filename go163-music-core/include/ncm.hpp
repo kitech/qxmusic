@@ -52,6 +52,7 @@ enum class Status : int32_t {
   NotFound       = NCM_ERR_NOT_FOUND,
   NotImplemented = NCM_ERR_NOT_IMPLEMENTED,
   Upstream       = NCM_ERR_UPSTREAM,
+  Blocked        = NCM_ERR_BLOCKED,
   Internal       = NCM_ERR_INTERNAL,
 };
 
@@ -100,6 +101,7 @@ enum class Event : int32_t {
     case Status::NotFound:       return "NotFound";
     case Status::NotImplemented: return "NotImplemented";
     case Status::Upstream:       return "Upstream";
+    case Status::Blocked:        return "Blocked";
     case Status::Internal:       return "Internal";
   }
   return "Unknown";
@@ -131,6 +133,7 @@ enum class Event : int32_t {
     case NCM_ERR_NOT_FOUND:       return Status::NotFound;
     case NCM_ERR_NOT_IMPLEMENTED: return Status::NotImplemented;
     case NCM_ERR_UPSTREAM:        return Status::Upstream;
+    case NCM_ERR_BLOCKED:         return Status::Blocked;
     default:                      return Status::Internal;
   }
 }

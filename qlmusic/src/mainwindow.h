@@ -87,6 +87,9 @@ private slots:
     void onAudioState(int state);
     void onAudioFinished();
     void onAudioError(const QString& msg);
+    void onNetProbeTick();
+    void onNcmPingDone(int rc);
+    void onNcmNetworkError();
 
     /* NCM（libncm 网易云源）*/
     void onNcmCategorySelected(const QString& catKey);
@@ -190,8 +193,16 @@ public:
     /* cache-first：点歌入口零网查缓存（sidecar level 匹配 + size 校验）；
      * 命中回 file:// 路径并带出 level 串（业界 InnerTune/Spotify 一致模式） */
     QString findNcmCache(qint64 ncmId, int quality, QString* outLevel);
+    /* 离线播放：只播本地/已缓存曲目（Spotify 离线模式语义） */
+    bool isOffline() const { return m_offline; }
+    bool isOfflineUsable(const Track& t) const;
+    QString anyNcmCachePath(qint64 ncmId) const;
+    void refreshOfflineFlags();
     void advanceNext(bool fromAuto);   /* fromAuto=false 手动 next 环绕；true 自然/失败推进 */
     bool skipOnError(const QString& why);  /* autoskip 核心：止损+提示+advanceNext；true=已跳播 */
+    int nextOfflineUsableIndex(int fromExclusive, bool wrap) const;
+    void enterOffline();
+    void enterOnline();
     void updateAutoSkipCheck();        /* Tool 菜单 check 反向同步（updateBackendChecks 范式） */
     void showNcmAuthToast(const QString& op);
     void appendNcmPlaylist(int playlistId /* local */);
@@ -281,6 +292,10 @@ public:
     bool m_pfEnabled;           /* player.prefetch（默认 1） */
     const char* m_pfSwitchSrc;  /* 本次切曲来源：switch:next/prev/auto/click */
     qint64 m_ncmLastToastMs;    /* auth toast 节流 */
+    /* 离线播放（网络探测驱动；连续 3 次 NETWORK 进，1 次非 NETWORK 出） */
+    bool m_offline;
+    int m_netFailRun;
+    QTimer* m_netProbeTimer;
 
     // 演示用状态栏控件（演示菜单可反复增删）
     QLabel* demoLeftLabel;
