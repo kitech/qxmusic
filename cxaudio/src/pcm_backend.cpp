@@ -81,6 +81,7 @@ bool PcmBackend::open(const std::string& uri, std::string* err) {
     ringRead_ = ringWrite_ = ringCount_ = 0;
     framesPlayed_ = 0;
     eof_ = false;
+    eofNotified_ = false;
 
     ma_device_config cfg = ma_device_config_init(ma_device_type_playback);
     cfg.playback.format = ma_format_s16;
@@ -210,7 +211,7 @@ void PcmBackend::decodeLoop() {
                 std::lock_guard<std::mutex> lk(ringMutex_);
                 empty = (ringCount_ == 0);
             }
-            if (empty && !quit_) {
+            if (empty && !quit_ && !eofNotified_.exchange(true)) {
                 state_ = kStopped;
                 if (cb_ && cb_->onEof) cb_->onEof();
             }
@@ -339,6 +340,7 @@ void PcmBackend::play() {
     if (!decoder_) return;
     if (eof_.load()) seek(0);
     eof_ = false;
+    eofNotified_ = false;
     state_ = kPlaying;
     if (cb_ && cb_->onState) cb_->onState(kPlaying);
 }
@@ -362,6 +364,7 @@ void PcmBackend::stop() {
     }
     framesPlayed_ = 0;
     eof_ = false;
+    eofNotified_ = false;
     state_ = kStopped;
     if (cb_ && cb_->onState) cb_->onState(kStopped);
 }
@@ -379,6 +382,7 @@ void PcmBackend::seek(int64_t ms) {
     }
     framesPlayed_ = sampleRate_ > 0 ? ms * sampleRate_ / 1000 : 0;
     eof_ = false;
+    eofNotified_ = false;
 }
 
 void PcmBackend::setVolume(int volume) {

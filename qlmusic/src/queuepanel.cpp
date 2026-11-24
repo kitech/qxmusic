@@ -39,11 +39,29 @@ void QueuePanel::setCurrentTrack(const Track& t)
 
 void QueuePanel::setQueue(const std::vector<Track>& queue, int startIndex)
 {
+    const bool sameQueue = (queue.size() == m_queue.size());
     m_queue = queue;
     m_currentIdx = startIndex;
-    m_scrollY = 0;
+    if (!sameQueue) m_scrollY = 0;      /* 换队列才回顶；同一队列切歌保持滚动 */
+    ensureCurrentVisible();             /* 仅当前曲不在视野时才滚动到可见 */
     updateScrollBar();
     update();
+}
+
+/* 当前曲在可视区外才滚动（贴边到可见），避免每次切歌都跳回顶部 */
+void QueuePanel::ensureCurrentVisible()
+{
+    if (m_currentIdx < 0) return;
+    const int rowH = 44;
+    const int viewH = qMax(1, height() - m_listTop);
+    const int top = m_currentIdx * rowH;
+    if (top < m_scrollY)
+        m_scrollY = top;
+    else if (top + rowH > m_scrollY + viewH)
+        m_scrollY = top + rowH - viewH;
+    const int maxY = qMax(0, (int)m_queue.size() * rowH - viewH);
+    if (m_scrollY > maxY) m_scrollY = maxY;
+    if (m_scrollY < 0) m_scrollY = 0;
 }
 
 void QueuePanel::updateScrollBar()

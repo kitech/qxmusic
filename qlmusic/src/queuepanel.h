@@ -23,6 +23,7 @@ protected:
 
 private:
     void updateScrollBar();
+    void ensureCurrentVisible();   /* 仅当前曲不在视野时滚动到可见 */
 
 private slots:
     void onScroll(int v);

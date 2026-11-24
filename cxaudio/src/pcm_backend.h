@@ -64,6 +64,7 @@ private:
     std::atomic<int64_t> framesPlayed_{0};
     std::atomic<int64_t> durationMs_{0};
     std::atomic<bool> eof_{false};
+    std::atomic<bool> eofNotified_{false};   /* EOF 只通知一次（防重复 advanceNext） */
 
     std::mutex ringMutex_;
     std::vector<int16_t> ring_;

@@ -5,6 +5,8 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QFile>
+#include <QFileInfo>
+#include <QDebug>
 #include <QUrl>
 
 DownloadService& DownloadService::instance()
@@ -93,7 +95,7 @@ void DownloadService::startNext()
     req.setTransferTimeout(60000);   /* 30s 无数据流动即中止 → finished 走错误路径 */
     auto* reply = m_nam->get(req);
     auto* f = new QFile(dst + QStringLiteral(".part"), this);
-    f->open(QIODevice::WriteOnly | QIODevice::Truncate);
+    const bool opened = f->open(QIODevice::WriteOnly | QIODevice::Truncate);
     Q_EMIT progress(m_activeId, -1);   // 未定态：播放条转圈
 
     connect(reply, &QNetworkReply::readyRead, this, [reply, f]() {
@@ -104,16 +106,31 @@ void DownloadService::startNext()
             if (total > 0)
                 Q_EMIT progress(m_activeId, int(got * 100 / total));
         });
-    connect(reply, &QNetworkReply::finished, this, [this, reply, f, dst]() {
+    connect(reply, &QNetworkReply::finished, this, [this, reply, f, dst, opened]() {
         reply->deleteLater();
         if (f->isOpen()) f->write(reply->readAll());
         f->close();
-        const bool ok = reply->error() == QNetworkReply::NoError;
-        if (ok) {
-            QFile::remove(dst);
-            QFile::rename(dst + QStringLiteral(".part"), dst);
+        /* 真·成功：文件真的打开、落盘、rename 成功、且非空；
+         * 否则报 -2 并记下真实原因（不再"HTTP 无错就当成功"） */
+        const bool httpOk = (reply->error() == QNetworkReply::NoError);
+        QString fail;
+        bool ok = false;
+        if (!opened) {
+            fail = QStringLiteral("open failed");
+        } else if (!httpOk) {
+            fail = reply->errorString();
         } else {
+            QFile::remove(dst);
+            if (!QFile::rename(dst + QStringLiteral(".part"), dst))
+                fail = QStringLiteral("rename failed");
+            else if (QFileInfo(dst).size() <= 0)
+                fail = QStringLiteral("empty file");
+            else
+                ok = true;
+        }
+        if (!ok) {
             QFile::remove(dst + QStringLiteral(".part"));
+            qWarning() << "[DownloadService] id=" << m_activeId << "fail:" << fail;
         }
         Q_EMIT progress(m_activeId, ok ? 100 : -2);
         f->deleteLater();
